@@ -1,0 +1,146 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Обратные связи
+  ownedClasses  Class[]      @relation("Owner")
+  classShares   ClassShare[] // Классы, которыми поделились с пользователем
+  userRoles     UserRole[]
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+
+  userRoles UserRole[]
+}
+
+model UserRole {
+  id         String   @id @default(cuid())
+  userId     String
+  roleId     String
+  assignedAt DateTime @default(now())
+  assignedBy String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+}
+
+model Class {
+  id        String   @id @default(cuid())
+  name      String
+  grade     Int
+  letter    String
+  ownerId   String
+  students  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner User @relation("Owner", fields: [ownerId], references: [id])
+  
+  // Обратная связь для шарингов
+  sharedWith ClassShare[]
+}
+
+model ClassShare {
+  id        String   @id @default(cuid())
+  classId   String
+  teacherId String
+  createdAt DateTime @default(now())
+
+  class   Class @relation(fields: [classId], references: [id])
+  teacher User  @relation(fields: [teacherId], references: [id])
+
+  @@unique([classId, teacherId])
+}
+
+model Pass {
+  id        String   @id @default(cuid())
+  date      DateTime
+  classId   String
+  teacherId String
+  students  String
+  exitTime  String
+  used      Boolean  @default(false)  // Отметка о выходе
+  usedAt    DateTime?                  // Время выхода
+  reason    String
+  createdAt DateTime @default(now())
+}
+
+model Attendance {
+  id              String   @id @default(cuid())
+  date            DateTime
+  classId         String
+  teacherId       String
+  presentStudents String
+  absentStudents  String
+  absentReasons   String
+  createdAt       DateTime @default(now())
+}
+
+model News {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  date      DateTime
+  classId   String
+  teacherId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  content   String
+  completed Boolean  @default(false)
+  date      DateTime
+  classId   String
+  teacherId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SelfExit {
+  id          String   @id @default(cuid())
+  studentId   Int
+  studentName String
+  startDate   DateTime
+  endDate     DateTime
+  photoUrl    String
+  reason      String?
+  classId     String
+  teacherId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+
+model UnauthorizedLeave {
+  id          String   @id @default(cuid())
+  studentId   Int
+  studentName String
+  className   String
+  leaveTime   DateTime
+  returnTime  DateTime?
+  reason      String?
+  status      String   @default("active")
+  teacherId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
