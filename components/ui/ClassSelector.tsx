@@ -32,11 +32,11 @@ interface ClassSelectorProps {
   currentTeacherId?: string;
 }
 
-export default function ClassSelector({ 
-  selectedClass, 
-  onClassChange, 
-  classes = [], 
-  currentTeacherId 
+export default function ClassSelector({
+  selectedClass,
+  onClassChange,
+  classes = [],
+  currentTeacherId
 }: ClassSelectorProps) {
   const { data: session } = useSession();
   const [isOpen, setIsOpen] = useState(false);
@@ -67,7 +67,7 @@ export default function ClassSelector({
 
   const fetchShares = useCallback(async (classId: string) => {
     if (!classId) return;
-    
+
     setIsLoadingShares(true);
     try {
       const response = await fetch(`/api/share?classId=${classId}`);
@@ -83,7 +83,7 @@ export default function ClassSelector({
 
   const handleShare = async () => {
     if (!selectedTeacher || !selectedClassForShare) return;
-    
+
     setIsLoading(true);
     try {
       const response = await fetch("/api/share", {
@@ -94,9 +94,9 @@ export default function ClassSelector({
           teacherEmail: selectedTeacher.email
         })
       });
-      
+
       const data = await response.json();
-      
+
       if (response.ok) {
         alert(`Класс "${selectedClassForShare.name}" успешно передан учителю ${selectedTeacher.name}!`);
         setSelectedTeacher(null);
@@ -114,14 +114,14 @@ export default function ClassSelector({
   };
 
   const handleUnshare = async (teacherId: string, teacherName: string) => {
-    if (!confirm(`Отозвать доступ у учителя "${teacherName}"? Он потеряет доступ к этому классу.`)) return;
-    
+    // if (!confirm(`Отозвать доступ у учителя "${teacherName}"? Он потеряет доступ к этому классу.`)) return;
+
     setIsUnsharing(true);
     try {
       const response = await fetch(`/api/share?classId=${selectedClassForShare?.id}&teacherId=${teacherId}`, {
         method: "DELETE"
       });
-      
+
       if (response.ok) {
         alert("Доступ отозван");
         await fetchShares(selectedClassForShare!.id);
@@ -251,14 +251,14 @@ export default function ClassSelector({
                 </button>
               </div>
             </div>
-            
+
             <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
               {/* Список учителей, с которыми уже поделились */}
               <div>
                 <label className="block font-semibold text-white text-sm mb-2">
                   Кому уже открыт доступ ({shares.length}):
                 </label>
-                
+
                 {isLoadingShares ? (
                   <div className="text-center text-gray-400 py-4">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto"></div>
@@ -277,7 +277,10 @@ export default function ClassSelector({
                           </div>
                         </div>
                         <button
-                          onClick={() => handleUnshare(share.teacherId, share.teacher?.name || "учителя")}
+                          onClick={(e) => {
+                            e.stopPropagation(); // Останавливаем всплытие события
+                            handleUnshare(share.teacherId, share.teacher?.name || "учителя");
+                          }}
                           disabled={isUnsharing}
                           className="text-red-400 hover:text-red-300 px-2 py-1 rounded-lg text-sm flex items-center gap-1 disabled:opacity-50"
                         >
@@ -312,7 +315,7 @@ export default function ClassSelector({
                     placeholder="Поиск учителя по имени или email..."
                     className="w-full pl-10 pr-3 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
                   />
-                  
+
                   {showTeacherDropdown && filteredTeachers.length > 0 && (
                     <div className="absolute top-full left-0 right-0 mt-1 bg-[#1a2332] border border-white/20 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
                       {filteredTeachers.map((teacher) => (
@@ -332,7 +335,7 @@ export default function ClassSelector({
                     </div>
                   )}
                 </div>
-                
+
                 {selectedTeacher && (
                   <div className="mt-2 p-2 bg-green-500/20 border border-green-500/30 rounded-lg flex items-center justify-between">
                     <div>
@@ -352,7 +355,7 @@ export default function ClassSelector({
                 </p>
               </div>
             </div>
-            
+
             <div className="p-4 border-t border-white/10 bg-white/5 flex gap-3">
               <button
                 onClick={() => setIsShareModalOpen(false)}

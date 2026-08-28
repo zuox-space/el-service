@@ -3,9 +3,9 @@
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useMemo } from "react";
-import { 
-  LogOut, Calendar, FileText, CheckCircle, Clock, UserRound, 
-  PenSquare, XCircle, Newspaper, BookMarked, CheckSquare, Plus, UserCheck, 
+import {
+  LogOut, Calendar, FileText, CheckCircle, Clock, UserRound,
+  PenSquare, XCircle, Newspaper, BookMarked, CheckSquare, Plus, UserCheck,
   Settings,
   Shield,
   School
@@ -17,7 +17,7 @@ import ClassSelector from "@/components/ui/ClassSelector";
 import NewsModal from "@/components/ui/NewsModal";
 import NotesModal from "@/components/ui/NotesModal";
 import SelfExitModal from "@/components/ui/SelfExitModal";
-import {formatShortName, safeFormatShortName} from "@/lib/utils"
+import { formatShortName, safeFormatShortName } from "@/lib/utils"
 interface TabType {
   id: string;
   name: string;
@@ -49,13 +49,13 @@ export default function HomePage() {
   const isAdmin = roles.includes("ADMIN");
   const isClassTeacher = roles.includes("CLASS_TEACHER");
   const isTeacher = roles.includes("TEACHER");
-  
+
   // Проверяем, есть ли у пользователя классы
   const hasClasses = classes.length > 0;
-  
+
   // Показываем интерфейс, если пользователь имеет класс или является админом/классным руководителем
   const showWorkInterface = hasClasses || isClassTeacher || isAdmin;
-  
+
   const tabs: TabType[] = [
     { id: "attendance", name: "Пропуски", icon: <FileText size={16} /> },
     { id: "self-exit", name: "Самовыход", icon: <UserCheck size={16} /> },
@@ -80,15 +80,15 @@ export default function HomePage() {
   useEffect(() => {
     const fetchClasses = async () => {
       if (!session) return;
-      
+
       try {
         const response = await fetch("/api/classes");
         const data = await response.json();
-        
+
         if (Array.isArray(data) && data.length > 0) {
           setClasses(data);
           setSelectedClass(data[0]);
-          
+
           let students = data[0].students;
           if (typeof students === 'string') {
             students = JSON.parse(students);
@@ -104,7 +104,7 @@ export default function HomePage() {
         setIsLoading(false);
       }
     };
-    
+
     if (session) {
       fetchClasses();
     }
@@ -129,7 +129,7 @@ export default function HomePage() {
         const newsData = await newsRes.json();
         const notesData = await notesRes.json();
         const selfExitData = await selfExitRes.json();
-        
+
         setAttendanceHistory(attendance ? [attendance] : []);
         setPassesHistory(Array.isArray(passes) ? passes : []);
         setNews(Array.isArray(newsData) ? newsData : []);
@@ -152,11 +152,11 @@ export default function HomePage() {
   // useEffect(() => {
   //   const initDatabase = async () => {
   //     if (!session) return;
-      
+
   //     try {
   //       const response = await fetch("/api/init", { method: "POST" });
   //       const data = await response.json();
-        
+
   //       if (data.success) {
   //         const classesRes = await fetch("/api/classes");
   //         const classesData = await classesRes.json();
@@ -176,7 +176,7 @@ export default function HomePage() {
   //       setIsLoading(false);
   //     }
   //   };
-    
+
   //   initDatabase();
   // }, [session]);
 
@@ -185,7 +185,7 @@ export default function HomePage() {
       alert("Класс не выбран");
       return;
     }
-    
+
     const payload = {
       date: passData.date,
       classId: selectedClass.id,
@@ -193,22 +193,22 @@ export default function HomePage() {
       exitTime: passData.exitTime,
       reason: passData.reason,
     };
-    
+
     try {
       const response = await fetch("/api/passes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-      
+
       if (!response.ok) {
         throw new Error("Failed to create pass");
       }
-      
+
       const newPass = await response.json();
       setPassesHistory(prev => [newPass, ...prev]);
       alert("Пропуск успешно оформлен!");
-      
+
     } catch (error) {
       console.error("Error creating pass:", error);
       alert("Ошибка при создании пропуска");
@@ -222,11 +222,11 @@ export default function HomePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...attendanceData, classId: selectedClass.id })
       });
-      
+
       if (!response.ok) {
         throw new Error("Failed to save attendance");
       }
-      
+
       const newAttendance = await response.json();
       setAttendanceHistory([newAttendance]);
       alert("Отметка успешно сохранена!");
@@ -243,11 +243,11 @@ export default function HomePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...newsData, classId: selectedClass.id, date: selectedDate })
       });
-      
+
       if (!response.ok) {
         throw new Error("Failed to create news");
       }
-      
+
       const newNews = await response.json();
       setNews(prev => [newNews, ...prev]);
       alert("Новость добавлена!");
@@ -264,11 +264,11 @@ export default function HomePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...noteData, classId: selectedClass.id, date: selectedDate })
       });
-      
+
       if (!response.ok) {
         throw new Error("Failed to create note");
       }
-      
+
       const newNote = await response.json();
       setNotes(prev => [newNote, ...prev]);
       alert("Заметка добавлена!");
@@ -285,9 +285,9 @@ export default function HomePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...data, classId: selectedClass.id })
       });
-      
+
       if (!response.ok) throw new Error("Failed to create self-exit");
-      
+
       const newSelfExit = await response.json();
       setSelfExits(prev => [newSelfExit, ...prev]);
       alert("Самовыход добавлен!");
@@ -304,9 +304,9 @@ export default function HomePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: noteId, completed: !completed })
       });
-      
+
       if (response.ok) {
-        setNotes(prev => prev.map(note => 
+        setNotes(prev => prev.map(note =>
           note.id === noteId ? { ...note, completed: !completed } : note
         ));
       }
@@ -321,12 +321,12 @@ export default function HomePage() {
     today.setHours(0, 0, 0, 0);
     const passDateOnly = new Date(passDate);
     passDateOnly.setHours(0, 0, 0, 0);
-    
+
     if (passDateOnly < today) {
       alert("Нельзя удалить пропуск за прошедшую дату");
       return;
     }
-    
+
     if (passDateOnly.getTime() === today.getTime()) {
       const currentHour = now.getHours();
       if (currentHour >= 15) {
@@ -334,7 +334,7 @@ export default function HomePage() {
         return;
       }
     }
-    
+
     try {
       await fetch(`/api/passes?id=${passId}`, { method: "DELETE" });
       setPassesHistory(prev => prev.filter(pass => pass.id !== passId));
@@ -359,7 +359,7 @@ export default function HomePage() {
     today.setHours(0, 0, 0, 0);
     const passDateOnly = new Date(passDate);
     passDateOnly.setHours(0, 0, 0, 0);
-    
+
     if (passDateOnly < today) return false;
     if (passDateOnly.getTime() === today.getTime()) {
       return now.getHours() < 15;
@@ -473,8 +473,8 @@ export default function HomePage() {
     <div className="space-y-3">
       <div className="flex gap-2 flex-col">
         {isSelectedDateToday && (
-          <button 
-            onClick={() => setIsAttendanceModalOpen(true)} 
+          <button
+            onClick={() => setIsAttendanceModalOpen(true)}
             className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-medium py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-base"
           >
             <CheckCircle size={18} />
@@ -486,10 +486,10 @@ export default function HomePage() {
             )}
           </button>
         )}
-        
+
         {canIssue && (
-          <button 
-            onClick={() => setIsPassModalOpen(true)} 
+          <button
+            onClick={() => setIsPassModalOpen(true)}
             className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-base"
           >
             <PenSquare size={18} />
@@ -571,8 +571,8 @@ export default function HomePage() {
   // Рендер таба самовывода
   const renderSelfExitTab = () => (
     <div className="space-y-2">
-      <button 
-        onClick={() => setIsSelfExitModalOpen(true)} 
+      <button
+        onClick={() => setIsSelfExitModalOpen(true)}
         className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-base"
       >
         <Plus size={18} />
@@ -598,9 +598,9 @@ export default function HomePage() {
                   {item.reason && (
                     <p className="text-sm text-gray-300 mt-1">Причина: {item.reason}</p>
                   )}
-                  <a 
-                    href={item.photoUrl} 
-                    target="_blank" 
+                  <a
+                    href={item.photoUrl}
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-blue-400 hover:text-blue-300 mt-2 inline-flex items-center gap-1"
                   >
@@ -610,19 +610,17 @@ export default function HomePage() {
               </div>
               <button
                 onClick={async () => {
-                  if (confirm(`Отменить самовывод для ${item.studentName}?`)) {
-                    try {
-                      const response = await fetch(`/api/self-exit?id=${item.id}`, {
-                        method: "DELETE"
-                      });
-                      if (response.ok) {
-                        setSelfExits(prev => prev.filter(exit => exit.id !== item.id));
-                        alert("Самовывод отменён");
-                      }
-                    } catch (error) {
-                      alert("Ошибка при отмене");
+
+                  try {
+                    const response = await fetch(`/api/self-exit?id=${item.id}`, {
+                      method: "DELETE"
+                    });
+                    if (response.ok) {
+                      setSelfExits(prev => prev.filter(exit => exit.id !== item.id));
                     }
+                  } catch (error) {
                   }
+
                 }}
                 className="text-red-400 hover:text-red-300 text-sm px-2 py-1"
                 title="Отменить самовывод"
@@ -639,8 +637,8 @@ export default function HomePage() {
   // Рендер таба заметок
   const renderNotesTab = () => (
     <div className="space-y-2">
-      <button 
-        onClick={() => setIsNotesModalOpen(true)} 
+      <button
+        onClick={() => setIsNotesModalOpen(true)}
         className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-medium py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-base"
       >
         <Plus size={18} />
@@ -721,10 +719,10 @@ export default function HomePage() {
         </div>
 
         {/* Выбор класса */}
-        <ClassSelector 
-          selectedClass={selectedClass} 
-          onClassChange={setSelectedClass} 
-          classes={classes} 
+        <ClassSelector
+          selectedClass={selectedClass}
+          onClassChange={setSelectedClass}
+          classes={classes}
           currentTeacherId={session.user?.id}
         />
 
@@ -747,11 +745,10 @@ export default function HomePage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg transition-all text-sm font-medium ${
-                activeTab === tab.id
-                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg"
-                  : "text-gray-400 hover:text-white hover:bg-white/10"
-              }`}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg transition-all text-sm font-medium ${activeTab === tab.id
+                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg"
+                : "text-gray-400 hover:text-white hover:bg-white/10"
+                }`}
             >
               {tab.icon}
               {tab.name}
@@ -766,40 +763,40 @@ export default function HomePage() {
       </div>
 
       {/* Модальные окна */}
-      <PassModal 
-        isOpen={isPassModalOpen} 
-        onClose={() => setIsPassModalOpen(false)} 
-        selectedDate={selectedDate} 
+      <PassModal
+        isOpen={isPassModalOpen}
+        onClose={() => setIsPassModalOpen(false)}
+        selectedDate={selectedDate}
         onSubmit={handleSubmitPass}
         existingPasses={passesForSelectedDate}
         absentStudentsOnDate={absentStudentsOnSelectedDate}
         studentsList={studentsList}
       />
 
-      <AttendanceModal 
-        isOpen={isAttendanceModalOpen} 
-        onClose={() => setIsAttendanceModalOpen(false)} 
-        selectedDate={selectedDate} 
+      <AttendanceModal
+        isOpen={isAttendanceModalOpen}
+        onClose={() => setIsAttendanceModalOpen(false)}
+        selectedDate={selectedDate}
         onSubmit={handleSubmitAttendance}
         existingAttendance={attendanceForSelectedDate}
         studentsList={studentsList}
       />
 
-      <NewsModal 
-        isOpen={isNewsModalOpen} 
-        onClose={() => setIsNewsModalOpen(false)} 
+      <NewsModal
+        isOpen={isNewsModalOpen}
+        onClose={() => setIsNewsModalOpen(false)}
         onSubmit={handleSubmitNews}
       />
 
-      <NotesModal 
-        isOpen={isNotesModalOpen} 
-        onClose={() => setIsNotesModalOpen(false)} 
+      <NotesModal
+        isOpen={isNotesModalOpen}
+        onClose={() => setIsNotesModalOpen(false)}
         onSubmit={handleSubmitNote}
       />
 
-      <SelfExitModal 
-        isOpen={isSelfExitModalOpen} 
-        onClose={() => setIsSelfExitModalOpen(false)} 
+      <SelfExitModal
+        isOpen={isSelfExitModalOpen}
+        onClose={() => setIsSelfExitModalOpen(false)}
         onSubmit={handleSubmitSelfExit}
         studentsList={studentsList}
       />

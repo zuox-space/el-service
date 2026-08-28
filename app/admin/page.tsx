@@ -3,11 +3,12 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { 
+import {
   LogOut, DoorOpen, UserCheck, FileText, Clock, CalendarDays,
   Filter, School, Search, Shield,
-  ArrowLeft, CheckCircle, Users, X, Undo2,
-  UserX, LayoutDashboard, Home, Settings, Menu, X as XClose
+  CheckCircle, Users, Undo2,
+  UserX, Menu, X as XClose, Home, Download, Eye,
+  Bot
 } from "lucide-react";
 
 interface Pass {
@@ -23,6 +24,7 @@ interface Pass {
   endDate?: string;
   used?: boolean;
   usedAt?: string;
+  photoUrl?: string; // Добавляем поле для фото
 }
 
 interface GradeGroup {
@@ -38,18 +40,25 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<"single" | "self-exit" | "departed">("single");
   const [passes, setPasses] = useState<Pass[]>([]);
   const [filteredPasses, setFilteredPasses] = useState<Pass[]>([]);
+  const [selfExits, setSelfExits] = useState<Pass[]>([]);
+  const [filteredSelfExits, setFilteredSelfExits] = useState<Pass[]>([]);
   const [departedPasses, setDepartedPasses] = useState<Pass[]>([]);
   const [filteredDeparted, setFilteredDeparted] = useState<Pass[]>([]);
   const [selectedLetter, setSelectedLetter] = useState<string>("");
   const [selectedGradeGroup, setSelectedGradeGroup] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selfExitSearchQuery, setSelfExitSearchQuery] = useState("");
   const [departedSearchQuery, setDepartedSearchQuery] = useState("");
   const [mounted, setMounted] = useState(false);
   const [isFiltersVisible, setIsFiltersVisible] = useState(true);
+  const [isSelfExitFiltersVisible, setIsSelfExitFiltersVisible] = useState(true);
   const [isDepartedFiltersVisible, setIsDepartedFiltersVisible] = useState(true);
   const [departedSelectedLetter, setDepartedSelectedLetter] = useState<string>("");
   const [departedSelectedGradeGroup, setDepartedSelectedGradeGroup] = useState<string>("");
+  const [selfExitSelectedLetter, setSelfExitSelectedLetter] = useState<string>("");
+  const [selfExitSelectedGradeGroup, setSelfExitSelectedGradeGroup] = useState<string>("");
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   // Группы классов
   const gradeGroups: GradeGroup[] = [
@@ -69,12 +78,12 @@ export default function AdminDashboard() {
   // Проверка прав доступа
   useEffect(() => {
     if (status === "loading") return;
-    
+
     if (!session) {
       router.replace("/login");
       return;
     }
-    
+
     const roles = (session?.user?.roles as string[]) || [];
     if (!roles.includes("ADMIN")) {
       router.replace("/");
@@ -82,195 +91,118 @@ export default function AdminDashboard() {
     }
   }, [session, status, router]);
 
-  // Загрузка разовых пропусков
-  const fetchPasses = async () => {
+  // Загрузка данных - ОДИН ЗАПРОС
+  const fetchDashboardData = async () => {
     try {
-      const today = new Date().toISOString();
-      
-      const classesRes = await fetch("/api/classes");
-      const classesData = await classesRes.json();
-      
-      let allPasses: Pass[] = [];
-      
-      for (const cls of classesData) {
-        const gradeMatch = cls.name.match(/(\d+)/);
-        const grade = gradeMatch ? parseInt(gradeMatch[1]) : 0;
-        
-        const passesRes = await fetch(`/api/passes?classId=${cls.id}&date=${today}`);
-        const passes = await passesRes.json();
-        
-        const unusedPasses = passes.filter((pass: any) => pass.used !== true);
-        
-        const formattedPasses = unusedPasses.map((pass: any) => ({
-          id: pass.id,
-          studentName: pass.students?.map((s: any) => s.name).join(", ") || "Неизвестно",
-          exitTime: pass.exitTime,
-          reason: pass.reason,
-          date: pass.date,
-          type: "single" as const,
-          className: cls.name,
-          grade: grade,
-          used: pass.used,
-          usedAt: pass.usedAt
-        }));
-        
-        allPasses = [...allPasses, ...formattedPasses];
+      setIsLoading(true);
+
+      const response = await fetch(`/api/admin/dashboard-data?tab=${activeTab}`);
+      const data = await response.json();
+
+      if (data.error) {
+        console.error("Error:", data.error);
+        return;
       }
-      
-      setPasses(allPasses);
-      setFilteredPasses(allPasses);
+
+      // Сохраняем все данные
+      setPasses(data.passes || []);
+      setFilteredPasses(data.passes || []);
+
+      setSelfExits(data.selfExits || []);
+      setFilteredSelfExits(data.selfExits || []);
+
+      setDepartedPasses(data.departed || []);
+      setFilteredDeparted(data.departed || []);
+
     } catch (error) {
-      console.error("Error fetching passes:", error);
+      console.error("Error fetching dashboard data:", error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Загрузка самовыводов
-  const fetchSelfExits = async () => {
-    try {
-      const classesRes = await fetch("/api/classes");
-      const classesData = await classesRes.json();
-      
-      let allSelfExits: Pass[] = [];
-      
-      for (const cls of classesData) {
-        const gradeMatch = cls.name.match(/(\d+)/);
-        const grade = gradeMatch ? parseInt(gradeMatch[1]) : 0;
-        
-        const selfExitRes = await fetch(`/api/self-exit?classId=${cls.id}`);
-        const selfExits = await selfExitRes.json();
-        
-        const formattedSelfExits = selfExits.map((exit: any) => ({
-          id: exit.id,
-          studentName: exit.studentName,
-          exitTime: "самовывод",
-          reason: exit.reason || "По заявлению",
-          date: exit.startDate,
-          type: "self-exit" as const,
-          className: cls.name,
-          grade: grade,
-          startDate: exit.startDate,
-          endDate: exit.endDate
-        }));
-        
-        allSelfExits = [...allSelfExits, ...formattedSelfExits];
-      }
-      
-      setPasses(allSelfExits);
-      setFilteredPasses(allSelfExits);
-    } catch (error) {
-      console.error("Error fetching self-exits:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Загрузка ушедших
-  const fetchDepartedPasses = async () => {
-    try {
-      const today = new Date().toISOString();
-      
-      const classesRes = await fetch("/api/classes");
-      const classesData = await classesRes.json();
-      
-      let allDeparted: Pass[] = [];
-      
-      for (const cls of classesData) {
-        const gradeMatch = cls.name.match(/(\d+)/);
-        const grade = gradeMatch ? parseInt(gradeMatch[1]) : 0;
-        
-        const passesRes = await fetch(`/api/passes?classId=${cls.id}&date=${today}`);
-        const passes = await passesRes.json();
-        
-        const usedPasses = passes.filter((pass: any) => pass.used === true);
-        
-        const formattedPasses = usedPasses.map((pass: any) => ({
-          id: pass.id,
-          studentName: pass.students?.map((s: any) => s.name).join(", ") || "Неизвестно",
-          exitTime: pass.exitTime,
-          reason: pass.reason,
-          date: pass.date,
-          usedAt: pass.usedAt,
-          type: "single" as const,
-          className: cls.name,
-          grade: grade
-        }));
-        
-        allDeparted = [...allDeparted, ...formattedPasses];
-      }
-      
-      setDepartedPasses(allDeparted);
-      setFilteredDeparted(allDeparted);
-    } catch (error) {
-      console.error("Error fetching departed passes:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Загрузка данных
+  // Загрузка данных при изменении вкладки
   useEffect(() => {
     if (session && session?.user?.roles?.includes("ADMIN")) {
-      if (activeTab === "departed") {
-        fetchDepartedPasses();
-      } else if (activeTab === "self-exit") {
-        fetchSelfExits();
-      } else {
-        fetchPasses();
-      }
+      fetchDashboardData();
     }
   }, [session, activeTab]);
 
   // Фильтрация активных пропусков
   useEffect(() => {
     let filtered = passes;
-    
+
     if (searchQuery) {
-      filtered = filtered.filter(pass => 
+      filtered = filtered.filter(pass =>
         pass.studentName.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
-    
+
     if (selectedLetter) {
-      filtered = filtered.filter(pass => 
+      filtered = filtered.filter(pass =>
         pass.studentName.charAt(0).toUpperCase() === selectedLetter
       );
     }
-    
+
     if (selectedGradeGroup) {
       const group = gradeGroups.find(g => g.id === selectedGradeGroup);
       if (group) {
         filtered = filtered.filter(pass => group.grades.includes(pass.grade || 0));
       }
     }
-    
+
     setFilteredPasses(filtered);
   }, [searchQuery, selectedLetter, selectedGradeGroup, passes]);
+
+  // Фильтрация самовыводов
+  useEffect(() => {
+    let filtered = selfExits;
+
+    if (selfExitSearchQuery) {
+      filtered = filtered.filter(pass =>
+        pass.studentName.toLowerCase().includes(selfExitSearchQuery.toLowerCase())
+      );
+    }
+
+    if (selfExitSelectedLetter) {
+      filtered = filtered.filter(pass =>
+        pass.studentName.charAt(0).toUpperCase() === selfExitSelectedLetter
+      );
+    }
+
+    if (selfExitSelectedGradeGroup) {
+      const group = gradeGroups.find(g => g.id === selfExitSelectedGradeGroup);
+      if (group) {
+        filtered = filtered.filter(pass => group.grades.includes(pass.grade || 0));
+      }
+    }
+
+    setFilteredSelfExits(filtered);
+  }, [selfExitSearchQuery, selfExitSelectedLetter, selfExitSelectedGradeGroup, selfExits]);
 
   // Фильтрация ушедших
   useEffect(() => {
     let filtered = departedPasses;
-    
+
     if (departedSearchQuery) {
-      filtered = filtered.filter(pass => 
+      filtered = filtered.filter(pass =>
         pass.studentName.toLowerCase().includes(departedSearchQuery.toLowerCase())
       );
     }
-    
+
     if (departedSelectedLetter) {
-      filtered = filtered.filter(pass => 
+      filtered = filtered.filter(pass =>
         pass.studentName.charAt(0).toUpperCase() === departedSelectedLetter
       );
     }
-    
+
     if (departedSelectedGradeGroup) {
       const group = gradeGroups.find(g => g.id === departedSelectedGradeGroup);
       if (group) {
         filtered = filtered.filter(pass => group.grades.includes(pass.grade || 0));
       }
     }
-    
+
     setFilteredDeparted(filtered);
   }, [departedSearchQuery, departedSelectedLetter, departedSelectedGradeGroup, departedPasses]);
 
@@ -278,8 +210,7 @@ export default function AdminDashboard() {
     try {
       const response = await fetch(`/api/passes?id=${passId}`, { method: "PUT" });
       if (response.ok) {
-        fetchPasses();
-        fetchDepartedPasses();
+        await fetchDashboardData();
       }
     } catch (error) {
       console.error("Error marking pass as used:", error);
@@ -290,8 +221,7 @@ export default function AdminDashboard() {
     try {
       const response = await fetch(`/api/passes/${passId}/undo`, { method: "PUT" });
       if (response.ok) {
-        fetchPasses();
-        fetchDepartedPasses();
+        await fetchDashboardData();
       }
     } catch (error) {
       console.error("Error undoing mark:", error);
@@ -308,7 +238,24 @@ export default function AdminDashboard() {
     return date.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
   };
 
-  const displayedPasses = filteredPasses;
+  // Функция для скачивания заявления
+  const downloadPhoto = async (photoUrl: string, studentName: string) => {
+    try {
+      const response = await fetch(photoUrl);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `заявление_${studentName}_${new Date().toISOString().split('T')[0]}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error downloading photo:", error);
+      alert("Ошибка при скачивании файла");
+    }
+  };
 
   const menuItems = [
     { id: "dashboard", name: "Пропуски", icon: <DoorOpen size={18} />, action: () => setActiveTab("single") },
@@ -318,17 +265,20 @@ export default function AdminDashboard() {
     { id: "users", name: "Персонал", icon: <Users size={18} />, action: () => router.push("/admin/users") },
     { id: "absent", name: "Отсутствия", icon: <UserX size={18} />, action: () => router.push("/admin/absent") },
     { id: "home", name: "На главную", icon: <Home size={18} />, action: () => router.push("/") },
+    { id: "chat", name: "AI-помощник", icon: <Bot size={18} />, action: () => router.push("/admin/chat") },
+    { id: "truants", name: "Прогульщики", icon: <UserX size={18} />, action: () => router.push("/admin/truants") },
+
   ];
 
   const renderSingleTab = () => (
     <div className="space-y-2">
-      {displayedPasses.length === 0 ? (
+      {filteredPasses.length === 0 ? (
         <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 text-center border border-white/20">
           <FileText size={32} className="text-gray-500 mx-auto mb-2" />
           <p className="text-gray-400">Нет разовых пропусков на сегодня</p>
         </div>
       ) : (
-        displayedPasses.map((pass) => (
+        filteredPasses.map((pass) => (
           <div key={pass.id} className="bg-green-500/10 backdrop-blur-lg rounded-xl p-3 border border-green-500/30 hover:bg-green-500/20 transition-all">
             <div className="flex flex-col">
               <div className="flex items-start justify-between gap-2 flex-wrap">
@@ -361,13 +311,75 @@ export default function AdminDashboard() {
 
   const renderSelfExitTab = () => (
     <div className="space-y-2">
-      {displayedPasses.length === 0 ? (
+      {/* Фильтры для самовыводов */}
+      <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
+        <div className="flex flex-col gap-3">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={selfExitSearchQuery}
+              onChange={(e) => setSelfExitSearchQuery(e.target.value)}
+              placeholder="Поиск по ФИО..."
+              className="w-full pl-9 pr-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <button onClick={() => setIsSelfExitFiltersVisible(!isSelfExitFiltersVisible)} className="flex items-center justify-center gap-2 py-1.5 text-sm text-gray-400 hover:text-white transition-colors">
+            <Filter size={14} />
+            {isSelfExitFiltersVisible ? "Скрыть фильтры" : "Показать фильтры"}
+          </button>
+          {isSelfExitFiltersVisible && (
+            <div className="space-y-3 pt-2 border-t border-white/10">
+              <div className="flex flex-wrap items-center gap-2">
+                <School size={14} className="text-blue-400" />
+                <span className="text-sm text-gray-300">Параллель:</span>
+                <select
+                  value={selfExitSelectedGradeGroup}
+                  onChange={(e) => setSelfExitSelectedGradeGroup(e.target.value)}
+                  className="px-2 py-1 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="" className="bg-[#1a2332]">Все классы</option>
+                  {gradeGroups.map((group) => (
+                    <option key={group.id} value={group.id} className="bg-[#1a2332]">{group.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Filter size={14} className="text-blue-400" />
+                  <span className="text-sm text-gray-300">Фильтр по первой букве:</span>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  <button
+                    onClick={() => setSelfExitSelectedLetter("")}
+                    className={`px-2 py-1 rounded-lg text-xs transition-all ${selfExitSelectedLetter === "" ? "bg-blue-500/30 text-blue-300" : "bg-white/10 text-gray-400 hover:bg-white/20"}`}
+                  >
+                    Все
+                  </button>
+                  {alphabet.map((letter) => (
+                    <button
+                      key={letter}
+                      onClick={() => setSelfExitSelectedLetter(letter)}
+                      className={`w-7 h-7 rounded-lg text-xs font-medium transition-all ${selfExitSelectedLetter === letter ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white" : "bg-white/10 text-gray-400 hover:bg-white/20"}`}
+                    >
+                      {letter}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Список самовыводов */}
+      {filteredSelfExits.length === 0 ? (
         <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 text-center border border-white/20">
           <UserCheck size={32} className="text-gray-500 mx-auto mb-2" />
           <p className="text-gray-400">Нет активных самовыводов</p>
         </div>
       ) : (
-        displayedPasses.map((pass) => (
+        filteredSelfExits.map((pass) => (
           <div key={pass.id} className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
             <div className="flex items-start justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -385,8 +397,52 @@ export default function AdminDashboard() {
               </div>
             </div>
             <div className="text-xs text-gray-400 mt-1 truncate">{pass.reason}</div>
+
+            {/* Кнопки для скачивания заявления */}
+            {pass.photoUrl && (
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => downloadPhoto(pass.photoUrl!, pass.studentName)}
+                  className="flex-1 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg text-sm transition-all flex items-center justify-center gap-1"
+                >
+                  <Download size={14} />
+                  Скачать заявление
+                </button>
+                <button
+                  onClick={() => setPreviewImage(pass.photoUrl!)}
+                  className="py-1.5 px-3 bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg text-sm transition-all flex items-center justify-center gap-1"
+                >
+                  <Eye size={14} />
+                </button>
+              </div>
+            )}
           </div>
         ))
+      )}
+
+      {/* Модальное окно для предпросмотра фото */}
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div
+            className="relative max-w-4xl w-full max-h-[90vh] bg-[#1a2332] rounded-xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setPreviewImage(null)}
+              className="absolute top-2 right-2 z-10 w-8 h-8 flex items-center justify-center bg-red-500/80 hover:bg-red-500 text-white rounded-lg transition-all"
+            >
+              <XClose size={18} />
+            </button>
+            <img
+              src={previewImage}
+              alt="Заявление"
+              className="w-full h-auto max-h-[90vh] object-contain"
+            />
+          </div>
+        </div>
       )}
     </div>
   );
@@ -397,7 +453,13 @@ export default function AdminDashboard() {
         <div className="flex flex-col gap-3">
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input type="text" value={departedSearchQuery} onChange={(e) => setDepartedSearchQuery(e.target.value)} placeholder="Поиск по ФИО..." className="w-full pl-9 pr-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input
+              type="text"
+              value={departedSearchQuery}
+              onChange={(e) => setDepartedSearchQuery(e.target.value)}
+              placeholder="Поиск по ФИО..."
+              className="w-full pl-9 pr-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
           <button onClick={() => setIsDepartedFiltersVisible(!isDepartedFiltersVisible)} className="flex items-center justify-center gap-2 py-1.5 text-sm text-gray-400 hover:text-white transition-colors">
             <Filter size={14} />
@@ -408,9 +470,15 @@ export default function AdminDashboard() {
               <div className="flex flex-wrap items-center gap-2">
                 <School size={14} className="text-blue-400" />
                 <span className="text-sm text-gray-300">Параллель:</span>
-                <select value={departedSelectedGradeGroup} onChange={(e) => setDepartedSelectedGradeGroup(e.target.value)} className="px-2 py-1 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <select
+                  value={departedSelectedGradeGroup}
+                  onChange={(e) => setDepartedSelectedGradeGroup(e.target.value)}
+                  className="px-2 py-1 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
                   <option value="" className="bg-[#1a2332]">Все классы</option>
-                  {gradeGroups.map((group) => (<option key={group.id} value={group.id} className="bg-[#1a2332]">{group.name}</option>))}
+                  {gradeGroups.map((group) => (
+                    <option key={group.id} value={group.id} className="bg-[#1a2332]">{group.name}</option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -419,8 +487,21 @@ export default function AdminDashboard() {
                   <span className="text-sm text-gray-300">Фильтр по первой букве:</span>
                 </div>
                 <div className="flex flex-wrap gap-1">
-                  <button onClick={() => setDepartedSelectedLetter("")} className={`px-2 py-1 rounded-lg text-xs transition-all ${departedSelectedLetter === "" ? "bg-blue-500/30 text-blue-300" : "bg-white/10 text-gray-400 hover:bg-white/20"}`}>Все</button>
-                  {alphabet.map((letter) => (<button key={letter} onClick={() => setDepartedSelectedLetter(letter)} className={`w-7 h-7 rounded-lg text-xs font-medium transition-all ${departedSelectedLetter === letter ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white" : "bg-white/10 text-gray-400 hover:bg-white/20"}`}>{letter}</button>))}
+                  <button
+                    onClick={() => setDepartedSelectedLetter("")}
+                    className={`px-2 py-1 rounded-lg text-xs transition-all ${departedSelectedLetter === "" ? "bg-blue-500/30 text-blue-300" : "bg-white/10 text-gray-400 hover:bg-white/20"}`}
+                  >
+                    Все
+                  </button>
+                  {alphabet.map((letter) => (
+                    <button
+                      key={letter}
+                      onClick={() => setDepartedSelectedLetter(letter)}
+                      className={`w-7 h-7 rounded-lg text-xs font-medium transition-all ${departedSelectedLetter === letter ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white" : "bg-white/10 text-gray-400 hover:bg-white/20"}`}
+                    >
+                      {letter}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
@@ -447,10 +528,18 @@ export default function AdminDashboard() {
                 <Clock size={10} className="text-green-400" />
                 <span className="text-xs text-green-400">Выход: {pass.exitTime}</span>
               </div>
-              {pass.usedAt && (<div className="flex items-center gap-1"><Clock size={10} className="text-blue-400" /><span className="text-xs text-blue-400">Отмечен: {new Date(pass.usedAt).toLocaleTimeString()}</span></div>)}
+              {pass.usedAt && (
+                <div className="flex items-center gap-1">
+                  <Clock size={10} className="text-blue-400" />
+                  <span className="text-xs text-blue-400">Отмечен: {new Date(pass.usedAt).toLocaleTimeString()}</span>
+                </div>
+              )}
             </div>
             <div className="text-xs text-gray-400 mt-1 truncate">Причина: {pass.reason}</div>
-            <button onClick={() => undoMarkAsUsed(pass.id)} className="mt-2 w-full py-1.5 bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 rounded-lg text-sm transition-all flex items-center justify-center gap-1">
+            <button
+              onClick={() => undoMarkAsUsed(pass.id)}
+              className="mt-2 w-full py-1.5 bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 rounded-lg text-sm transition-all flex items-center justify-center gap-1"
+            >
               <Undo2 size={12} />
               Отменить выход
             </button>
@@ -526,18 +615,27 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Десктопное меню - горизонтальное */}
+      {/* Десктопное меню */}
       <div className="hidden lg:flex bg-white/5 border-b border-white/10 px-4">
         <div className="flex gap-1">
-          <button onClick={() => setActiveTab("single")} className={`px-4 py-2 text-sm font-medium transition-all flex items-center gap-2 ${activeTab === "single" ? "text-blue-400 border-b-2 border-blue-400" : "text-gray-400 hover:text-white"}`}>
+          <button
+            onClick={() => setActiveTab("single")}
+            className={`px-4 py-2 text-sm font-medium transition-all flex items-center gap-2 ${activeTab === "single" ? "text-blue-400 border-b-2 border-blue-400" : "text-gray-400 hover:text-white"}`}
+          >
             <DoorOpen size={16} />
             Разовый
           </button>
-          <button onClick={() => setActiveTab("self-exit")} className={`px-4 py-2 text-sm font-medium transition-all flex items-center gap-2 ${activeTab === "self-exit" ? "text-blue-400 border-b-2 border-blue-400" : "text-gray-400 hover:text-white"}`}>
+          <button
+            onClick={() => setActiveTab("self-exit")}
+            className={`px-4 py-2 text-sm font-medium transition-all flex items-center gap-2 ${activeTab === "self-exit" ? "text-blue-400 border-b-2 border-blue-400" : "text-gray-400 hover:text-white"}`}
+          >
             <UserCheck size={16} />
             Самовывод
           </button>
-          <button onClick={() => setActiveTab("departed")} className={`px-4 py-2 text-sm font-medium transition-all flex items-center gap-2 ${activeTab === "departed" ? "text-blue-400 border-b-2 border-blue-400" : "text-gray-400 hover:text-white"}`}>
+          <button
+            onClick={() => setActiveTab("departed")}
+            className={`px-4 py-2 text-sm font-medium transition-all flex items-center gap-2 ${activeTab === "departed" ? "text-blue-400 border-b-2 border-blue-400" : "text-gray-400 hover:text-white"}`}
+          >
             <Users size={16} />
             Ушедшие
           </button>
@@ -554,6 +652,10 @@ export default function AdminDashboard() {
             <UserX size={16} />
             Отсутствия
           </button>
+          <button onClick={() => router.push("/admin/truants")} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-all flex items-center gap-2">
+            <UserX size={16} /> {/* ✅ ДОБАВЛЕНО */}
+            Прогульщики
+          </button>
           <button onClick={() => router.push("/")} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-all flex items-center gap-2">
             <Home size={16} />
             На главную
@@ -565,13 +667,22 @@ export default function AdminDashboard() {
       <div className="p-4">
         <div className="max-w-7xl mx-auto space-y-4">
           {/* Поиск и фильтры для разовых пропусков */}
-          {activeTab !== "departed" && activeTab !== "self-exit" && (
+          {activeTab === "single" && (
             <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
               <div className="relative">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Поиск по ФИО..." className="w-full pl-9 pr-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Поиск по ФИО..."
+                  className="w-full pl-9 pr-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
               </div>
-              <button onClick={() => setIsFiltersVisible(!isFiltersVisible)} className="flex items-center justify-center gap-2 py-1.5 mt-2 text-sm text-gray-400 hover:text-white transition-colors w-full">
+              <button
+                onClick={() => setIsFiltersVisible(!isFiltersVisible)}
+                className="flex items-center justify-center gap-2 py-1.5 mt-2 text-sm text-gray-400 hover:text-white transition-colors w-full"
+              >
                 <Filter size={14} />
                 {isFiltersVisible ? "Скрыть фильтры" : "Показать фильтры"}
               </button>
@@ -580,9 +691,15 @@ export default function AdminDashboard() {
                   <div className="flex flex-wrap items-center gap-2">
                     <School size={14} className="text-blue-400" />
                     <span className="text-sm text-gray-300">Параллель:</span>
-                    <select value={selectedGradeGroup} onChange={(e) => setSelectedGradeGroup(e.target.value)} className="px-2 py-1 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <select
+                      value={selectedGradeGroup}
+                      onChange={(e) => setSelectedGradeGroup(e.target.value)}
+                      className="px-2 py-1 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
                       <option value="" className="bg-[#1a2332]">Все классы</option>
-                      {gradeGroups.map((group) => (<option key={group.id} value={group.id} className="bg-[#1a2332]">{group.name}</option>))}
+                      {gradeGroups.map((group) => (
+                        <option key={group.id} value={group.id} className="bg-[#1a2332]">{group.name}</option>
+                      ))}
                     </select>
                   </div>
                   <div>
@@ -591,8 +708,21 @@ export default function AdminDashboard() {
                       <span className="text-sm text-gray-300">Фильтр по первой букве:</span>
                     </div>
                     <div className="flex flex-wrap gap-1">
-                      <button onClick={() => setSelectedLetter("")} className={`px-2 py-1 rounded-lg text-xs transition-all ${selectedLetter === "" ? "bg-blue-500/30 text-blue-300" : "bg-white/10 text-gray-400 hover:bg-white/20"}`}>Все</button>
-                      {alphabet.map((letter) => (<button key={letter} onClick={() => setSelectedLetter(letter)} className={`w-7 h-7 rounded-lg text-xs font-medium transition-all ${selectedLetter === letter ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white" : "bg-white/10 text-gray-400 hover:bg-white/20"}`}>{letter}</button>))}
+                      <button
+                        onClick={() => setSelectedLetter("")}
+                        className={`px-2 py-1 rounded-lg text-xs transition-all ${selectedLetter === "" ? "bg-blue-500/30 text-blue-300" : "bg-white/10 text-gray-400 hover:bg-white/20"}`}
+                      >
+                        Все
+                      </button>
+                      {alphabet.map((letter) => (
+                        <button
+                          key={letter}
+                          onClick={() => setSelectedLetter(letter)}
+                          className={`w-7 h-7 rounded-lg text-xs font-medium transition-all ${selectedLetter === letter ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white" : "bg-white/10 text-gray-400 hover:bg-white/20"}`}
+                        >
+                          {letter}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -603,8 +733,16 @@ export default function AdminDashboard() {
           {/* Статистика */}
           <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-400">{activeTab === "departed" ? "Ушедших сегодня:" : "Всего:"}</span>
-              <span className="text-white font-bold">{activeTab === "departed" ? filteredDeparted.length : displayedPasses.length}</span>
+              <span className="text-gray-400">
+                {activeTab === "departed" ? "Ушедших сегодня:" :
+                  activeTab === "self-exit" ? "Активных самовыводов:" :
+                    "Всего пропусков:"}
+              </span>
+              <span className="text-white font-bold">
+                {activeTab === "departed" ? filteredDeparted.length :
+                  activeTab === "self-exit" ? filteredSelfExits.length :
+                    filteredPasses.length}
+              </span>
             </div>
           </div>
 
@@ -614,32 +752,6 @@ export default function AdminDashboard() {
           {activeTab === "departed" && renderDepartedTab()}
         </div>
       </div>
-
-      {/* Футер меню для мобильных */}
-      {/* <div className="fixed bottom-0 left-0 right-0 bg-white/10 backdrop-blur-lg border-t border-white/20 lg:hidden z-50">
-        <div className="flex justify-around py-2">
-          <button onClick={() => setActiveTab("single")} className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-all ${activeTab === "single" ? "text-blue-400" : "text-gray-400"}`}>
-            <DoorOpen size={18} />
-            <span className="text-[9px]">Разовый</span>
-          </button>
-          <button onClick={() => setActiveTab("self-exit")} className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-all ${activeTab === "self-exit" ? "text-blue-400" : "text-gray-400"}`}>
-            <UserCheck size={18} />
-            <span className="text-[9px]">Самовывод</span>
-          </button>
-          <button onClick={() => setActiveTab("departed")} className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-all ${activeTab === "departed" ? "text-blue-400" : "text-gray-400"}`}>
-            <Users size={18} />
-            <span className="text-[9px]">Ушедшие</span>
-          </button>
-          <button onClick={() => router.push("/admin/classes")} className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg text-gray-400">
-            <School size={18} />
-            <span className="text-[9px]">Классы</span>
-          </button>
-          <button onClick={() => router.push("/admin/users")} className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg text-gray-400">
-            <Users size={18} />
-            <span className="text-[9px]">Персонал</span>
-          </button>
-        </div>
-      </div> */}
     </div>
   );
 }
