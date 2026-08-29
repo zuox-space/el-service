@@ -1,6 +1,6 @@
 {
   "name": "Электронный журнал",
-  "short_name": "Журнал",
+  "short_name": "Пропуск",
   "description": "Система учета посещаемости",
   "start_url": "/",
   "display": "standalone",
