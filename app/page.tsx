@@ -2,7 +2,7 @@
 
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   LogOut, Calendar, FileText, CheckCircle, Clock, UserRound,
   PenSquare, XCircle, Newspaper, BookMarked, CheckSquare, Plus, UserCheck,
@@ -18,6 +18,7 @@ import NewsModal from "@/components/ui/NewsModal";
 import NotesModal from "@/components/ui/NotesModal";
 import SelfExitModal from "@/components/ui/SelfExitModal";
 import { formatShortName, safeFormatShortName } from "@/lib/utils"
+
 interface TabType {
   id: string;
   name: string;
@@ -76,6 +77,24 @@ export default function HomePage() {
     await signOut({ redirect: true, callbackUrl: "/login" });
   };
 
+  // Функция для получения списка учеников из класса
+  const getStudentsFromClass = useCallback((classData: any) => {
+    if (!classData) return [];
+
+    let students = classData.students;
+    if (typeof students === 'string') {
+      try {
+        students = JSON.parse(students);
+      } catch (e) {
+        students = [];
+      }
+    }
+    if (!Array.isArray(students)) {
+      students = [];
+    }
+    return students;
+  }, []);
+
   // Загрузка классов
   useEffect(() => {
     const fetchClasses = async () => {
@@ -87,19 +106,23 @@ export default function HomePage() {
 
         if (Array.isArray(data) && data.length > 0) {
           setClasses(data);
-          setSelectedClass(data[0]);
+          // Выбираем первый класс
+          const firstClass = data[0];
+          setSelectedClass(firstClass);
 
-          let students = data[0].students;
-          if (typeof students === 'string') {
-            students = JSON.parse(students);
-          }
-          if (!Array.isArray(students)) {
-            students = [];
-          }
+          // Устанавливаем список учеников для первого класса
+          const students = getStudentsFromClass(firstClass);
           setStudentsList(students);
+        } else {
+          setClasses([]);
+          setSelectedClass(null);
+          setStudentsList([]);
         }
       } catch (error) {
         console.error("Error fetching classes:", error);
+        setClasses([]);
+        setSelectedClass(null);
+        setStudentsList([]);
       } finally {
         setIsLoading(false);
       }
@@ -108,7 +131,16 @@ export default function HomePage() {
     if (session) {
       fetchClasses();
     }
-  }, [session]);
+  }, [session, getStudentsFromClass]);
+
+  // Обработчик смены класса - ОСНОВНОЕ ИСПРАВЛЕНИЕ
+  const handleClassChange = useCallback((classData: any) => {
+    setSelectedClass(classData);
+    // Обновляем список учеников при смене класса
+    const students = getStudentsFromClass(classData);
+    setStudentsList(students);
+    console.log('Класс изменен:', classData?.name, 'Учеников:', students.length);
+  }, [getStudentsFromClass]);
 
   // Загрузка данных для выбранной даты и класса
   useEffect(() => {
@@ -147,38 +179,6 @@ export default function HomePage() {
 
     fetchData();
   }, [selectedClass, selectedDate]);
-
-  // // Инициализация базы данных
-  // useEffect(() => {
-  //   const initDatabase = async () => {
-  //     if (!session) return;
-
-  //     try {
-  //       const response = await fetch("/api/init", { method: "POST" });
-  //       const data = await response.json();
-
-  //       if (data.success) {
-  //         const classesRes = await fetch("/api/classes");
-  //         const classesData = await classesRes.json();
-  //         setClasses(classesData);
-  //         if (classesData.length > 0) {
-  //           setSelectedClass(classesData[0]);
-  //           let students = classesData[0].students;
-  //           if (typeof students === 'string') {
-  //             students = JSON.parse(students);
-  //           }
-  //           setStudentsList(students);
-  //         }
-  //       }
-  //     } catch (error) {
-  //       console.error("Init error:", error);
-  //     } finally {
-  //       setIsLoading(false);
-  //     }
-  //   };
-
-  //   initDatabase();
-  // }, [session]);
 
   const handleSubmitPass = async (passData: any) => {
     if (!selectedClass) {
@@ -610,7 +610,6 @@ export default function HomePage() {
               </div>
               <button
                 onClick={async () => {
-
                   try {
                     const response = await fetch(`/api/self-exit?id=${item.id}`, {
                       method: "DELETE"
@@ -619,8 +618,8 @@ export default function HomePage() {
                       setSelfExits(prev => prev.filter(exit => exit.id !== item.id));
                     }
                   } catch (error) {
+                    console.error("Error deleting self-exit:", error);
                   }
-
                 }}
                 className="text-red-400 hover:text-red-300 text-sm px-2 py-1"
                 title="Отменить самовывод"
@@ -718,10 +717,10 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Выбор класса */}
+        {/* Выбор класса - передаем обработчик */}
         <ClassSelector
           selectedClass={selectedClass}
-          onClassChange={setSelectedClass}
+          onClassChange={handleClassChange}  // ИСПРАВЛЕНО: используем обработчик
           classes={classes}
           currentTeacherId={session.user?.id}
         />

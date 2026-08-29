@@ -13,11 +13,14 @@ export async function PUT(
   }
 
   try {
-    await prisma.$executeRaw`
-      UPDATE "Pass" 
-      SET "used" = 0, "usedAt" = NULL
-      WHERE id = ${params.id}
-    `;
+    // Вариант 1: Использовать Prisma (рекомендуется)
+    await prisma.pass.update({
+      where: { id: params.id },
+      data: {
+        used: false,  // ✅ Исправлено: false вместо 0
+        usedAt: null
+      }
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

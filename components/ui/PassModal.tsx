@@ -36,7 +36,7 @@ export default function PassModal({
   const getStudentsArray = (): Student[] => {
     if (!studentsList) return [];
     if (Array.isArray(studentsList)) return studentsList;
-    
+
     if (typeof studentsList === 'object') {
       // Проверяем, есть ли поле students
       if (studentsList.students) {
@@ -48,7 +48,7 @@ export default function PassModal({
           } catch (e) { return []; }
         }
       }
-      
+
       // Пробуем преобразовать объект в массив
       const values = Object.values(studentsList);
       if (values.length > 0 && values[0] && typeof values[0] === 'object' && 'id' in values[0]) {
@@ -56,7 +56,7 @@ export default function PassModal({
       }
       return [];
     }
-    
+
     if (typeof studentsList === 'string') {
       try {
         const parsed = JSON.parse(studentsList);
@@ -209,13 +209,12 @@ export default function PassModal({
                 return (
                   <label
                     key={student.id}
-                    className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
-                      isDisabled
-                        ? "bg-white/5 opacity-50 cursor-not-allowed"
-                        : isSelected
+                    className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${isDisabled
+                      ? "bg-white/5 opacity-50 cursor-not-allowed"
+                      : isSelected
                         ? "bg-blue-500/20 border border-blue-500/30"
                         : "hover:bg-white/10 bg-white/5"
-                    }`}
+                      }`}
                   >
                     <input
                       type="checkbox"
