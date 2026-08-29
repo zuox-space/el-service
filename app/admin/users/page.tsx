@@ -3,11 +3,11 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, JSX } from "react";
-import { 
-  LogOut, ArrowLeft, Users, UserPlus, Shield, Trash2, Save, 
+import {
+  LogOut, ArrowLeft, Users, UserPlus, Shield, Trash2, Save,
   X, Plus, Search, AlertCircle, UserCheck, CheckCircle,
   Edit2, MoreVertical, ChevronDown, Filter, Crown, BookOpen, School,
-  Menu, ChevronUp
+  Menu, ChevronUp, ChevronRight, GraduationCap
 } from "lucide-react";
 
 interface User {
@@ -25,38 +25,42 @@ interface Role {
   description: string;
 }
 
-const roleColors: Record<string, { bg: string; text: string; border: string; icon: JSX.Element }> = {
-  ADMIN: { 
-    bg: "bg-purple-500/20", 
-    text: "text-purple-300", 
+const roleColors: Record<string, { bg: string; text: string; border: string; icon: JSX.Element; label: string }> = {
+  ADMIN: {
+    bg: "bg-purple-500/20",
+    text: "text-purple-300",
     border: "border-purple-500/30",
-    icon: <Crown size={12} className="text-purple-400" />
+    icon: <Crown size={14} className="text-purple-400" />,
+    label: "Администратор"
   },
-  HEAD_TEACHER: { 
-    bg: "bg-blue-500/20", 
-    text: "text-blue-300", 
+  METHODIST: {
+    bg: "bg-indigo-500/20",
+    text: "text-indigo-300",
+    border: "border-indigo-500/30",
+    icon: <GraduationCap size={14} className="text-indigo-400" />,
+    label: "Методист"
+  },
+  HEAD_TEACHER: {
+    bg: "bg-blue-500/20",
+    text: "text-blue-300",
     border: "border-blue-500/30",
-    icon: <BookOpen size={12} className="text-blue-400" />
+    icon: <BookOpen size={14} className="text-blue-400" />,
+    label: "Завуч"
   },
-  CLASS_TEACHER: { 
-    bg: "bg-green-500/20", 
-    text: "text-green-300", 
+  CLASS_TEACHER: {
+    bg: "bg-green-500/20",
+    text: "text-green-300",
     border: "border-green-500/30",
-    icon: <School size={12} className="text-green-400" />
+    icon: <School size={14} className="text-green-400" />,
+    label: "Классный руководитель"
   },
-  TEACHER: { 
-    bg: "bg-gray-500/20", 
-    text: "text-gray-300", 
+  TEACHER: {
+    bg: "bg-gray-500/20",
+    text: "text-gray-300",
     border: "border-gray-500/30",
-    icon: <UserCheck size={12} className="text-gray-400" />
+    icon: <UserCheck size={14} className="text-gray-400" />,
+    label: "Учитель"
   }
-};
-
-const roleLabels: Record<string, string> = {
-  ADMIN: "Администратор",
-  HEAD_TEACHER: "Завуч",
-  CLASS_TEACHER: "Классный руководитель",
-  TEACHER: "Учитель"
 };
 
 export default function AdminUsersPage() {
@@ -68,7 +72,7 @@ export default function AdminUsersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
+  const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [formData, setFormData] = useState({
@@ -84,12 +88,12 @@ export default function AdminUsersPage() {
   // Проверка прав доступа
   useEffect(() => {
     if (status === "loading") return;
-    
+
     if (!session) {
       router.replace("/login");
       return;
     }
-    
+
     const roles = (session?.user?.roles as string[]) || [];
     if (!roles.includes("ADMIN")) {
       router.replace("/");
@@ -105,10 +109,10 @@ export default function AdminUsersPage() {
           fetch("/api/admin/users"),
           fetch("/api/admin/roles")
         ]);
-        
+
         const usersData = await usersRes.json();
         const rolesData = await rolesRes.json();
-        
+
         setUsers(usersData);
         setFilteredUsers(usersData);
         setRoles(rolesData);
@@ -118,7 +122,7 @@ export default function AdminUsersPage() {
         setIsLoading(false);
       }
     };
-    
+
     if (session && session?.user?.roles?.includes("ADMIN")) {
       fetchData();
     }
@@ -127,7 +131,7 @@ export default function AdminUsersPage() {
   // Фильтрация
   useEffect(() => {
     if (searchQuery) {
-      setFilteredUsers(users.filter(user => 
+      setFilteredUsers(users.filter(user =>
         user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         user.email.toLowerCase().includes(searchQuery.toLowerCase())
       ));
@@ -137,13 +141,7 @@ export default function AdminUsersPage() {
   }, [searchQuery, users]);
 
   const toggleExpand = (userId: string) => {
-    const newExpanded = new Set(expandedUsers);
-    if (newExpanded.has(userId)) {
-      newExpanded.delete(userId);
-    } else {
-      newExpanded.add(userId);
-    }
-    setExpandedUsers(newExpanded);
+    setExpandedUser(expandedUser === userId ? null : userId);
   };
 
   // Добавление пользователя
@@ -152,7 +150,7 @@ export default function AdminUsersPage() {
       alert("Заполните все поля");
       return;
     }
-    
+
     setIsSubmitting(true);
     try {
       const response = await fetch("/api/admin/users", {
@@ -160,12 +158,12 @@ export default function AdminUsersPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData)
       });
-      
+
       if (response.ok) {
         alert("Пользователь добавлен");
         setShowAddModal(false);
         setFormData({ email: "", name: "", role: "TEACHER" });
-        
+
         const usersRes = await fetch("/api/admin/users");
         const usersData = await usersRes.json();
         setUsers(usersData);
@@ -190,7 +188,7 @@ export default function AdminUsersPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ roleId })
       });
-      
+
       if (response.ok) {
         const usersRes = await fetch("/api/admin/users");
         const usersData = await usersRes.json();
@@ -208,13 +206,14 @@ export default function AdminUsersPage() {
 
   // Удаление роли у пользователя
   const handleRemoveRole = async (userId: string, roleId: string, roleName: string) => {
-    if (!confirm(`Удалить роль "${roleLabels[roleName] || roleName}" у пользователя?`)) return;
-    
+    const label = roleColors[roleName]?.label || roleName;
+    if (!confirm(`Удалить роль "${label}" у пользователя?`)) return;
+
     try {
       const response = await fetch(`/api/admin/users/${userId}/roles?roleId=${roleId}`, {
         method: "DELETE"
       });
-      
+
       if (response.ok) {
         const usersRes = await fetch("/api/admin/users");
         const usersData = await usersRes.json();
@@ -315,83 +314,91 @@ export default function AdminUsersPage() {
         <div className="space-y-2">
           {filteredUsers.map((user) => {
             const userRoles = user.userRoles?.map(ur => ur.role) || [];
-            const availableRoles = roles.filter(role => !userRoles.some(ur => ur.id === role.id));
-            const isExpanded = expandedUsers.has(user.id);
-            
+            const isExpanded = expandedUser === user.id;
+
             return (
               <div key={user.id} className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 overflow-hidden">
+                {/* Основная карточка */}
                 <div className="p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
-                        <Users size={14} className="text-white" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-white text-sm truncate">{user.name}</p>
-                        <p className="text-xs text-gray-400 truncate">{user.email}</p>
+                  <div className="flex items-center gap-2">
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
+                      <Users size={15} className="text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-white text-sm truncate">{user.name}</p>
+                      <p className="text-xs text-gray-400 truncate">{user.email}</p>
+                    </div>
+                    <button
+                      onClick={() => toggleExpand(user.id)}
+                      className="w-8 h-8 flex items-center justify-center bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-lg transition-all flex-shrink-0"
+                    >
+                      {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Раскрывающийся блок с ролями */}
+                {isExpanded && (
+                  <div className="px-3 pb-3 pt-2 border-t border-white/10">
+                    {/* Текущие роли */}
+                    <div className="mb-3">
+                      <div className="text-xs text-gray-400 mb-2">Текущие роли:</div>
+                      <div className="flex flex-wrap gap-2">
+                        {userRoles.length > 0 ? (
+                          userRoles.map((role) => {
+                            const colors = roleColors[role.name] || roleColors.TEACHER;
+                            return (
+                              <div
+                                key={role.id}
+                                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs ${colors.bg} ${colors.text} border ${colors.border}`}
+                              >
+                                {colors.icon}
+                                <span>{colors.label}</span>
+                                <button
+                                  onClick={() => handleRemoveRole(user.id, role.id, role.name)}
+                                  className="ml-0.5 hover:text-red-400 transition-colors"
+                                >
+                                  <X size={12} />
+                                </button>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <span className="text-xs text-gray-500">Роли не назначены</span>
+                        )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <div className="flex flex-wrap gap-1 justify-end max-w-[120px]">
-                        {userRoles.slice(0, 2).map((role) => {
-                          const colors = roleColors[role.name] || roleColors.TEACHER;
-                          return (
-                            <div
-                              key={role.id}
-                              className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] ${colors.bg} ${colors.text} border ${colors.border}`}
-                            >
-                              {colors.icon}
-                              <span className="hidden xs:inline">{roleLabels[role.name]?.substring(0, 2)}</span>
-                              <span className="xs:hidden">{roleLabels[role.name]?.charAt(0)}</span>
-                              <button
-                                onClick={() => handleRemoveRole(user.id, role.id, role.name)}
-                                className="ml-0.5 hover:text-red-300"
-                              >
-                                <X size={10} />
-                              </button>
-                            </div>
-                          );
-                        })}
-                        {userRoles.length > 2 && (
-                          <span className="text-[10px] text-gray-500 bg-white/5 px-1.5 py-0.5 rounded-full">
-                            +{userRoles.length - 2}
-                          </span>
-                        )}
 
+                    {/* Добавление ролей */}
+                    <div>
+                      <div className="text-xs text-gray-400 mb-2">Добавить роль:</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {roles
+                          .filter(role => !userRoles.some(ur => ur.id === role.id))
+                          .map((role) => {
+                            const colors = roleColors[role.name] || roleColors.TEACHER;
+                            return (
+                              <button
+                                key={role.id}
+                                onClick={() => handleAssignRole(user.id, role.id)}
+                                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs transition-all ${colors.bg} ${colors.text} border ${colors.border} hover:brightness-125`}
+                              >
+                                <Plus size={12} />
+                                {colors.label}
+                              </button>
+                            );
+                          })}
+                        {roles.filter(role => !userRoles.some(ur => ur.id === role.id)).length === 0 && (
+                          <span className="text-xs text-gray-500">Все роли назначены</span>
+                        )}
                       </div>
-                      {availableRoles.length > 0 && (
-                        <button
-                          onClick={() => toggleExpand(user.id)}
-                          className="w-6 h-6 flex items-center justify-center bg-white/5 text-white hover:bg-white/10 rounded-lg transition-all"
-                        >
-                          {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                        </button>
-                      )}
                     </div>
                   </div>
-                  
-                  {/* Блок назначения ролей - раскрывающийся */}
-                  {isExpanded && availableRoles.length > 0 && (
-                    <div className="mt-2 pt-2 border-t border-white/10">
-                      <div className="flex flex-wrap gap-1">
-                        {availableRoles.map((role) => (
-                          <button
-                            key={role.id}
-                            onClick={() => handleAssignRole(user.id, role.id)}
-                            className="px-2 py-1 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-lg text-[10px] transition-all flex items-center gap-1"
-                          >
-                            <Plus size={10} />
-                            {roleLabels[role.name] || role.name}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
             );
           })}
-          
+
           {filteredUsers.length === 0 && (
             <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 text-center border border-white/20">
               <Users size={40} className="text-gray-500 mx-auto mb-2" />
@@ -434,7 +441,7 @@ export default function AdminUsersPage() {
                   className="w-full px-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-white text-xs mb-1">Email *</label>
                 <input
@@ -445,7 +452,7 @@ export default function AdminUsersPage() {
                   className="w-full px-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-white text-xs mb-1">Начальная роль</label>
                 <select
@@ -455,7 +462,7 @@ export default function AdminUsersPage() {
                 >
                   {roles.map((role) => (
                     <option key={role.id} value={role.name} className="bg-[#1a2332]">
-                      {roleLabels[role.name] || role.name}
+                      {roleColors[role.name]?.label || role.name}
                     </option>
                   ))}
                 </select>

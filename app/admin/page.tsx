@@ -265,7 +265,6 @@ export default function AdminDashboard() {
     { id: "users", name: "Персонал", icon: <Users size={18} />, action: () => router.push("/admin/users") },
     { id: "absent", name: "Отсутствия", icon: <UserX size={18} />, action: () => router.push("/admin/absent") },
     { id: "home", name: "На главную", icon: <Home size={18} />, action: () => router.push("/") },
-    { id: "chat", name: "AI-помощник", icon: <Bot size={18} />, action: () => router.push("/admin/chat") },
     { id: "truants", name: "Прогульщики", icon: <UserX size={18} />, action: () => router.push("/admin/truants") },
 
   ];
