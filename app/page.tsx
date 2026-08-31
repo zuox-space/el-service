@@ -690,13 +690,13 @@ export default function HomePage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button
+              {/* <button
                 onClick={() => router.push("/class-management")}
                 className="w-8 h-8 flex items-center justify-center bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg transition-all border border-green-500/30"
                 title="Управление классом"
               >
                 <Settings size={16} />
-              </button>
+              </button> */}
               {isAdmin && (
                 <button
                   onClick={() => router.push("/admin")}
