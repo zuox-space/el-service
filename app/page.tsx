@@ -72,7 +72,22 @@ export default function HomePage() {
       router.push("/login");
     }
   }, [status, router]);
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/login");
+    }
 
+    // 🔥 НОВЫЙ БЛОК: редирект для ADMIN
+    if (status === "authenticated" && session) {
+      const roles = (session?.user?.roles as string[]) || [];
+      const isAdmin = roles.includes("ADMIN");
+
+      // Если пользователь только ADMIN (и нет других ролей) — редирект на /admin
+      if (isAdmin && roles.length === 1) {
+        router.push("/admin");
+      }
+    }
+  }, [status, router, session]);
   const handleLogout = async () => {
     await signOut({ redirect: true, callbackUrl: "/login" });
   };
@@ -406,6 +421,45 @@ export default function HomePage() {
     return null;
   }
 
+
+  // Если ADMIN — показываем упрощенную версию
+  if (isAdmin && roles.length === 1) {
+    return <div className="min-h-screen p-3" style={{ background: "linear-gradient(135deg, #1a2332 0%, #2b3858 100%)" }}>
+      <div className="max-w-md mx-auto space-y-3">
+        {/* Карточка администратора */}
+        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center">
+                <Shield size={18} className="text-white" />
+              </div>
+              <div>
+                <p className="text-base font-bold text-white">{session.user.name}</p>
+                <p className="text-xs text-gray-400">Администратор</p>
+              </div>
+            </div>
+            <button onClick={handleLogout} className="w-8 h-8 flex items-center justify-center bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg transition-all">
+              <LogOut size={16} />
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-purple-600/20 to-pink-600/20 backdrop-blur-lg rounded-2xl p-8 text-center border border-white/20">
+          <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Shield size={32} className="text-white" />
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">Панель администратора</h2>
+          <p className="text-gray-300 text-sm mb-4">Управление системой</p>
+          <button
+            onClick={() => router.push("/admin")}
+            className="px-6 py-3 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-xl transition-all w-full"
+          >
+            Перейти в админ-панель
+          </button>
+        </div>
+      </div>
+    </div>;
+  }
   // Если у пользователя нет класса и нет роли классного руководителя или админа
   if (!showWorkInterface) {
     return (
