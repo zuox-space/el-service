@@ -21,23 +21,23 @@ export async function POST(req: NextRequest) {
     }
 
     // Создаем директорию, если её нет
-    const uploadDir = path.join(process.cwd(), "public", "uploads", "self-exit");
+    const uploadDir = path.join(process.cwd(), "uploads", "self-exit");
     await mkdir(uploadDir, { recursive: true });
-    
+
     // Сохраняем файл
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    
+
     const timestamp = Date.now();
     const ext = file.name.split(".").pop();
     const filename = `${timestamp}_${Math.random().toString(36).substring(7)}.${ext}`;
     const filePath = path.join(uploadDir, filename);
-    
+
     await writeFile(filePath, buffer);
-    
+
     const photoUrl = `/uploads/self-exit/${filename}`;
     console.log("File saved:", photoUrl);
-    
+
     return NextResponse.json({ photoUrl });
   } catch (error) {
     console.error("Upload error:", error);

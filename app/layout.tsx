@@ -10,16 +10,17 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Электронный журнал",
+  title: "Электронный пропуск",
   description: "Система учета посещаемости",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Электронный журнал",
+    title: "Электронный пропуск",
   },
   icons: {
     apple: "/icons/apple-touch-icon.png",
+
   },
 };
 

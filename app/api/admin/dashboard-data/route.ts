@@ -124,7 +124,7 @@ export async function GET(req: NextRequest) {
                 className: cls?.name || "Неизвестный класс",
                 grade: grade,
                 type: "self-exit" as const,
-                photoUrl: exit.photoUrl || null // 🔥 ДОБАВЛЯЕМ PHOTOURL
+                photoUrl: exit.photoUrl ? `/api${exit.photoUrl}` : null // ✅ ИСПРАВЛЕНО
             });
         }
 
