@@ -17,7 +17,7 @@ import ClassSelector from "@/components/ui/ClassSelector";
 import NewsModal from "@/components/ui/NewsModal";
 import NotesModal from "@/components/ui/NotesModal";
 import SelfExitModal from "@/components/ui/SelfExitModal";
-import { formatShortName, safeFormatShortName } from "@/lib/utils"
+import { formatShortName, safeFormatShortName, formatDateLocal } from "@/lib/utils"
 
 interface TabType {
   id: string;
@@ -577,7 +577,7 @@ export default function HomePage() {
           <div className="flex items-center gap-2 mb-2">
             <FileText size={12} className="text-blue-400" />
             <h3 className="font-semibold text-white text-sm">
-              Пропуска за {selectedDate.toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}
+              Пропуска за {formatDateLocal(selectedDate)}
             </h3>
           </div>
           <div className="space-y-2 max-h-48 overflow-y-auto">

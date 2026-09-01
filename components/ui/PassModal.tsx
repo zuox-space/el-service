@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { X, Clock, Search, CheckCircle } from "lucide-react";
+import { formatDateLocal } from "@/lib/utils";
 
 interface Student {
   id: number;
@@ -153,10 +154,7 @@ export default function PassModal({
             <div>
               <h3 className="text-lg font-bold text-white">Пропуск</h3>
               <p className="text-blue-100 text-xs">
-                {selectedDate?.toLocaleDateString("ru-RU", {
-                  day: "numeric",
-                  month: "long",
-                })}
+                Пропуск на {formatDateLocal(selectedDate)}
               </p>
             </div>
             <button onClick={onClose} className="text-white/70 hover:text-white">
