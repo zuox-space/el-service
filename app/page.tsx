@@ -155,12 +155,15 @@ export default function HomePage() {
 
     const fetchData = async () => {
       try {
+        // 🔥 ФИКСИРУЕМ ДАТУ: передаём только день (YYYY-MM-DD)
+        const dateStr = selectedDate.toISOString().split('T')[0];
+
         const [attendanceRes, passesRes, newsRes, notesRes, selfExitRes] = await Promise.all([
-          fetch(`/api/attendance?classId=${selectedClass.id}&date=${selectedDate.toISOString()}`),
-          fetch(`/api/passes?classId=${selectedClass.id}&date=${selectedDate.toISOString()}`),
-          fetch(`/api/news?classId=${selectedClass.id}&date=${selectedDate.toISOString()}`),
-          fetch(`/api/notes?classId=${selectedClass.id}&date=${selectedDate.toISOString()}`),
-          fetch(`/api/self-exit?classId=${selectedClass.id}&date=${selectedDate.toISOString()}`)
+          fetch(`/api/attendance?classId=${selectedClass.id}&date=${dateStr}`),
+          fetch(`/api/passes?classId=${selectedClass.id}&date=${dateStr}`),
+          fetch(`/api/news?classId=${selectedClass.id}&date=${dateStr}`),
+          fetch(`/api/notes?classId=${selectedClass.id}&date=${dateStr}`),
+          fetch(`/api/self-exit?classId=${selectedClass.id}&date=${dateStr}`)
         ]);
 
         const attendance = await attendanceRes.json();

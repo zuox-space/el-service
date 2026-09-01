@@ -14,12 +14,12 @@ export default function WeekListScrollable({ selectedDate, setSelectedDate }: We
 
   const getWeeks = () => {
     const weeks = [];
-    const startDate = new Date(currentDate);
-    startDate.setDate(currentDate.getDate() - 14);
+    const baseDate = new Date(currentDate);
+    baseDate.setDate(baseDate.getDate() - 14);
 
     for (let i = 0; i < 35; i++) {
-      const date = new Date(startDate);
-      date.setDate(startDate.getDate() + i);
+      const date = new Date(baseDate);
+      date.setDate(baseDate.getDate() + i);
 
       const isToday = date.toDateString() === new Date().toDateString();
       const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString();
@@ -80,7 +80,7 @@ export default function WeekListScrollable({ selectedDate, setSelectedDate }: We
     const startMonth = weeks[0].date.toLocaleDateString("ru-RU", { month: "long" });
     const endMonth = weeks[weeks.length - 1].date.toLocaleDateString("ru-RU", { month: "long" });
     const year = weeks[0].date.getFullYear();
-    
+
     if (startMonth === endMonth) {
       return `${startMonth} ${year}`;
     }
@@ -113,9 +113,9 @@ export default function WeekListScrollable({ selectedDate, setSelectedDate }: We
               onClick={() => selectDay(day)}
               className={`
                 flex flex-col items-center justify-center min-w-[52px] py-1.5 px-1 rounded-lg transition-all duration-200
-                ${day.isSelected 
-                  ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md" 
-                  : day.isToday 
+                ${day.isSelected
+                  ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md"
+                  : day.isToday
                     ? "bg-green-500/15 border border-green-500/30 text-green-300"
                     : "bg-white/5 hover:bg-white/10 text-gray-400 border border-white/5 hover:border-white/20"
                 }
