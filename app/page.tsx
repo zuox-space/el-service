@@ -73,7 +73,13 @@ export default function HomePage() {
   const isAdmin = roles.includes("ADMIN");
   const isClassTeacher = roles.includes("CLASS_TEACHER");
   const isTeacher = roles.includes("TEACHER");
-
+  const formatDisplayDate = (date: Date): string => {
+    return date.toLocaleDateString("ru-RU", {
+      day: "numeric",
+      month: "numeric",
+      year: "numeric"
+    });
+  };
   // Проверяем, есть ли у пользователя классы
   const hasClasses = classes.length > 0;
 
@@ -599,7 +605,7 @@ export default function HomePage() {
           <div className="flex items-center gap-2 mb-2">
             <FileText size={12} className="text-blue-400" />
             <h3 className="font-semibold text-white text-sm">
-              Пропуска за {selectedDate.toLocaleDateString("ru-RU")}
+              Пропуска за {formatDisplayDate(selectedDate)}
             </h3>
           </div>
           <div className="space-y-2 max-h-48 overflow-y-auto">
