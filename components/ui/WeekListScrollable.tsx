@@ -25,7 +25,7 @@ export default function WeekListScrollable({ selectedDate, setSelectedDate }: We
         baseDate.getUTCDate() + i
       ));
 
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = selectedDate.toLocaleDateString('en-CA');
       const todayStr = new Date().toISOString().split('T')[0];
       const selectedStr = selectedDate ? selectedDate.toISOString().split('T')[0] : '';
 
