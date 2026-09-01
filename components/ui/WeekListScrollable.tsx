@@ -15,11 +15,11 @@ export default function WeekListScrollable({ selectedDate, setSelectedDate }: We
   const getWeeks = () => {
     const weeks = [];
     const baseDate = new Date(currentDate);
-    baseDate.setDate(baseDate.getDate() - 14);
+    baseDate.setUTCDate(baseDate.getUTCDate() - 14);
 
     for (let i = 0; i < 35; i++) {
       const date = new Date(baseDate);
-      date.setDate(baseDate.getDate() + i);
+      date.setUTCDate(baseDate.getUTCDate() + i);
 
       const isToday = date.toDateString() === new Date().toDateString();
       const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString();
@@ -27,7 +27,7 @@ export default function WeekListScrollable({ selectedDate, setSelectedDate }: We
       weeks.push({
         date: date,
         dayName: date.toLocaleDateString("ru-RU", { weekday: "short" }),
-        dayNumber: date.getDate(),
+        dayNumber: date.getUTCDate(),
         month: date.toLocaleDateString("ru-RU", { month: "short" }).replace(".", ""),
         isToday: isToday,
         isSelected: isSelected,
