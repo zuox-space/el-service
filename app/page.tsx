@@ -361,17 +361,13 @@ export default function HomePage() {
   };
 
   const canDeletePass = (passDate: Date) => {
-    const now = new Date();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const passDateOnly = new Date(passDate);
     passDateOnly.setHours(0, 0, 0, 0);
 
-    if (passDateOnly < today) return false;
-    if (passDateOnly.getTime() === today.getTime()) {
-      return now.getHours() < 15;
-    }
-    return true;
+    // Удалять можно только если дата пропуска >= сегодня
+    return passDateOnly >= today;
   };
 
   // Мемоизация данных
@@ -544,6 +540,7 @@ export default function HomePage() {
         )}
       </div>
 
+      {/* 🔥 ИСПРАВЛЕННЫЙ БЛОК — только ФИО, без причины */}
       {absentStudentsList.length > 0 ? (
         <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border-l-4 border-red-500 border border-white/20">
           <div className="flex items-center gap-2 mb-2">
@@ -553,10 +550,10 @@ export default function HomePage() {
             </span>
           </div>
           <div className="space-y-1 pl-6">
-            {absentStudentsList.slice(0, 5).map((student: { name: string; reason: string }, idx: number) => (
+            {absentStudentsList.slice(0, 5).map((student: { name: string }, idx: number) => (
               <div key={idx} className="text-sm text-gray-300 flex justify-between">
-                <span>{student.name}</span>
-                <span className="text-xs text-orange-400">{student.reason}</span>
+                <span className="truncate pr-2">{student.name}</span>
+                {/* ❌ Причина УДАЛЕНА */}
               </div>
             ))}
             {absentStudentsList.length > 5 && (
