@@ -21,16 +21,17 @@ export default function WeekListScrollable({ selectedDate, setSelectedDate }: We
       const date = new Date(baseDate);
       date.setUTCDate(baseDate.getUTCDate() + i);
 
-      const isToday = date.toDateString() === new Date().toDateString();
-      const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString();
+      const dateStr = date.toISOString().split('T')[0];
+      const todayStr = new Date().toISOString().split('T')[0];
+      const selectedStr = selectedDate ? selectedDate.toISOString().split('T')[0] : '';
 
       weeks.push({
         date: date,
         dayName: date.toLocaleDateString("ru-RU", { weekday: "short" }),
         dayNumber: date.getUTCDate(),
         month: date.toLocaleDateString("ru-RU", { month: "short" }).replace(".", ""),
-        isToday: isToday,
-        isSelected: isSelected,
+        isToday: dateStr === todayStr,
+        isSelected: dateStr === selectedStr,
       });
     }
     return weeks;
