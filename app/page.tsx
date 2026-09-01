@@ -605,7 +605,7 @@ export default function HomePage() {
           <div className="flex items-center gap-2 mb-2">
             <FileText size={12} className="text-blue-400" />
             <h3 className="font-semibold text-white text-sm">
-              Пропуска за {formatDisplayDate(selectedDate)}
+              Пропуска
             </h3>
           </div>
           <div className="space-y-2 max-h-48 overflow-y-auto">
