@@ -16,6 +16,8 @@ export default function WeekListScrollable({ selectedDate, setSelectedDate }: We
     const weeks = [];
     const baseDate = new Date(currentDate);
     baseDate.setUTCDate(baseDate.getUTCDate() - 14);
+    const todayStr = new Date().toISOString().split('T')[0];
+    const selectedStr = selectedDate ? selectedDate.toISOString().split('T')[0] : '';
 
     for (let i = 0; i < 35; i++) {
       // 🔥 СОЗДАЁМ ДАТУ В UTC
@@ -25,9 +27,7 @@ export default function WeekListScrollable({ selectedDate, setSelectedDate }: We
         baseDate.getUTCDate() + i
       ));
 
-      const dateStr = selectedDate.toLocaleDateString('en-CA');
-      const todayStr = new Date().toISOString().split('T')[0];
-      const selectedStr = selectedDate ? selectedDate.toISOString().split('T')[0] : '';
+      const dateStr = date.toISOString().split('T')[0];
 
       weeks.push({
         date: date,
