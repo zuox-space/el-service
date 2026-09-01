@@ -12,28 +12,44 @@ export default function WeekListScrollable({ selectedDate, setSelectedDate }: We
   const [currentDate, setCurrentDate] = useState(new Date());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  // Вспомогательная функция для получения даты в московском времени
+  const getMoscowDate = (date: Date): Date => {
+    // Создаем новую дату в локальном времени
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  };
+
+  // Форматирование даты в YYYY-MM-DD без UTC
+  const formatDateLocal = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const getWeeks = () => {
     const weeks = [];
+    // Работаем с локальным временем
     const baseDate = new Date(currentDate);
-    baseDate.setUTCDate(baseDate.getUTCDate() - 14);
-    const todayStr = new Date().toISOString().split('T')[0];
-    const selectedStr = selectedDate ? selectedDate.toISOString().split('T')[0] : '';
+    baseDate.setDate(baseDate.getDate() - 14);
+
+    const today = new Date();
+    const todayStr = formatDateLocal(today);
+    const selectedStr = selectedDate ? formatDateLocal(selectedDate) : '';
 
     for (let i = 0; i < 35; i++) {
-      // 🔥 СОЗДАЁМ ДАТУ В UTC
-      const date = new Date(Date.UTC(
-        baseDate.getUTCFullYear(),
-        baseDate.getUTCMonth(),
-        baseDate.getUTCDate() + i
-      ));
+      // Создаем дату в локальном времени
+      const date = new Date(baseDate);
+      date.setDate(date.getDate() + i);
 
-      const dateStr = date.toISOString().split('T')[0];
+      // Очищаем время для корректного сравнения
+      const dateWithoutTime = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const dateStr = formatDateLocal(dateWithoutTime);
 
       weeks.push({
-        date: date,
-        dayName: date.toLocaleDateString("ru-RU", { weekday: "short" }),
-        dayNumber: date.getUTCDate(),
-        month: date.toLocaleDateString("ru-RU", { month: "short" }).replace(".", ""),
+        date: dateWithoutTime,
+        dayName: dateWithoutTime.toLocaleDateString("ru-RU", { weekday: "short" }),
+        dayNumber: dateWithoutTime.getDate(),
+        month: dateWithoutTime.toLocaleDateString("ru-RU", { month: "short" }).replace(".", ""),
         isToday: dateStr === todayStr,
         isSelected: dateStr === selectedStr,
       });
@@ -45,7 +61,8 @@ export default function WeekListScrollable({ selectedDate, setSelectedDate }: We
 
   useEffect(() => {
     if (scrollContainerRef.current && selectedDate) {
-      const selectedIndex = weeks.findIndex((week) => week.date.toDateString() === selectedDate.toDateString());
+      const selectedStr = formatDateLocal(selectedDate);
+      const selectedIndex = weeks.findIndex((week) => formatDateLocal(week.date) === selectedStr);
       if (selectedIndex !== -1) {
         const element = scrollContainerRef.current.children[selectedIndex] as HTMLElement;
         if (element) {
@@ -56,16 +73,20 @@ export default function WeekListScrollable({ selectedDate, setSelectedDate }: We
   }, [selectedDate, currentDate]);
 
   const selectDay = (day: any) => {
-    // 🔥 Передаём дату как есть (она уже в UTC)
-    setSelectedDate(day.date);
+    // Передаем дату без времени
+    const selected = new Date(day.date.getFullYear(), day.date.getMonth(), day.date.getDate());
+    setSelectedDate(selected);
   };
+
   const scrollToToday = () => {
-    const todayIndex = weeks.findIndex((week) => week.isToday);
+    const todayStr = formatDateLocal(new Date());
+    const todayIndex = weeks.findIndex((week) => formatDateLocal(week.date) === todayStr);
     if (todayIndex !== -1 && scrollContainerRef.current) {
       const element = scrollContainerRef.current.children[todayIndex] as HTMLElement;
       if (element) {
         element.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
-        setSelectedDate(new Date());
+        const today = new Date();
+        setSelectedDate(new Date(today.getFullYear(), today.getMonth(), today.getDate()));
       }
     }
   };
@@ -97,7 +118,6 @@ export default function WeekListScrollable({ selectedDate, setSelectedDate }: We
   return (
     <div className="w-full">
       <div className="flex justify-between items-center mb-3">
-
         <button
           onClick={scrollToToday}
           className="flex items-center gap-1 px-2 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 text-xs rounded-lg transition-colors border border-blue-500/30"
@@ -110,7 +130,6 @@ export default function WeekListScrollable({ selectedDate, setSelectedDate }: We
       <div ref={scrollContainerRef} className="flex gap-1.5 overflow-x-auto pb-3 scroll-smooth relative">
         {weeks.map((day, idx) => (
           <div key={idx} className="relative flex flex-col items-center">
-            {/* Зеленая закладка для сегодняшнего дня */}
             {day.isToday && !day.isSelected && (
               <div className="absolute -top-2 left-1/2 -translate-x-1/2">
                 <div className="w-6 h-1 bg-green-500 rounded-full"></div>

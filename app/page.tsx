@@ -28,7 +28,10 @@ interface TabType {
 export default function HomePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [selectedDate, setSelectedDate] = useState(new Date());
+
+  // Инициализация с текущей датой в локальном времени
+  const today = new Date();
+  const [selectedDate, setSelectedDate] = useState(new Date(today.getFullYear(), today.getMonth(), today.getDate()));
   const [selectedClass, setSelectedClass] = useState<any>(null);
   const [classes, setClasses] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<string>("attendance");
@@ -45,6 +48,26 @@ export default function HomePage() {
   const [selfExits, setSelfExits] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
+
+  // Вспомогательная функция для форматирования даты в YYYY-MM-DD (локальное время)
+  const formatDateLocal = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Функция для очистки времени у даты
+  const clearTime = (date: Date): Date => {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  };
+
+  // Функция для сравнения дат (без учета времени)
+  const isSameDay = (date1: Date, date2: Date): boolean => {
+    return date1.getFullYear() === date2.getFullYear() &&
+      date1.getMonth() === date2.getMonth() &&
+      date1.getDate() === date2.getDate();
+  };
 
   const roles = (session?.user?.roles as string[]) || [];
   const isAdmin = roles.includes("ADMIN");
@@ -72,14 +95,7 @@ export default function HomePage() {
       router.push("/login");
     }
   }, [status, router]);
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/login");
-    }
 
-    // 🔥 НОВЫЙ БЛОК: редирект для ADMIN
-
-  }, [status, router, session]);
   const handleLogout = async () => {
     await signOut({ redirect: true, callbackUrl: "/login" });
   };
@@ -140,7 +156,7 @@ export default function HomePage() {
     }
   }, [session, getStudentsFromClass]);
 
-  // Обработчик смены класса - ОСНОВНОЕ ИСПРАВЛЕНИЕ
+  // Обработчик смены класса
   const handleClassChange = useCallback((classData: any) => {
     setSelectedClass(classData);
     // Обновляем список учеников при смене класса
@@ -155,8 +171,8 @@ export default function HomePage() {
 
     const fetchData = async () => {
       try {
-        // 🔥 ФИКСИРУЕМ ДАТУ: передаём только день (YYYY-MM-DD)
-        const dateStr = selectedDate.toISOString().split('T')[0];
+        // Используем локальное форматирование даты
+        const dateStr = formatDateLocal(selectedDate);
 
         const [attendanceRes, passesRes, newsRes, notesRes, selfExitRes] = await Promise.all([
           fetch(`/api/attendance?classId=${selectedClass.id}&date=${dateStr}`),
@@ -251,7 +267,7 @@ export default function HomePage() {
       const response = await fetch("/api/news", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...newsData, classId: selectedClass.id, date: selectedDate })
+        body: JSON.stringify({ ...newsData, classId: selectedClass.id, date: formatDateLocal(selectedDate) })
       });
 
       if (!response.ok) {
@@ -272,7 +288,7 @@ export default function HomePage() {
       const response = await fetch("/api/notes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...noteData, classId: selectedClass.id, date: selectedDate })
+        body: JSON.stringify({ ...noteData, classId: selectedClass.id, date: formatDateLocal(selectedDate) })
       });
 
       if (!response.ok) {
@@ -327,17 +343,15 @@ export default function HomePage() {
 
   const deletePass = async (passId: string, passDate: Date) => {
     const now = new Date();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const passDateOnly = new Date(passDate);
-    passDateOnly.setHours(0, 0, 0, 0);
+    const today = clearTime(new Date());
+    const passDateOnly = clearTime(new Date(passDate));
 
     if (passDateOnly < today) {
       alert("Нельзя удалить пропуск за прошедшую дату");
       return;
     }
 
-    if (passDateOnly.getTime() === today.getTime()) {
+    if (isSameDay(passDateOnly, today)) {
       const currentHour = now.getHours();
       if (currentHour >= 15) {
         alert("Пропуск за сегодня нельзя удалить после 15:00");
@@ -356,20 +370,14 @@ export default function HomePage() {
   };
 
   const canIssuePass = (date: Date) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const selectedDateOnly = new Date(date);
-    selectedDateOnly.setHours(0, 0, 0, 0);
+    const today = clearTime(new Date());
+    const selectedDateOnly = clearTime(new Date(date));
     return selectedDateOnly >= today;
   };
 
   const canDeletePass = (passDate: Date) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const passDateOnly = new Date(passDate);
-    passDateOnly.setHours(0, 0, 0, 0);
-
-    // Удалять можно только если дата пропуска >= сегодня
+    const today = clearTime(new Date());
+    const passDateOnly = clearTime(new Date(passDate));
     return passDateOnly >= today;
   };
 
@@ -377,8 +385,21 @@ export default function HomePage() {
   const passesForSelectedDate = useMemo(() => Array.isArray(passesHistory) ? passesHistory : [], [passesHistory]);
   const attendanceForSelectedDate = useMemo(() => attendanceHistory && attendanceHistory.length > 0 ? attendanceHistory[0] : null, [attendanceHistory]);
   const absentStudentsOnSelectedDate = useMemo(() => attendanceForSelectedDate?.absentStudents || [], [attendanceForSelectedDate]);
-  const isSelectedDateToday = useMemo(() => selectedDate.toDateString() === new Date().toDateString(), [selectedDate]);
-  const isTodayAttendanceMarked = useMemo(() => attendanceHistory.some(a => a && new Date(a.date).toDateString() === new Date().toDateString()), [attendanceHistory]);
+
+  const isSelectedDateToday = useMemo(() => {
+    const today = clearTime(new Date());
+    return isSameDay(selectedDate, today);
+  }, [selectedDate]);
+
+  const isTodayAttendanceMarked = useMemo(() => {
+    const today = clearTime(new Date());
+    return attendanceHistory.some(a => {
+      if (!a || !a.date) return false;
+      const aDate = new Date(a.date);
+      return isSameDay(aDate, today);
+    });
+  }, [attendanceHistory]);
+
   const canIssue = useMemo(() => canIssuePass(selectedDate), [selectedDate]);
 
   const absentStudentsList = useMemo(() => (attendanceForSelectedDate?.absentStudents || []).map((id: number) => {
@@ -411,7 +432,6 @@ export default function HomePage() {
   if (!session) {
     return null;
   }
-
 
   // Если ADMIN — показываем упрощенную версию
   if (isAdmin && roles.length === 1) {
@@ -451,6 +471,7 @@ export default function HomePage() {
       </div>
     </div>;
   }
+
   // Если у пользователя нет класса и нет роли классного руководителя или админа
   if (!showWorkInterface) {
     return (
@@ -543,7 +564,6 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* 🔥 ИСПРАВЛЕННЫЙ БЛОК — только ФИО, без причины */}
       {absentStudentsList.length > 0 ? (
         <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border-l-4 border-red-500 border border-white/20">
           <div className="flex items-center gap-2 mb-2">
@@ -556,7 +576,6 @@ export default function HomePage() {
             {absentStudentsList.slice(0, 5).map((student: { name: string }, idx: number) => (
               <div key={idx} className="text-sm text-gray-300 flex justify-between">
                 <span className="truncate pr-2">{student.name}</span>
-                {/* ❌ Причина УДАЛЕНА */}
               </div>
             ))}
             {absentStudentsList.length > 5 && (
@@ -580,7 +599,7 @@ export default function HomePage() {
           <div className="flex items-center gap-2 mb-2">
             <FileText size={12} className="text-blue-400" />
             <h3 className="font-semibold text-white text-sm">
-              Пропуска за {formatDateLocal(selectedDate)}
+              Пропуска за {selectedDate.toLocaleDateString("ru-RU")}
             </h3>
           </div>
           <div className="space-y-2 max-h-48 overflow-y-auto">
@@ -736,13 +755,6 @@ export default function HomePage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {/* <button
-                onClick={() => router.push("/class-management")}
-                className="w-8 h-8 flex items-center justify-center bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg transition-all border border-green-500/30"
-                title="Управление классом"
-              >
-                <Settings size={16} />
-              </button> */}
               {isAdmin && (
                 <button
                   onClick={() => router.push("/admin")}
@@ -763,10 +775,10 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Выбор класса - передаем обработчик */}
+        {/* Выбор класса */}
         <ClassSelector
           selectedClass={selectedClass}
-          onClassChange={handleClassChange}  // ИСПРАВЛЕНО: используем обработчик
+          onClassChange={handleClassChange}
           classes={classes}
           currentTeacherId={session.user?.id}
         />

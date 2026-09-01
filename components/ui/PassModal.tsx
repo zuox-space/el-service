@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { X, Clock, Search, CheckCircle } from "lucide-react";
-import { formatDateLocal } from "@/lib/utils";
 
 interface Student {
   id: number;
@@ -33,6 +32,23 @@ export default function PassModal({
   const [exitReason] = useState("Заявление родителей");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Вспомогательная функция для форматирования даты в локальном времени
+  const formatDateLocal = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Функция для получения читаемой даты
+  const getReadableDate = (date: Date): string => {
+    return date.toLocaleDateString("ru-RU", {
+      day: "numeric",
+      month: "long",
+      year: "numeric"
+    });
+  };
 
   const getStudentsArray = (): Student[] => {
     if (!studentsList) return [];
@@ -117,7 +133,8 @@ export default function PassModal({
     setIsSubmitting(true);
 
     const passData = {
-      date: selectedDate,
+      // Передаем дату в локальном формате
+      date: formatDateLocal(selectedDate),
       students: studentsArray.filter((s) => selectedStudents.includes(s.id)),
       exitTime: exitTime,
       reason: exitReason,
@@ -154,7 +171,7 @@ export default function PassModal({
             <div>
               <h3 className="text-lg font-bold text-white">Пропуск</h3>
               <p className="text-blue-100 text-xs">
-                Пропуск на {formatDateLocal(selectedDate)}
+                Пропуск на {getReadableDate(selectedDate)}
               </p>
             </div>
             <button onClick={onClose} className="text-white/70 hover:text-white">
@@ -181,13 +198,13 @@ export default function PassModal({
           <div className="flex gap-2">
             <button
               onClick={selectAll}
-              className="flex-1 text-xs py-1.5 bg-blue-500/20 text-blue-300 rounded-lg"
+              className="flex-1 text-xs py-1.5 bg-blue-500/20 text-blue-300 rounded-lg hover:bg-blue-500/30 transition-colors"
             >
               Выбрать всех
             </button>
             <button
               onClick={clearAll}
-              className="flex-1 text-xs py-1.5 bg-white/10 text-gray-300 rounded-lg"
+              className="flex-1 text-xs py-1.5 bg-white/10 text-gray-300 rounded-lg hover:bg-white/20 transition-colors"
             >
               Очистить
             </button>
@@ -203,15 +220,18 @@ export default function PassModal({
               filteredStudents.map((student) => {
                 const isDisabled = isStudentHasPass(student.id) || isStudentAbsent(student.id);
                 const isSelected = selectedStudents.includes(student.id);
+                let disabledReason = "";
+                if (isStudentHasPass(student.id)) disabledReason = " (уже есть пропуск)";
+                if (isStudentAbsent(student.id)) disabledReason = " (отсутствует)";
 
                 return (
                   <label
                     key={student.id}
                     className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${isDisabled
-                      ? "bg-white/5 opacity-50 cursor-not-allowed"
-                      : isSelected
-                        ? "bg-blue-500/20 border border-blue-500/30"
-                        : "hover:bg-white/10 bg-white/5"
+                        ? "bg-white/5 opacity-50 cursor-not-allowed"
+                        : isSelected
+                          ? "bg-blue-500/20 border border-blue-500/30"
+                          : "hover:bg-white/10 bg-white/5"
                       }`}
                   >
                     <input
@@ -221,8 +241,11 @@ export default function PassModal({
                       disabled={isDisabled}
                       className="w-4 h-4 text-blue-500 rounded border-white/30 bg-white/10"
                     />
-                    <span className={`flex-1 text-sm text-white ${isDisabled ? "line-through text-gray-400" : ""}`}>
+                    <span className={`flex-1 text-sm ${isDisabled ? "text-gray-400 line-through" : "text-white"}`}>
                       {student.name}
+                      {disabledReason && (
+                        <span className="text-xs text-gray-500 ml-1">{disabledReason}</span>
+                      )}
                     </span>
                     {isSelected && !isDisabled && <CheckCircle size={12} className="text-blue-400" />}
                   </label>
@@ -233,7 +256,10 @@ export default function PassModal({
 
           {/* Время выхода */}
           <div>
-            <label className="block text-white text-sm mb-1">Время выхода</label>
+            <label className="block text-white text-sm mb-1 flex items-center gap-1">
+              <Clock size={14} className="text-blue-400" />
+              Время выхода
+            </label>
             <input
               type="time"
               value={exitTime}
@@ -241,16 +267,26 @@ export default function PassModal({
               className="w-full px-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
+
+          {/* Информация о выбранных */}
+          {selectedStudents.length > 0 && (
+            <div className="bg-blue-500/10 rounded-lg p-2 border border-blue-500/20">
+              <p className="text-xs text-blue-300">
+                Выбрано учеников: <span className="font-bold">{selectedStudents.length}</span>
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Кнопка отправки */}
         <div className="p-3 border-t border-white/10 bg-white/5">
           <button
             onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg font-medium disabled:opacity-50 transition-all text-sm"
+            disabled={isSubmitting || selectedStudents.length === 0}
+            className={`w-full py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm ${selectedStudents.length === 0 ? "opacity-50" : ""
+              }`}
           >
-            {isSubmitting ? "Оформление..." : "Оформить пропуск"}
+            {isSubmitting ? "Оформление..." : `Оформить пропуск (${selectedStudents.length})`}
           </button>
         </div>
       </div>
