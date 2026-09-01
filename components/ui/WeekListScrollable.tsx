@@ -17,14 +17,16 @@ export default function WeekListScrollable({ selectedDate, setSelectedDate }: We
     const baseDate = new Date(currentDate);
     baseDate.setUTCDate(baseDate.getUTCDate() - 14);
 
-    // 🔥 Фиксируем сегодняшнюю дату в UTC
-    const todayStr = new Date().toISOString().split('T')[0];
-
     for (let i = 0; i < 35; i++) {
-      const date = new Date(baseDate);
-      date.setUTCDate(baseDate.getUTCDate() + i);
+      // 🔥 СОЗДАЁМ ДАТУ В UTC
+      const date = new Date(Date.UTC(
+        baseDate.getUTCFullYear(),
+        baseDate.getUTCMonth(),
+        baseDate.getUTCDate() + i
+      ));
 
       const dateStr = date.toISOString().split('T')[0];
+      const todayStr = new Date().toISOString().split('T')[0];
       const selectedStr = selectedDate ? selectedDate.toISOString().split('T')[0] : '';
 
       weeks.push({
@@ -53,8 +55,10 @@ export default function WeekListScrollable({ selectedDate, setSelectedDate }: We
     }
   }, [selectedDate, currentDate]);
 
-  const selectDay = (day: any) => setSelectedDate(day.date);
-
+  const selectDay = (day: any) => {
+    // 🔥 Передаём дату как есть (она уже в UTC)
+    setSelectedDate(day.date);
+  };
   const scrollToToday = () => {
     const todayIndex = weeks.findIndex((week) => week.isToday);
     if (todayIndex !== -1 && scrollContainerRef.current) {
