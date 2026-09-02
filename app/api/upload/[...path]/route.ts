@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
-import os from "os";
 
 export async function GET(
     req: NextRequest,
@@ -13,11 +12,13 @@ export async function GET(
             return new NextResponse("Invalid path", { status: 400 });
         }
 
-        // Формируем путь к файлу в корне сервера
-        const filePath = path.join(os.homedir(), "uploads", ...params.path);
+        // ✅ ИСПОЛЬЗУЕМ АБСОЛЮТНЫЙ ПУТЬ
+        const filePath = path.join("/home", "kknayduk", "uploads", ...params.path);
+        // ИЛИ используем переменную окружения:
+        // const homeDir = process.env.HOME || "/home/kknayduk";
+        // const filePath = path.join(homeDir, "uploads", ...params.path);
 
-        // Логируем для отладки
-        console.log("Requested file:", filePath);
+        console.log("📁 Requested file:", filePath);
 
         // Проверяем существование файла
         await fs.access(filePath);
@@ -46,7 +47,7 @@ export async function GET(
             },
         });
     } catch (error) {
-        console.error("File not found:", error);
+        console.error("❌ File not found:", error);
         return new NextResponse("File not found", { status: 404 });
     }
 }
