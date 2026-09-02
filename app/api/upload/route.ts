@@ -20,8 +20,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
     }
 
-    // ✅ СОХРАНЯЕМ В ПАПКУ public (она доступна статически)
-    const uploadDir = path.join(process.cwd(), "public", "uploads", "self-exit");
+    // ✅ ДЛЯ STANDALONE - СОХРАНЯЕМ В /home/kknayduk/uploads/
+    const uploadDir = path.join("/home", "kknayduk", "uploads", "self-exit");
     await mkdir(uploadDir, { recursive: true });
 
     const bytes = await file.arrayBuffer();
@@ -36,12 +36,12 @@ export async function POST(req: NextRequest) {
 
     // ✅ URL ДЛЯ СТАТИЧЕСКОГО ДОСТУПА
     const photoUrl = `/uploads/self-exit/${filename}`;
-    console.log("File saved to:", filePath);
-    console.log("File URL:", photoUrl);
+    console.log("📁 File saved to:", filePath);
+    console.log("🔗 File URL:", photoUrl);
 
     return NextResponse.json({ photoUrl });
   } catch (error) {
-    console.error("Upload error:", error);
+    console.error("❌ Upload error:", error);
     return NextResponse.json({ error: "Failed to upload file" }, { status: 500 });
   }
 }
