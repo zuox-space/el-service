@@ -113,22 +113,8 @@ export async function GET(req: NextRequest) {
             const gradeMatch = cls?.name?.match(/(\d+)/);
             const grade = gradeMatch ? parseInt(gradeMatch[1]) : 0;
 
-            // ✅ ПРАВИЛЬНОЕ ФОРМАТИРОВАНИЕ URL
-            let photoUrl = null;
-            if (exit.photoUrl) {
-                // Если URL уже начинается с /api/ - оставляем как есть
-                if (exit.photoUrl.startsWith('/api/')) {
-                    photoUrl = exit.photoUrl;
-                }
-                // Если URL начинается с /uploads/ - добавляем /api
-                else if (exit.photoUrl.startsWith('/uploads/')) {
-                    photoUrl = `/api${exit.photoUrl}`;
-                }
-                // Иначе просто используем как есть
-                else {
-                    photoUrl = exit.photoUrl;
-                }
-            }
+            // ✅ ПРОСТО ИСПОЛЬЗУЕМ URL КАК ЕСТЬ
+            let photoUrl = exit.photoUrl || null;
 
             selfExits.push({
                 id: exit.id,
@@ -141,7 +127,7 @@ export async function GET(req: NextRequest) {
                 className: cls?.name || "Неизвестный класс",
                 grade: grade,
                 type: "self-exit" as const,
-                photoUrl: photoUrl // ✅ ИСПРАВЛЕНО
+                photoUrl: photoUrl // ✅ ПРОСТО ИСПОЛЬЗУЕМ КАК ЕСТЬ
             });
         }
 
