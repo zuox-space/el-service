@@ -5,6 +5,7 @@ import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import os from "os";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -20,8 +21,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
     }
 
-    // Создаем директорию, если её нет
-    const uploadDir = path.join(process.cwd(), "uploads", "self-exit");
+    // ✅ СОХРАНЯЕМ В КОРЕНЬ СЕРВЕРА (~/uploads/self-exit/)
+    const uploadDir = path.join(os.homedir(), "uploads", "self-exit");
     await mkdir(uploadDir, { recursive: true });
 
     // Сохраняем файл
@@ -35,8 +36,10 @@ export async function POST(req: NextRequest) {
 
     await writeFile(filePath, buffer);
 
-    const photoUrl = `/uploads/self-exit/${filename}`;
-    console.log("File saved:", photoUrl);
+    // ✅ URL ДЛЯ ДОСТУПА ЧЕРЕЗ API
+    const photoUrl = `/api/uploads/self-exit/${filename}`;
+    console.log("File saved to:", filePath);
+    console.log("File URL:", photoUrl);
 
     return NextResponse.json({ photoUrl });
   } catch (error) {
