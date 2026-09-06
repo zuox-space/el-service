@@ -143,7 +143,7 @@ export default function TruantsPage() {
             try {
                 setIsLoading(true);
                 const response = await fetch(
-                    `/api/truants?startDate=${new Date(startDate).toISOString()}&endDate=${new Date(endDate).toISOString()}`
+                    `/api/admin/truants?startDate=${new Date(startDate).toISOString()}&endDate=${new Date(endDate).toISOString()}`
                 );
                 const data: ApiResponse = await response.json();
 
