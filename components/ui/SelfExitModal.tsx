@@ -66,16 +66,16 @@ export default function SelfExitModal({ isOpen, onClose, onSubmit, studentsList 
       alert("Укажите дату окончания");
       return;
     }
-    if (!photo) {
-      alert("Прикрепите фото заявления");
-      return;
-    }
+    // if (!photo) {
+    //   alert("Прикрепите фото заявления");
+    //   return;
+    // }
 
     setIsUploading(true);
 
     try {
       const formData = new FormData();
-      formData.append("file", photo);
+      // formData.append("file", photo);
 
       const uploadRes = await fetch("/api/upload", {
         method: "POST",
@@ -93,7 +93,7 @@ export default function SelfExitModal({ isOpen, onClose, onSubmit, studentsList 
         studentName: selectedStudent.name,
         startDate,
         endDate,
-        photoUrl: uploadData.photoUrl,
+        photoUrl: uploadData.photoUrl || '',
         reason,
       });
 
