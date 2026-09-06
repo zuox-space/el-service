@@ -100,13 +100,18 @@ export default function TruantsPage() {
     const [expandedStudent, setExpandedStudent] = useState<number | null>(null);
 
     // 🔥 ДАТЫ - ИСПРАВЛЕНО
-    const [startDate, setStartDate] = useState<string>(() => {
-        const date = new Date();
-        date.setMonth(date.getMonth() - 1);
-        return date.toISOString().split('T')[0];
-    });
-    const [endDate, setEndDate] = useState<string>(() => {
-        return new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split('T')[0];
+
+
+
+    // Используем одну и ту же дату для начала и конца
+    const [startDate, setStartDate] = useState<string>(today);
+    const [endDate, setEndDate] = useState<string>(today);
+
+    // Или используем useMemo для вычисления один раз
+    const [dates, setDates] = useState(() => {
+        const today = new Date().toISOString().split('T')[0];
+        return { startDate: today, endDate: today };
     });
 
     // ============ ХУКИ ============
@@ -313,12 +318,7 @@ export default function TruantsPage() {
         return reason?.color || "text-gray-400";
     };
 
-    const getAbsenceLevel = (count: number) => {
-        if (count >= 20) return { color: "text-red-400", bg: "bg-red-500/20", label: "Критично" };
-        if (count >= 10) return { color: "text-orange-400", bg: "bg-orange-500/20", label: "Много" };
-        if (count >= 5) return { color: "text-yellow-400", bg: "bg-yellow-500/20", label: "Средне" };
-        return { color: "text-green-400", bg: "bg-green-500/20", label: "Мало" };
-    };
+
 
     const exportToExcel = () => {
         let html = `
@@ -755,7 +755,6 @@ export default function TruantsPage() {
                                     </tr>
                                 ) : (
                                     filteredTruants.map((student, index) => {
-                                        const level = getAbsenceLevel(student.totalAbsences);
                                         return (
                                             <React.Fragment key={student.id}>
                                                 <tr
@@ -770,9 +769,7 @@ export default function TruantsPage() {
                                                             <span className="truncate max-w-[80px] sm:max-w-none">
                                                                 {student.name}
                                                             </span>
-                                                            <span className={`text-[10px] px-1 py-0.5 rounded-full ${level.bg} ${level.color} flex-shrink-0`}>
-                                                                {level.label}
-                                                            </span>
+
                                                         </div>
                                                     </td>
                                                     <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-gray-300 hidden sm:table-cell">
@@ -784,9 +781,7 @@ export default function TruantsPage() {
                                                         )}
                                                     </td>
                                                     <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-center">
-                                                        <span className={`font-bold text-sm sm:text-base ${level.color}`}>
-                                                            {student.totalAbsences}
-                                                        </span>
+
                                                     </td>
                                                     <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm hidden sm:table-cell">
                                                         <div className="flex flex-wrap gap-1">
@@ -879,14 +874,14 @@ export default function TruantsPage() {
                 </div>
 
                 {/* Meta-информация */}
-                {meta && (
+                {/* {meta && (
                     <div className="mt-3 text-[10px] text-gray-500 text-center">
                         Источник данных: {meta.source} |
                         Записей посещаемости: {meta.attendanceRecords} |
                         Всего студентов в базе: {meta.studentsInMySQL} |
                         Учеников с пропусками: {meta.studentsWithAbsences}
                     </div>
-                )}
+                )} */}
             </div>
         </div>
     );
