@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { X, Calendar, User, FileText, Image, Upload, Loader2, ChevronDown, Search } from "lucide-react";
+import { X, User, ChevronDown, Search, Loader2 } from "lucide-react";
 
 interface SelfExitModalProps {
   isOpen: boolean;
@@ -15,9 +15,7 @@ export default function SelfExitModal({ isOpen, onClose, onSubmit, studentsList 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [reason, setReason] = useState("");
-  const [photo, setPhoto] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -41,18 +39,6 @@ export default function SelfExitModal({ isOpen, onClose, onSubmit, studentsList 
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setPhoto(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhotoPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   const handleSubmit = async () => {
     if (!selectedStudent) {
       alert("Выберите ученика");
@@ -66,49 +52,31 @@ export default function SelfExitModal({ isOpen, onClose, onSubmit, studentsList 
       alert("Укажите дату окончания");
       return;
     }
-    // if (!photo) {
-    //   alert("Прикрепите фото заявления");
-    //   return;
-    // }
 
-    setIsUploading(true);
+    setIsLoading(true);
 
     try {
-      const formData = new FormData();
-      // formData.append("file", photo);
-
-      const uploadRes = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      const uploadData = await uploadRes.json();
-
-      if (!uploadRes.ok) {
-        throw new Error(uploadData.error || "Upload failed");
-      }
-
+      // 🔥 ОТПРАВЛЯЕМ БЕЗ ФОТО - ПУСТАЯ СТРОКА
       onSubmit({
         studentId: selectedStudent.id,
         studentName: selectedStudent.name,
         startDate,
         endDate,
-        photoUrl: uploadData.photoUrl || '',
+        photoUrl: "", // Пустая строка вместо фото
         reason,
       });
 
+      // Сброс формы
       setSelectedStudent(null);
       setStartDate("");
       setEndDate("");
       setReason("");
-      setPhoto(null);
-      setPhotoPreview(null);
-      setIsUploading(false);
+      setIsLoading(false);
       onClose();
     } catch (error) {
       console.error("Submit error:", error);
       alert("Ошибка при сохранении");
-      setIsUploading(false);
+      setIsLoading(false);
     }
   };
 
@@ -186,7 +154,6 @@ export default function SelfExitModal({ isOpen, onClose, onSubmit, studentsList 
           </div>
 
           {/* Период действия */}
-          {/* Период действия */}
           <div className="flex gap-2">
             <div className="flex-1">
               <label className="block text-white text-xs mb-1">С *</label>
@@ -221,42 +188,18 @@ export default function SelfExitModal({ isOpen, onClose, onSubmit, studentsList 
               className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
             />
           </div>
-
-          {/* Загрузка фото */}
-          {/* <div>
-            <label className="block text-white text-sm mb-1">Фото заявления *</label>
-            <div className="border-2 border-dashed border-white/20 rounded-lg p-4 text-center hover:border-indigo-500 transition-colors cursor-pointer relative">
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handlePhotoChange}
-                className="absolute inset-0 opacity-0 cursor-pointer"
-              />
-              {photoPreview ? (
-                <div className="space-y-2">
-                  <img src={photoPreview} alt="Preview" className="max-h-32 mx-auto rounded-lg" />
-                  <p className="text-sm text-gray-400">Нажмите для замены</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <Upload size={32} className="mx-auto text-gray-400" />
-                  <p className="text-sm text-gray-400">Нажмите или перетащите фото</p>
-                </div>
-              )}
-            </div>
-          </div> */}
         </div>
 
         <div className="p-4 border-t border-white/10 bg-white/5">
           <button
             onClick={handleSubmit}
-            disabled={isUploading}
+            disabled={isLoading}
             className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg font-medium disabled:opacity-50 transition-all flex items-center justify-center gap-2"
           >
-            {isUploading ? (
+            {isLoading ? (
               <>
                 <Loader2 size={18} className="animate-spin" />
-                Загрузка...
+                Сохранение...
               </>
             ) : (
               "Сохранить"
