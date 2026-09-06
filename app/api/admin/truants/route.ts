@@ -1,7 +1,9 @@
+// app/api/truants/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { query } from "@/lib/mysql_db";
 
 export const dynamic = 'force-dynamic';
 
@@ -27,11 +29,11 @@ export async function GET(req: NextRequest) {
 
         const start = new Date(startDate);
         const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
 
-        // Получаем все классы с учениками
-        const classes = await prisma.class.findMany();
+        console.log(`📊 Fetching truants from ${start.toISOString()} to ${end.toISOString()}`);
 
-        // Получаем ТОЛЬКО посещаемости (attendance) за период
+        // 1. Получаем все записи посещаемости за период (БЕЗ include)
         const attendances = await prisma.attendance.findMany({
             where: {
                 date: {
@@ -41,80 +43,210 @@ export async function GET(req: NextRequest) {
             }
         });
 
-        // Собираем статистику по ученикам ТОЛЬКО из attendance
-        const studentMap = new Map();
+        console.log(`📋 Found ${attendances.length} attendance records`);
 
-        // Обработка посещаемости
-        for (const record of attendances) {
-            const cls = classes.find(c => c.id === record.classId);
-            if (!cls) continue;
-
-            let students: any[] = [];
-            if (typeof cls.students === 'string') {
-                try {
-                    students = JSON.parse(cls.students);
-                } catch {
-                    continue;
-                }
+        // 2. Получаем ВСЕ классы для сопоставления ID -> название
+        const allClasses = await prisma.class.findMany({
+            select: {
+                id: true,
+                name: true
             }
+        });
 
+        // Создаем карту классов
+        const classMap = new Map<string, string>();
+        allClasses.forEach(cls => {
+            classMap.set(cls.id, cls.name);
+        });
+
+        // 3. Собираем всех студентов из MySQL
+        const allStudentsFromMySQL = await query<{
+            aisId: number;
+            name: string;
+            className: string;
+        }>(`
+            SELECT 
+                aisId,
+                CONCAT(lastName, ' ', firstName) AS name,
+                className 
+            FROM students 
+            WHERE archive = 0
+        `);
+
+        console.log(`👥 Found ${allStudentsFromMySQL.length} students in MySQL`);
+
+        // Создаем карту студентов
+        const studentMap = new Map<number, { name: string; className: string }>();
+        allStudentsFromMySQL.forEach(student => {
+            studentMap.set(student.aisId, {
+                name: student.name,
+                className: student.className
+            });
+        });
+
+        // 4. Обрабатываем каждую запись посещаемости
+        const absenceMap = new Map<number, {
+            studentId: number;
+            name: string;
+            currentClass: string;
+            totalAbsences: number;
+            absences: {
+                date: string;
+                reason: string;
+                className: string;
+                classId: string;
+            }[];
+            reasons: Record<string, number>;
+            _classHistory?: { className: string; date: string }[];
+        }>();
+
+        for (const record of attendances) {
+            // Получаем название класса из карты
+            const className = classMap.get(record.classId) || `Класс ${record.classId}`;
+
+            // Парсим absentStudents
             let absentIds: number[] = [];
             if (typeof record.absentStudents === 'string') {
                 try {
                     absentIds = JSON.parse(record.absentStudents);
                 } catch {
+                    console.warn(`⚠️ Failed to parse absentStudents for record ${record.id}`);
                     continue;
                 }
+            } else if (Array.isArray(record.absentStudents)) {
+                absentIds = record.absentStudents;
             }
 
+            if (absentIds.length === 0) continue;
+
+            // Парсим absentReasons
             let absentReasons: Record<number, string> = {};
             if (typeof record.absentReasons === 'string') {
                 try {
                     absentReasons = JSON.parse(record.absentReasons);
                 } catch {
-                    continue;
+                    absentReasons = {};
                 }
+            } else if (typeof record.absentReasons === 'object') {
+                absentReasons = record.absentReasons;
             }
 
-            for (const id of absentIds) {
-                const student = students.find((s: any) => s.id === id);
-                if (!student) continue;
+            for (const studentId of absentIds) {
+                const studentInfo = studentMap.get(studentId);
 
-                const reason = absentReasons[id] || "other";
+                if (!studentInfo) {
+                    console.warn(`⚠️ Student with ID ${studentId} not found in MySQL`);
+                    continue;
+                }
 
-                const key = `${cls.id}-${id}`;
-                if (!studentMap.has(key)) {
-                    studentMap.set(key, {
-                        id: id,
-                        name: student.name,
-                        className: cls.name,
-                        grade: cls.grade,
+                const reason = absentReasons[studentId] || "other";
+
+                if (!absenceMap.has(studentId)) {
+                    absenceMap.set(studentId, {
+                        studentId: studentId,
+                        name: studentInfo.name,
+                        currentClass: studentInfo.className,
                         totalAbsences: 0,
-                        absences: []
+                        absences: [],
+                        reasons: {},
+                        _classHistory: []
                     });
                 }
 
-                const entry = studentMap.get(key);
+                const entry = absenceMap.get(studentId)!;
                 entry.totalAbsences++;
                 entry.absences.push({
-                    date: record.date,
+                    date: record.date.toISOString(),
                     reason: reason,
-                    type: "attendance"
+                    className: className,
+                    classId: record.classId
                 });
+
+                entry.reasons[reason] = (entry.reasons[reason] || 0) + 1;
+
+                // Отслеживаем историю классов
+                if (entry._classHistory) {
+                    const lastClass = entry._classHistory[entry._classHistory.length - 1];
+                    if (!lastClass || lastClass.className !== className) {
+                        entry._classHistory.push({
+                            className: className,
+                            date: record.date.toISOString()
+                        });
+                    }
+                }
             }
         }
 
-        // Преобразуем Map в массив и сортируем по количеству пропусков
-        const truants = Array.from(studentMap.values())
+        // 5. Преобразуем в массив
+        const truants = Array.from(absenceMap.values())
             .filter(s => s.totalAbsences > 0)
-            .sort((a, b) => b.totalAbsences - a.totalAbsences);
+            .sort((a, b) => b.totalAbsences - a.totalAbsences)
+            .map(student => {
+                const gradeMatch = student.currentClass.match(/(\d+)/);
+                const grade = gradeMatch ? parseInt(gradeMatch[1]) : 0;
 
-        return NextResponse.json({ truants });
+                return {
+                    id: student.studentId,
+                    name: student.name,
+                    className: student.currentClass,
+                    grade: grade,
+                    totalAbsences: student.totalAbsences,
+                    absences: student.absences,
+                    reasons: student.reasons,
+                    _meta: {
+                        classHistory: student._classHistory || [],
+                        uniqueClasses: [...new Set(student.absences.map(a => a.className))]
+                    }
+                };
+            });
+
+        // 6. Статистика
+        const reasonStats: Record<string, number> = {};
+        truants.forEach(student => {
+            Object.entries(student.reasons || {}).forEach(([reason, count]) => {
+                reasonStats[reason] = (reasonStats[reason] || 0) + count;
+            });
+        });
+
+        const classStats: Record<string, { total: number; students: number }> = {};
+        truants.forEach(student => {
+            if (!classStats[student.className]) {
+                classStats[student.className] = { total: 0, students: 0 };
+            }
+            classStats[student.className].total += student.totalAbsences;
+            classStats[student.className].students++;
+        });
+
+        console.log(`📊 Found ${truants.length} truants`);
+
+        return NextResponse.json({
+            success: true,
+            truants: truants,
+            stats: {
+                totalTruants: truants.length,
+                totalAbsences: truants.reduce((sum, s) => sum + s.totalAbsences, 0),
+                period: {
+                    start: start.toISOString(),
+                    end: end.toISOString()
+                },
+                byReason: reasonStats,
+                byClass: classStats
+            },
+            meta: {
+                source: 'mysql',
+                attendanceRecords: attendances.length,
+                studentsInMySQL: allStudentsFromMySQL.length,
+                studentsWithAbsences: truants.length
+            }
+        });
 
     } catch (error) {
-        console.error("Error fetching truants:", error);
+        console.error("❌ Error fetching truants:", error);
         return NextResponse.json(
-            { error: "Failed to fetch truants data" },
+            {
+                error: "Failed to fetch truants data",
+                details: error instanceof Error ? error.message : String(error)
+            },
             { status: 500 }
         );
     }
