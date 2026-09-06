@@ -7,18 +7,6 @@ import { query } from "@/lib/mysql_db";
 
 export const dynamic = 'force-dynamic';
 
-// Тип для записи посещаемости
-interface AttendanceRaw {
-    id: string;
-    date: Date;
-    classId: string;
-    teacherId: string;
-    presentStudents: string;
-    absentStudents: string;
-    absentReasons: string;
-    createdAt: Date;
-}
-
 export async function GET(req: NextRequest) {
     const session = await getServerSession(authOptions);
     if (!session) {
@@ -39,26 +27,39 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "Missing date range" }, { status: 400 });
         }
 
-        console.log(`📊 Fetching truants from ${startDate} to ${endDate}`);
+        console.log(`📅 startDate: ${startDate}, endDate: ${endDate}`);
 
-        // 🔥 ИСПОЛЬЗУЕМ ОБЫЧНЫЙ PRISMA ЗАПРОС (БЕЗ RAW SQL)
-        // Это самый надежный способ
-        const start = new Date(startDate + 'T00:00:00.000Z');
-        const end = new Date(endDate + 'T23:59:59.999Z');
+        // 🔥 ПРОСТОЕ СРАВНЕНИЕ СТРОК (без преобразования в Date)
+        // Так как даты хранятся в формате YYYY-MM-DD в БД
+        const start = startDate;
+        const end = endDate;
 
-        const attendances = await prisma.attendance.findMany({
-            where: {
-                date: {
-                    gte: start,
-                    lte: end
-                }
-            },
+        console.log(`📊 Сравниваем строки: start=${start}, end=${end}`);
+
+        // 🔥 ПОЛУЧАЕМ ВСЕ ЗАПИСИ И ФИЛЬТРУЕМ ПО СТРОКАМ
+        const allAttendances = await prisma.attendance.findMany({
             orderBy: {
                 date: 'desc'
             }
         });
 
-        console.log(`📋 Found ${attendances.length} attendance records in period`);
+        console.log(`📋 Всего записей в БД: ${allAttendances.length}`);
+
+        // 🔥 ФИЛЬТРУЕМ ПО ДАТЕ КАК СТРОКЕ
+        const attendances = allAttendances.filter(record => {
+            // Берем только дату из ISO строки (YYYY-MM-DD)
+            const recordDateStr = record.date.toISOString().split('T')[0];
+            // Сравниваем как строки
+            return recordDateStr >= start && recordDateStr <= end;
+        });
+
+        console.log(`📋 Отфильтровано: ${attendances.length} записей`);
+
+        // 🔥 ВЫВОДИМ ВСЕ ДАТЫ В БД
+        const allDates = allAttendances.map(r => r.date.toISOString().split('T')[0]);
+        const uniqueDates = [...new Set(allDates)];
+        console.log(`📅 Даты в БД: ${uniqueDates.join(', ')}`);
+        console.log(`📅 Выбранный диапазон: ${start} - ${end}`);
 
         // Если нет записей, возвращаем пустой результат
         if (attendances.length === 0) {
@@ -78,12 +79,16 @@ export async function GET(req: NextRequest) {
                     source: 'mysql',
                     attendanceRecords: 0,
                     studentsInMySQL: 0,
-                    studentsWithAbsences: 0
+                    studentsWithAbsences: 0,
+                    debug: {
+                        allDatesInDB: uniqueDates,
+                        selectedRange: `${start} - ${end}`
+                    }
                 }
             });
         }
 
-        // 2. Получаем ВСЕ классы для сопоставления ID -> название
+        // 2. Получаем ВСЕ классы
         const allClasses = await prisma.class.findMany({
             select: {
                 id: true,
@@ -91,7 +96,6 @@ export async function GET(req: NextRequest) {
             }
         });
 
-        // Создаем карту классов
         const classMap = new Map<string, string>();
         allClasses.forEach(cls => {
             classMap.set(cls.id, cls.name);
@@ -111,9 +115,8 @@ export async function GET(req: NextRequest) {
             WHERE archive = 0
         `);
 
-        console.log(`👥 Found ${allStudentsFromMySQL.length} students in MySQL`);
+        console.log(`👥 Студентов в MySQL: ${allStudentsFromMySQL.length}`);
 
-        // Создаем карту студентов
         const studentMap = new Map<number, { name: string; className: string }>();
         allStudentsFromMySQL.forEach(student => {
             studentMap.set(student.aisId, {
@@ -138,16 +141,13 @@ export async function GET(req: NextRequest) {
         }>();
 
         for (const record of attendances) {
-            // Получаем название класса из карты
             const className = classMap.get(record.classId) || `Класс ${record.classId}`;
 
-            // Парсим absentStudents
             let absentIds: number[] = [];
             if (typeof record.absentStudents === 'string') {
                 try {
                     absentIds = JSON.parse(record.absentStudents);
                 } catch {
-                    console.warn(`⚠️ Failed to parse absentStudents for record ${record.id}`);
                     continue;
                 }
             } else if (Array.isArray(record.absentStudents)) {
@@ -156,7 +156,6 @@ export async function GET(req: NextRequest) {
 
             if (absentIds.length === 0) continue;
 
-            // Парсим absentReasons
             let absentReasons: Record<number, string> = {};
             if (typeof record.absentReasons === 'string') {
                 try {
@@ -170,11 +169,7 @@ export async function GET(req: NextRequest) {
 
             for (const studentId of absentIds) {
                 const studentInfo = studentMap.get(studentId);
-
-                if (!studentInfo) {
-                    console.warn(`⚠️ Student with ID ${studentId} not found in MySQL`);
-                    continue;
-                }
+                if (!studentInfo) continue;
 
                 const reason = absentReasons[studentId] || "other";
 
@@ -232,7 +227,7 @@ export async function GET(req: NextRequest) {
             });
         });
 
-        console.log(`📊 Found ${truants.length} truants with ${truants.reduce((sum, s) => sum + s.totalAbsences, 0)} total absences`);
+        console.log(`📊 Найдено прогульщиков: ${truants.length}`);
 
         return NextResponse.json({
             success: true,
@@ -250,7 +245,11 @@ export async function GET(req: NextRequest) {
                 source: 'mysql',
                 attendanceRecords: attendances.length,
                 studentsInMySQL: allStudentsFromMySQL.length,
-                studentsWithAbsences: truants.length
+                studentsWithAbsences: truants.length,
+                debug: {
+                    allDatesInDB: uniqueDates,
+                    selectedRange: `${start} - ${end}`
+                }
             }
         });
 
