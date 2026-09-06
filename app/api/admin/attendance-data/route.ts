@@ -29,12 +29,16 @@ export async function GET(req: NextRequest) {
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
 
-        // Получаем все классы с учениками
+        console.log(`📊 Fetching attendance for date: ${today.toISOString()}`);
+
+        // Получаем все классы
         const classes = await prisma.class.findMany({
             orderBy: { name: 'asc' }
         });
 
-        // Получаем все записи посещаемости за сегодня одним запросом
+        console.log(`📚 Found ${classes.length} classes`);
+
+        // Получаем все записи посещаемости за сегодня
         const allAttendance = await prisma.attendance.findMany({
             where: {
                 date: {
@@ -44,40 +48,33 @@ export async function GET(req: NextRequest) {
             }
         });
 
+        console.log(`📋 Found ${allAttendance.length} attendance records`);
+
         // Создаем карту посещаемости по classId
         const attendanceMap = new Map();
         allAttendance.forEach(record => {
             attendanceMap.set(record.classId, record);
         });
 
-        // Форматируем данные
+        // 🔥 ФОРМИРУЕМ ДАННЫЕ ТОЛЬКО ИЗ MYSQL
         const result = await Promise.all(classes.map(async (cls) => {
             const gradeMatch = cls.name.match(/(\d+)/);
             const grade = gradeMatch ? parseInt(gradeMatch[1]) : 0;
 
-            // 🔥 ПОЛУЧАЕМ СТУДЕНТОВ ИЗ MYSQL
+            // 🔥 ПОЛУЧАЕМ СТУДЕНТОВ ТОЛЬКО ИЗ MYSQL
             let students: any[] = [];
             try {
                 const studentsFromMySQL = await getStudentsByClass(cls.name);
-                students = studentsFromMySQL.map((student, index) => ({
-                    id: student.aisId || index + 1,
+                students = studentsFromMySQL.map((student) => ({
+                    id: student.aisId,
                     name: student.name,
-                    aisId: student.aisId || 0
+                    aisId: student.aisId
                 }));
                 console.log(`✅ Class ${cls.name}: loaded ${students.length} students from MySQL`);
             } catch (error) {
                 console.error(`❌ Error fetching students for class ${cls.name}:`, error);
-
-                // Fallback: пытаемся получить из поля students в БД
-                if (typeof cls.students === 'string') {
-                    try {
-                        students = JSON.parse(cls.students);
-                    } catch {
-                        students = [];
-                    }
-                } else if (Array.isArray(cls.students)) {
-                    students = cls.students;
-                }
+                // Если ошибка - возвращаем пустой массив
+                students = [];
             }
 
             const attendance = attendanceMap.get(cls.id);
@@ -123,15 +120,14 @@ export async function GET(req: NextRequest) {
                     absentReasons = attendance.absentReasons;
                 }
 
-                // 🔥 ИСПРАВЛЕНО: правильно находим студентов
+                // 🔥 НАХОДИМ СТУДЕНТОВ ТОЛЬКО В MYSQL ДАННЫХ
                 absentStudents = absentIds.map((id: number) => {
-                    // Ищем студента по id
+                    // Ищем студента по id в MySQL данных
                     const student = students.find((s: any) => s.id === id);
                     const reason = absentReasons[id] || "other";
 
-                    // Добавляем отладочную информацию
                     if (!student) {
-                        console.warn(`⚠️ Student with id ${id} not found in class ${cls.name}`);
+                        console.warn(`⚠️ Student with id ${id} not found in MySQL for class ${cls.name}`);
                     }
 
                     return {
@@ -150,7 +146,6 @@ export async function GET(req: NextRequest) {
                 absentStudents: absentStudents,
                 isMarked: isMarked,
                 grade: grade,
-                // Добавляем для отладки
                 _meta: {
                     studentsCount: students.length,
                     source: 'mysql'
@@ -191,13 +186,15 @@ export async function GET(req: NextRequest) {
             }
         }
 
+        console.log(`📊 Statistics: totalStudents=${stats.totalStudents}, totalPresent=${stats.totalPresent}, totalAbsent=${stats.totalAbsent}`);
+
         return NextResponse.json({
             classes: result,
             statistics: stats
         });
 
     } catch (error) {
-        console.error("Error fetching attendance data:", error);
+        console.error("❌ Error fetching attendance data:", error);
         return NextResponse.json(
             { error: "Failed to fetch attendance data" },
             { status: 500 }
