@@ -41,9 +41,10 @@ export async function GET(req: NextRequest) {
 
         console.log(`📊 Fetching truants from ${startDate} to ${endDate}`);
 
-        // 🔥 ИСПОЛЬЗУЕМ RAW SQL С ТИПИЗАЦИЕЙ
+        // 🔥 ИСПРАВЛЕНО: используем правильное имя таблицы в нижнем регистре
+        // В PostgreSQL все таблицы в нижнем регистре
         const attendances = await prisma.$queryRaw<AttendanceRaw[]>`
-            SELECT * FROM Attendance 
+            SELECT * FROM "Attendance"
             WHERE DATE(date) >= ${startDate} 
             AND DATE(date) <= ${endDate}
             ORDER BY date DESC
