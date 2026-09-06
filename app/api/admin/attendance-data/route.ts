@@ -1,7 +1,9 @@
+// app/api/attendance/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getStudentsByClass } from "@/lib/mysql_db";
 
 export const dynamic = 'force-dynamic';
 
@@ -49,19 +51,33 @@ export async function GET(req: NextRequest) {
         });
 
         // Форматируем данные
-        const result = classes.map(cls => {
+        const result = await Promise.all(classes.map(async (cls) => {
             const gradeMatch = cls.name.match(/(\d+)/);
             const grade = gradeMatch ? parseInt(gradeMatch[1]) : 0;
 
+            // 🔥 ПОЛУЧАЕМ СТУДЕНТОВ ИЗ MYSQL
             let students: any[] = [];
-            if (typeof cls.students === 'string') {
-                try {
-                    students = JSON.parse(cls.students);
-                } catch {
-                    students = [];
+            try {
+                const studentsFromMySQL = await getStudentsByClass(cls.name);
+                students = studentsFromMySQL.map((student, index) => ({
+                    id: student.aisId || index + 1,
+                    name: student.name,
+                    aisId: student.aisId || 0
+                }));
+                console.log(`✅ Class ${cls.name}: loaded ${students.length} students from MySQL`);
+            } catch (error) {
+                console.error(`❌ Error fetching students for class ${cls.name}:`, error);
+
+                // Fallback: пытаемся получить из поля students в БД
+                if (typeof cls.students === 'string') {
+                    try {
+                        students = JSON.parse(cls.students);
+                    } catch {
+                        students = [];
+                    }
+                } else if (Array.isArray(cls.students)) {
+                    students = cls.students;
                 }
-            } else if (Array.isArray(cls.students)) {
-                students = cls.students;
             }
 
             const attendance = attendanceMap.get(cls.id);
@@ -107,12 +123,20 @@ export async function GET(req: NextRequest) {
                     absentReasons = attendance.absentReasons;
                 }
 
+                // 🔥 ИСПРАВЛЕНО: правильно находим студентов
                 absentStudents = absentIds.map((id: number) => {
+                    // Ищем студента по id
                     const student = students.find((s: any) => s.id === id);
                     const reason = absentReasons[id] || "other";
+
+                    // Добавляем отладочную информацию
+                    if (!student) {
+                        console.warn(`⚠️ Student with id ${id} not found in class ${cls.name}`);
+                    }
+
                     return {
                         id,
-                        name: student?.name || "Неизвестно",
+                        name: student?.name || `Студент ${id}`,
                         reason
                     };
                 });
@@ -125,9 +149,14 @@ export async function GET(req: NextRequest) {
                 presentStudents: presentStudents,
                 absentStudents: absentStudents,
                 isMarked: isMarked,
-                grade: grade
+                grade: grade,
+                // Добавляем для отладки
+                _meta: {
+                    studentsCount: students.length,
+                    source: 'mysql'
+                }
             };
-        });
+        }));
 
         // Подсчет статистики
         const stats = {
