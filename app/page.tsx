@@ -669,14 +669,14 @@ export default function HomePage() {
                   {item.reason && (
                     <p className="text-sm text-gray-300 mt-1">Причина: {item.reason}</p>
                   )}
-                  <a
+                  {/* <a
                     href={item.photoUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-blue-400 hover:text-blue-300 mt-2 inline-flex items-center gap-1"
                   >
                     📎 Фото заявления
-                  </a>
+                  </a> */}
                 </div>
               </div>
               <button

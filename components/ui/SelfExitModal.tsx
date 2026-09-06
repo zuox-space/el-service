@@ -76,14 +76,14 @@ export default function SelfExitModal({ isOpen, onClose, onSubmit, studentsList 
     try {
       const formData = new FormData();
       formData.append("file", photo);
-      
+
       const uploadRes = await fetch("/api/upload", {
         method: "POST",
         body: formData,
       });
-      
+
       const uploadData = await uploadRes.json();
-      
+
       if (!uploadRes.ok) {
         throw new Error(uploadData.error || "Upload failed");
       }
@@ -187,28 +187,28 @@ export default function SelfExitModal({ isOpen, onClose, onSubmit, studentsList 
 
           {/* Период действия */}
           {/* Период действия */}
-<div className="flex gap-2">
-  <div className="flex-1">
-    <label className="block text-white text-xs mb-1">С *</label>
-    <input
-      type="date"
-      value={startDate}
-      onChange={(e) => setStartDate(e.target.value)}
-      min={today}
-      className="w-full px-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-    />
-  </div>
-  <div className="flex-1">
-    <label className="block text-white text-xs mb-1">По *</label>
-    <input
-      type="date"
-      value={endDate}
-      onChange={(e) => setEndDate(e.target.value)}
-      min={startDate || today}
-      className="w-full px-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-    />
-  </div>
-</div>
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="block text-white text-xs mb-1">С *</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                min={today}
+                className="w-full px-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="block text-white text-xs mb-1">По *</label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                min={startDate || today}
+                className="w-full px-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
 
           {/* Причина (опционально) */}
           <div>
@@ -223,7 +223,7 @@ export default function SelfExitModal({ isOpen, onClose, onSubmit, studentsList 
           </div>
 
           {/* Загрузка фото */}
-          <div>
+          {/* <div>
             <label className="block text-white text-sm mb-1">Фото заявления *</label>
             <div className="border-2 border-dashed border-white/20 rounded-lg p-4 text-center hover:border-indigo-500 transition-colors cursor-pointer relative">
               <input
@@ -244,7 +244,7 @@ export default function SelfExitModal({ isOpen, onClose, onSubmit, studentsList 
                 </div>
               )}
             </div>
-          </div>
+          </div> */}
         </div>
 
         <div className="p-4 border-t border-white/10 bg-white/5">

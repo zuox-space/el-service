@@ -1,3 +1,4 @@
+// app/api/admin/self-exits/route.ts
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from "next/server";
@@ -22,7 +23,6 @@ export async function GET(req: NextRequest) {
   try {
     const now = new Date();
 
-    // Получаем только активные (дата окончания не прошла)
     const selfExits = await prisma.selfExit.findMany({
       where: {
         classId,
@@ -71,11 +71,10 @@ export async function POST(req: NextRequest) {
       }, { status: 404 });
     }
 
-    // 🔥 studentId теперь String, передаем как есть
+    // 🔥 studentId теперь String
     const selfExit = await prisma.selfExit.create({
       data: {
-        studentId: String(studentId), // 👈 Преобразуем в строку
-
+        studentId: String(studentId), // Преобразуем в строку
         studentName: studentName,
         startDate: new Date(startDate),
         endDate: new Date(endDate),
@@ -98,7 +97,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// DELETE: Удалить самовывод (отменить)
+// DELETE: Удалить самовывод
 export async function DELETE(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) {

@@ -239,23 +239,23 @@ export default function AdminDashboard() {
   };
 
   // Функция для скачивания заявления
-  const downloadPhoto = async (photoUrl: string, studentName: string) => {
-    try {
-      const response = await fetch(photoUrl);
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `заявление_${studentName}_${new Date().toISOString().split('T')[0]}.jpg`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("Error downloading photo:", error);
-      alert("Ошибка при скачивании файла");
-    }
-  };
+  // const downloadPhoto = async (photoUrl: string, studentName: string) => {
+  //   try {
+  //     const response = await fetch(photoUrl);
+  //     const blob = await response.blob();
+  //     const url = URL.createObjectURL(blob);
+  //     const a = document.createElement("a");
+  //     a.href = url;
+  //     a.download = `заявление_${studentName}_${new Date().toISOString().split('T')[0]}.jpg`;
+  //     document.body.appendChild(a);
+  //     a.click();
+  //     document.body.removeChild(a);
+  //     URL.revokeObjectURL(url);
+  //   } catch (error) {
+  //     console.error("Error downloading photo:", error);
+  //     alert("Ошибка при скачивании файла");
+  //   }
+  // };
 
   const menuItems = [
     { id: "dashboard", name: "Пропуски", icon: <DoorOpen size={18} />, action: () => setActiveTab("single") },
@@ -398,7 +398,7 @@ export default function AdminDashboard() {
             <div className="text-xs text-gray-400 mt-1 truncate">{pass.reason}</div>
 
             {/* Кнопки для скачивания заявления */}
-            {pass.photoUrl && (
+            {/* {pass.photoUrl && (
               <div className="flex gap-2 mt-2">
                 <button
                   onClick={() => downloadPhoto(pass.photoUrl!, pass.studentName)}
@@ -414,7 +414,7 @@ export default function AdminDashboard() {
                   <Eye size={14} />
                 </button>
               </div>
-            )}
+            )} */}
           </div>
         ))
       )}
