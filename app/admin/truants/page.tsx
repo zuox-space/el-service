@@ -141,7 +141,7 @@ export default function TruantsPage() {
                 console.log('📅 Fetching truants:', { start: startStr, end: endStr });
 
                 const response = await fetch(
-                    `/api/truants?startDate=${startStr}&endDate=${endStr}`
+                    `/api/admin/truants?startDate=${startStr}&endDate=${endStr}`
                 );
 
                 const data: ApiResponse = await response.json();
