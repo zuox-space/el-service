@@ -27,10 +27,10 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "Missing date range" }, { status: 400 });
         }
 
-        // 🔥 ПРАВИЛЬНОЕ СОЗДАНИЕ ДАТ В ЛОКАЛЬНОЙ ВРЕМЕННОЙ ЗОНЕ
-        // Создаем даты из строк (YYYY-MM-DD)
-        const start = new Date(startDate + 'T00:00:00');
-        const end = new Date(endDate + 'T23:59:59');
+        // 🔥 ПРАВИЛЬНОЕ СОЗДАНИЕ ДАТ ДЛЯ ПОИСКА В БД
+        // Создаем даты в UTC для корректного сравнения с БД
+        const start = new Date(startDate + 'T00:00:00.000Z');
+        const end = new Date(endDate + 'T23:59:59.999Z');
 
         console.log(`📊 Fetching truants from ${startDate} to ${endDate}`);
         console.log(`📊 Start: ${start.toISOString()}, End: ${end.toISOString()}`);
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
             }
         });
 
-        console.log(`📋 Found ${attendances.length} attendance records`);
+        console.log(`📋 Found ${attendances.length} attendance records in period`);
 
         // Если нет записей, возвращаем пустой результат
         if (attendances.length === 0) {
@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
             classMap.set(cls.id, cls.name);
         });
 
-        // 3. Собираем всех студентов из MySQL
+        // 3. Собираем ВСЕХ студентов из MySQL
         const allStudentsFromMySQL = await query<{
             aisId: number;
             name: string;
@@ -112,7 +112,7 @@ export async function GET(req: NextRequest) {
             });
         });
 
-        // 4. Обрабатываем каждую запись посещаемости
+        // 4. Обрабатываем ТОЛЬКО записи за выбранный период
         const absenceMap = new Map<number, {
             studentId: number;
             name: string;
@@ -126,6 +126,8 @@ export async function GET(req: NextRequest) {
             }[];
             reasons: Record<string, number>;
         }>();
+
+        let processedRecords = 0;
 
         for (const record of attendances) {
             // Получаем название класса из карты
@@ -146,6 +148,8 @@ export async function GET(req: NextRequest) {
 
             if (absentIds.length === 0) continue;
 
+            processedRecords++;
+
             // Парсим absentReasons
             let absentReasons: Record<number, string> = {};
             if (typeof record.absentReasons === 'string') {
@@ -156,6 +160,15 @@ export async function GET(req: NextRequest) {
                 }
             } else if (typeof record.absentReasons === 'object') {
                 absentReasons = record.absentReasons;
+            }
+
+            // Проверяем дату записи
+            const recordDate = new Date(record.date);
+            const isInRange = recordDate >= start && recordDate <= end;
+
+            if (!isInRange) {
+                console.log(`⏭️ Skipping record ${record.id} - date ${recordDate.toISOString()} not in range`);
+                continue;
             }
 
             for (const studentId of absentIds) {
@@ -191,6 +204,8 @@ export async function GET(req: NextRequest) {
                 entry.reasons[reason] = (entry.reasons[reason] || 0) + 1;
             }
         }
+
+        console.log(`📊 Processed ${processedRecords} records for period`);
 
         // 5. Преобразуем в массив
         const truants = Array.from(absenceMap.values())
