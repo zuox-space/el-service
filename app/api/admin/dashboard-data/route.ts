@@ -27,9 +27,9 @@ export async function GET(req: NextRequest) {
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
 
-        // 1. Получаем всех студентов из MySQL
+        // 🔥 1. Получаем всех студентов из MySQL
         const allStudentsFromMySQL = await query<{
-            aisId: number;
+            aisId: string; // 👈 Меняем с number на string
             name: string;
             className: string;
         }>(`
@@ -41,9 +41,10 @@ export async function GET(req: NextRequest) {
             WHERE archive = 0
         `);
 
-        const studentMap = new Map<number, { name: string; className: string }>();
+        // Создаем карту студентов с ключом string
+        const studentMap = new Map<string, { name: string; className: string }>();
         allStudentsFromMySQL.forEach(student => {
-            studentMap.set(student.aisId, {
+            studentMap.set(String(student.aisId), { // 👈 Преобразуем в строку
                 name: student.name,
                 className: student.className
             });
@@ -65,9 +66,7 @@ export async function GET(req: NextRequest) {
         let selfExits: any[] = [];
         let departed: any[] = [];
 
-        // ============================================
-        // 3. РАЗОВЫЕ ПРОПУСКИ (из таблицы Pass)
-        // ============================================
+        // 3. Получаем все пропуски за сегодня
         const allPasses = await prisma.pass.findMany({
             where: {
                 date: {
@@ -78,12 +77,13 @@ export async function GET(req: NextRequest) {
             orderBy: { createdAt: "desc" }
         });
 
+        // 4. ФОРМАТИРУЕМ ПРОПУСКИ
         for (const pass of allPasses) {
             const cls = classMap.get(pass.classId);
             const gradeMatch = cls?.name?.match(/(\d+)/);
             const grade = gradeMatch ? parseInt(gradeMatch[1]) : 0;
 
-            // Парсим students из JSON (для разовых пропусков)
+            // Парсим students из JSON
             let students: any[] = [];
             if (typeof pass.students === 'string') {
                 try {
@@ -95,19 +95,6 @@ export async function GET(req: NextRequest) {
                 students = pass.students;
             }
 
-            // Если students пустой, пробуем взять из класса
-            if (students.length === 0 && cls) {
-                if (typeof cls.students === 'string') {
-                    try {
-                        students = JSON.parse(cls.students);
-                    } catch {
-                        students = [];
-                    }
-                } else if (Array.isArray(cls.students)) {
-                    students = cls.students;
-                }
-            }
-
             let studentName = "Неизвестно";
             let studentClassName = cls?.name || "Неизвестный класс";
 
@@ -116,7 +103,8 @@ export async function GET(req: NextRequest) {
                 studentName = firstStudent.name || "Неизвестно";
 
                 if (firstStudent.id) {
-                    const studentInfo = studentMap.get(firstStudent.id);
+                    // 🔥 Используем строку для поиска в карте
+                    const studentInfo = studentMap.get(String(firstStudent.id));
                     if (studentInfo) {
                         studentClassName = studentInfo.className;
                     }
@@ -134,7 +122,7 @@ export async function GET(req: NextRequest) {
                 used: pass.used,
                 usedAt: pass.usedAt,
                 type: "single" as const,
-
+                photoUrl: (pass as any).photoUrl || undefined,
             };
 
             if (pass.used) {
@@ -144,9 +132,7 @@ export async function GET(req: NextRequest) {
             }
         }
 
-        // ============================================
-        // 4. САМОВЫВОДЫ (из таблицы SelfExit)
-        // ============================================
+        // 5. ФОРМАТИРУЕМ САМОВЫВОДЫ
         const allSelfExits = await prisma.selfExit.findMany({
             orderBy: { createdAt: "desc" }
         });
@@ -156,8 +142,8 @@ export async function GET(req: NextRequest) {
             const gradeMatch = cls?.name?.match(/(\d+)/);
             const grade = gradeMatch ? parseInt(gradeMatch[1]) : 0;
 
-            // Для самовыводов используем studentId
-            const studentInfo = studentMap.get(exit.studentId);
+            // 🔥 Используем строку для поиска в карте
+            const studentInfo = studentMap.get(String(exit.studentId));
             const studentName = studentInfo?.name || exit.studentName || `Студент ${exit.studentId}`;
             const studentClassName = studentInfo?.className || cls?.name || "Неизвестный класс";
 
@@ -173,13 +159,11 @@ export async function GET(req: NextRequest) {
                 grade: grade,
                 type: "self-exit" as const,
                 photoUrl: exit.photoUrl || null,
-
             });
         }
 
         console.log(`📊 Найдено пропусков: ${passes.length}, самовыводов: ${selfExits.length}, ушедших: ${departed.length}`);
 
-        // Возвращаем данные в зависимости от вкладки
         let result: any = {};
 
         switch (tab) {
