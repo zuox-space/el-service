@@ -20,30 +20,58 @@ export async function GET(req: NextRequest) {
 
     try {
         const { searchParams } = new URL(req.url);
-        const startDate = searchParams.get("startDate");
-        const endDate = searchParams.get("endDate");
+        let startDate = searchParams.get("startDate");
+        let endDate = searchParams.get("endDate");
 
         if (!startDate || !endDate) {
             return NextResponse.json({ error: "Missing date range" }, { status: 400 });
         }
 
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
+        // 🔥 ПРАВИЛЬНОЕ СОЗДАНИЕ ДАТ В ЛОКАЛЬНОЙ ВРЕМЕННОЙ ЗОНЕ
+        // Создаем даты из строк (YYYY-MM-DD)
+        const start = new Date(startDate + 'T00:00:00');
+        const end = new Date(endDate + 'T23:59:59');
 
-        console.log(`📊 Fetching truants from ${start.toISOString()} to ${end.toISOString()}`);
+        console.log(`📊 Fetching truants from ${startDate} to ${endDate}`);
+        console.log(`📊 Start: ${start.toISOString()}, End: ${end.toISOString()}`);
 
-        // 1. Получаем все записи посещаемости за период (БЕЗ include)
+        // 1. Получаем все записи посещаемости за период
         const attendances = await prisma.attendance.findMany({
             where: {
                 date: {
                     gte: start,
                     lte: end
                 }
+            },
+            orderBy: {
+                date: 'desc'
             }
         });
 
         console.log(`📋 Found ${attendances.length} attendance records`);
+
+        // Если нет записей, возвращаем пустой результат
+        if (attendances.length === 0) {
+            return NextResponse.json({
+                success: true,
+                truants: [],
+                stats: {
+                    totalTruants: 0,
+                    totalAbsences: 0,
+                    period: {
+                        start: startDate,
+                        end: endDate
+                    },
+                    byReason: {}
+                },
+                meta: {
+                    source: 'mysql',
+                    attendanceRecords: 0,
+                    studentsInMySQL: 0,
+                    studentsWithAbsences: 0
+                }
+            });
+        }
 
         // 2. Получаем ВСЕ классы для сопоставления ID -> название
         const allClasses = await prisma.class.findMany({
@@ -97,7 +125,6 @@ export async function GET(req: NextRequest) {
                 classId: string;
             }[];
             reasons: Record<string, number>;
-            _classHistory?: { className: string; date: string }[];
         }>();
 
         for (const record of attendances) {
@@ -148,8 +175,7 @@ export async function GET(req: NextRequest) {
                         currentClass: studentInfo.className,
                         totalAbsences: 0,
                         absences: [],
-                        reasons: {},
-                        _classHistory: []
+                        reasons: {}
                     });
                 }
 
@@ -163,17 +189,6 @@ export async function GET(req: NextRequest) {
                 });
 
                 entry.reasons[reason] = (entry.reasons[reason] || 0) + 1;
-
-                // Отслеживаем историю классов
-                if (entry._classHistory) {
-                    const lastClass = entry._classHistory[entry._classHistory.length - 1];
-                    if (!lastClass || lastClass.className !== className) {
-                        entry._classHistory.push({
-                            className: className,
-                            date: record.date.toISOString()
-                        });
-                    }
-                }
             }
         }
 
@@ -194,7 +209,6 @@ export async function GET(req: NextRequest) {
                     absences: student.absences,
                     reasons: student.reasons,
                     _meta: {
-                        classHistory: student._classHistory || [],
                         uniqueClasses: [...new Set(student.absences.map(a => a.className))]
                     }
                 };
@@ -208,16 +222,7 @@ export async function GET(req: NextRequest) {
             });
         });
 
-        const classStats: Record<string, { total: number; students: number }> = {};
-        truants.forEach(student => {
-            if (!classStats[student.className]) {
-                classStats[student.className] = { total: 0, students: 0 };
-            }
-            classStats[student.className].total += student.totalAbsences;
-            classStats[student.className].students++;
-        });
-
-        console.log(`📊 Found ${truants.length} truants`);
+        console.log(`📊 Found ${truants.length} truants with ${truants.reduce((sum, s) => sum + s.totalAbsences, 0)} total absences`);
 
         return NextResponse.json({
             success: true,
@@ -226,11 +231,10 @@ export async function GET(req: NextRequest) {
                 totalTruants: truants.length,
                 totalAbsences: truants.reduce((sum, s) => sum + s.totalAbsences, 0),
                 period: {
-                    start: start.toISOString(),
-                    end: end.toISOString()
+                    start: startDate,
+                    end: endDate
                 },
-                byReason: reasonStats,
-                byClass: classStats
+                byReason: reasonStats
             },
             meta: {
                 source: 'mysql',
@@ -244,6 +248,7 @@ export async function GET(req: NextRequest) {
         console.error("❌ Error fetching truants:", error);
         return NextResponse.json(
             {
+                success: false,
                 error: "Failed to fetch truants data",
                 details: error instanceof Error ? error.message : String(error)
             },

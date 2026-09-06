@@ -4,11 +4,8 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import {
-    LogOut, ArrowLeft, Users, UserX, AlertCircle,
-    Download, Search, Filter, Calendar, Clock,
-    SortAsc, SortDesc, Eye, ChevronDown, ChevronUp,
-    School, User, CalendarDays, FileText, X, ChevronRight,
-    PieChart, BarChart3
+    LogOut, ArrowLeft, UserX, Download, Search, Filter, Calendar,
+    SortAsc, SortDesc, ChevronDown, ChevronUp, School, PieChart
 } from "lucide-react";
 import React from "react";
 
@@ -28,7 +25,6 @@ interface TruantStudent {
     }[];
     reasons: Record<string, number>;
     _meta?: {
-        classHistory?: { className: string; date: string }[];
         uniqueClasses?: string[];
     };
 }
@@ -41,7 +37,6 @@ interface ApiResponse {
         totalAbsences: number;
         period: { start: string; end: string };
         byReason: Record<string, number>;
-        byClass: Record<string, { total: number; students: number }>;
     };
     meta: {
         source: string;
@@ -60,11 +55,11 @@ interface GradeGroup {
 // ============ КОНСТАНТЫ ============
 
 const absenceReasons = [
-    { id: "sick", label: "Болен", icon: "🤒", color: "text-red-400", respectful: true },
-    { id: "family", label: "Заявление родителей", icon: "📝", color: "text-orange-400", respectful: false },
-    { id: "other", label: "Без уважительной причины", icon: "⚠️", color: "text-yellow-400", respectful: false },
-    { id: "vacation", label: "Отпуск/каникулы", icon: "✈️", color: "text-blue-400", respectful: false },
-    { id: "competition", label: "Соревнования", icon: "🏆", color: "text-purple-400", respectful: true },
+    { id: "sick", label: "Болен", icon: "🤒", color: "text-red-400" },
+    { id: "family", label: "Заявление родителей", icon: "📝", color: "text-orange-400" },
+    { id: "other", label: "Без уважительной причины", icon: "⚠️", color: "text-yellow-400" },
+    { id: "vacation", label: "Отпуск/каникулы", icon: "✈️", color: "text-blue-400" },
+    { id: "competition", label: "Соревнования", icon: "🏆", color: "text-purple-400" },
 ];
 
 const gradeGroups: GradeGroup[] = [
@@ -82,7 +77,6 @@ export default function TruantsPage() {
     const { data: session, status } = useSession();
     const router = useRouter();
 
-    // Данные
     const [truants, setTruants] = useState<TruantStudent[]>([]);
     const [filteredTruants, setFilteredTruants] = useState<TruantStudent[]>([]);
     const [stats, setStats] = useState<ApiResponse['stats'] | null>(null);
@@ -91,7 +85,6 @@ export default function TruantsPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [mounted, setMounted] = useState(false);
 
-    // Фильтры
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedGradeGroup, setSelectedGradeGroup] = useState<string>("");
     const [selectedClass, setSelectedClass] = useState<string>("");
@@ -102,12 +95,11 @@ export default function TruantsPage() {
     );
     const [showFilters, setShowFilters] = useState(false);
 
-    // Сортировка
     const [sortField, setSortField] = useState<"name" | "totalAbsences" | "className">("totalAbsences");
     const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
     const [expandedStudent, setExpandedStudent] = useState<number | null>(null);
 
-    // Даты
+    // 🔥 ДАТЫ - ИСПРАВЛЕНО
     const [startDate, setStartDate] = useState<string>(() => {
         const date = new Date();
         date.setMonth(date.getMonth() - 1);
@@ -123,7 +115,6 @@ export default function TruantsPage() {
         setMounted(true);
     }, []);
 
-    // Проверка прав доступа
     useEffect(() => {
         if (status === "loading") return;
         if (!session) {
@@ -137,14 +128,22 @@ export default function TruantsPage() {
         }
     }, [session, status, router]);
 
-    // Загрузка данных
+    // 🔥 ЗАГРУЗКА ДАННЫХ - ИСПРАВЛЕНО
     useEffect(() => {
         const fetchTruants = async () => {
             try {
                 setIsLoading(true);
+
+                // Передаем даты в формате YYYY-MM-DD без преобразований
+                const startStr = startDate;
+                const endStr = endDate;
+
+                console.log('📅 Fetching truants:', { start: startStr, end: endStr });
+
                 const response = await fetch(
-                    `/api/admin/truants?startDate=${new Date(startDate).toISOString()}&endDate=${new Date(endDate).toISOString()}`
+                    `/api/truants?startDate=${startStr}&endDate=${endStr}`
                 );
+
                 const data: ApiResponse = await response.json();
 
                 if (!data.success) {
@@ -157,7 +156,6 @@ export default function TruantsPage() {
                 setMeta(data.meta || null);
                 setFilteredTruants(data.truants || []);
 
-                // Собираем уникальные классы
                 const classSet = new Set<string>();
                 (data.truants || []).forEach((student: TruantStudent) => {
                     if (student.className) {
@@ -182,7 +180,6 @@ export default function TruantsPage() {
     useEffect(() => {
         let result = [...truants];
 
-        // Поиск по имени
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase().trim();
             result = result.filter(student =>
@@ -190,7 +187,6 @@ export default function TruantsPage() {
             );
         }
 
-        // Фильтр по группе классов
         if (selectedGradeGroup) {
             const group = gradeGroups.find(g => g.id === selectedGradeGroup);
             if (group) {
@@ -198,22 +194,18 @@ export default function TruantsPage() {
             }
         }
 
-        // Фильтр по классу
         if (selectedClass) {
             result = result.filter(student => student.className === selectedClass);
         }
 
-        // Фильтр по первой букве фамилии
         if (selectedLetter) {
             result = result.filter(student =>
                 student.name.charAt(0).toUpperCase() === selectedLetter
             );
         }
 
-        // Фильтр по минимальному количеству пропусков
         result = result.filter(student => student.totalAbsences >= minAbsences);
 
-        // Фильтр по причинам
         if (selectedReasons.length === 0) {
             result = [];
         } else {
@@ -222,7 +214,6 @@ export default function TruantsPage() {
             });
         }
 
-        // Сортировка
         result.sort((a, b) => {
             let compareA: string | number;
             let compareB: string | number;
@@ -379,7 +370,7 @@ export default function TruantsPage() {
               <th>Пропусков</th>
               <th>Причины</th>
             </tr>
-    `;
+        `;
 
         filteredTruants.forEach((student, index) => {
             const reasonsStr = Object.entries(student.reasons || {})
@@ -399,33 +390,9 @@ export default function TruantsPage() {
 
         html += `
           </table>
-          
-          <h2>Статистика по причинам</h2>
-          <table>
-            <tr>
-              <th>Причина</th>
-              <th>Количество</th>
-            </tr>
-        `;
-
-        if (stats?.byReason) {
-            Object.entries(stats.byReason).forEach(([reason, count]) => {
-                html += `
-                <tr>
-                  <td>${getReasonLabel(reason)}</td>
-                  <td>${count}</td>
-                </tr>
-              `;
-            });
-        }
-
-        html += `
-          </table>
-          
-          <p class="meta">Источник данных: ${meta?.source || 'MySQL'} | Обработано записей: ${meta?.attendanceRecords || 0} | Всего студентов в базе: ${meta?.studentsInMySQL || 0}</p>
         </body>
         </html>
-      `;
+        `;
 
         const blob = new Blob([html], { type: "application/vnd.ms-excel" });
         const url = URL.createObjectURL(blob);
