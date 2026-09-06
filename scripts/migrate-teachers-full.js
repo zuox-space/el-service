@@ -61,8 +61,79 @@ async function getRoleId(roleName) {
   return role.id;
 }
 
+async function normalizeExistingUsers() {
+  console.log('🔍 Проверка существующих пользователей...');
+
+  const users = await prisma.user.findMany();
+  let updated = 0;
+  let skipped = 0;
+
+  for (const user of users) {
+    const normalizedEmail = user.email.toLowerCase().trim();
+
+    if (user.email !== normalizedEmail) {
+      // Проверяем, нет ли уже пользователя с таким email
+      const existingUser = await prisma.user.findUnique({
+        where: { email: normalizedEmail }
+      });
+
+      if (existingUser) {
+        // Если есть пользователь с нормализованным email, удаляем текущего
+        console.log(`   🗑️ Удаляем дубликат: ${user.email} (заменяем на ${normalizedEmail})`);
+
+        // Переносим связанные данные
+        await prisma.$transaction([
+          // Обновляем классы
+          prisma.class.updateMany({
+            where: { ownerId: user.id },
+            data: { ownerId: existingUser.id }
+          }),
+          // Обновляем роли
+          prisma.userRole.updateMany({
+            where: { userId: user.id },
+            data: { userId: existingUser.id }
+          }),
+          // Обновляем записи посещаемости
+          prisma.attendance.updateMany({
+            where: { teacherId: user.id },
+            data: { teacherId: existingUser.id }
+          }),
+          // Обновляем ClassShare
+          prisma.classShare.updateMany({
+            where: { teacherId: user.id },
+            data: { teacherId: existingUser.id }
+          }),
+          // Удаляем пользователя
+          prisma.user.delete({
+            where: { id: user.id }
+          })
+        ]);
+
+        updated++;
+      } else {
+        // Просто обновляем email
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { email: normalizedEmail }
+        });
+        console.log(`   ✅ Обновлен email: ${user.email} → ${normalizedEmail}`);
+        updated++;
+      }
+    } else {
+      skipped++;
+    }
+  }
+
+  console.log(`📊 Нормализация email: обновлено ${updated}, пропущено ${skipped}`);
+}
+
 async function migrateTeachers() {
   console.log('🚀 Начинаем миграцию учителей...\n');
+
+  // 🔥 СНАЧАЛА НОРМАЛИЗУЕМ СУЩЕСТВУЮЩИХ ПОЛЬЗОВАТЕЛЕЙ
+  await normalizeExistingUsers();
+
+  console.log('\n' + '='.repeat(50) + '\n');
 
   const teachers = await fetchTeachers();
 
@@ -84,7 +155,7 @@ async function migrateTeachers() {
   let classTeachersAssigned = 0;
 
   for (const teacher of teachers) {
-    // 🔥 ПРИВОДИМ EMAIL К НИЖНЕМУ РЕГИСТРУ
+    // Приводим email к нижнему регистру
     const email = teacher.email ? teacher.email.toLowerCase().trim() : '';
     const name = teacher.name;
     const classStr = teacher.classStr;
