@@ -1,11 +1,13 @@
+// app/api/admin/classes/route.ts
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getStudentsByClass } from "@/lib/mysql_db";
 
-// GET: Получить все классы
+// GET: Получить все классы со студентами из MySQL
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
@@ -20,8 +22,9 @@ export async function GET() {
       ]
     });
 
-    // Получаем данные о владельцах отдельно
+    // 🔥 ПОЛУЧАЕМ СТУДЕНТОВ ИЗ MYSQL ДЛЯ КАЖДОГО КЛАССА
     const parsedClasses = await Promise.all(classes.map(async (cls) => {
+      // Получаем владельца
       const owner = await prisma.user.findUnique({
         where: { id: cls.ownerId },
         select: {
@@ -30,12 +33,25 @@ export async function GET() {
           email: true,
         }
       });
-      
+
+      // 🔥 ПОЛУЧАЕМ СТУДЕНТОВ ТОЛЬКО ИЗ MYSQL
+      let students: any[] = [];
+      try {
+        const studentsFromMySQL = await getStudentsByClass(cls.name);
+        students = studentsFromMySQL.map((student) => ({
+          id: student.aisId,
+          name: student.name
+        }));
+      } catch (error) {
+        console.error(`❌ Error fetching students for class ${cls.name}:`, error);
+        students = [];
+      }
+
       return {
         ...cls,
-        students: typeof cls.students === 'string' ? JSON.parse(cls.students) : cls.students,
+        students: students,
         owner: owner,
-        teacher: owner // для совместимости с фронтендом
+        teacher: owner
       };
     }));
 
@@ -67,7 +83,7 @@ export async function POST(req: NextRequest) {
         grade: parseInt(grade),
         letter: letter.toUpperCase(),
         ownerId: ownerId,
-        students: JSON.stringify([]),
+        students: JSON.stringify([]), // Поле остается, но не используется
       }
     });
 
@@ -82,7 +98,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ...newClass,
-      students: [],
+      students: [], // Всегда пустой массив, данные берутся из MySQL
       owner: owner,
       teacher: owner
     });
@@ -118,6 +134,7 @@ export async function PUT(req: NextRequest) {
         grade: parseInt(grade),
         letter: letter.toUpperCase(),
         ownerId: ownerId,
+        // Не трогаем поле students, оно не используется
       }
     });
 
@@ -134,13 +151,24 @@ export async function PUT(req: NextRequest) {
       }
     });
 
+    // 🔥 ПОЛУЧАЕМ СТУДЕНТОВ ИЗ MYSQL ДЛЯ ОБНОВЛЕННОГО КЛАССА
+    let students: any[] = [];
+    if (updatedClass) {
+      try {
+        const studentsFromMySQL = await getStudentsByClass(updatedClass.name);
+        students = studentsFromMySQL.map((student) => ({
+          id: student.aisId,
+          name: student.name
+        }));
+      } catch (error) {
+        console.error(`❌ Error fetching students for class ${updatedClass.name}:`, error);
+        students = [];
+      }
+    }
+
     return NextResponse.json({
       ...updatedClass,
-      students: updatedClass?.students 
-        ? (typeof updatedClass.students === 'string' 
-            ? JSON.parse(updatedClass.students) 
-            : updatedClass.students)
-        : [],
+      students: students,
       owner: owner,
       teacher: owner
     });
@@ -172,10 +200,10 @@ export async function DELETE(req: NextRequest) {
     await prisma.news.deleteMany({ where: { classId: id } });
     await prisma.note.deleteMany({ where: { classId: id } });
     await prisma.selfExit.deleteMany({ where: { classId: id } });
-    
+
     // Затем удаляем класс
     await prisma.class.delete({ where: { id } });
-    
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error deleting class:", error);

@@ -48,7 +48,7 @@ model Class {
   grade     Int
   letter    String
   ownerId   String
-  students  String
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
