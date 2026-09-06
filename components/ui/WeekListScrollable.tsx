@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
 
 interface WeekListScrollableProps {
   selectedDate: Date;
@@ -14,6 +14,7 @@ export default function WeekListScrollable({ selectedDate, setSelectedDate }: We
 
   // Вспомогательная функция для получения даты в московском времени
   const getMoscowDate = (date: Date): Date => {
+    // Создаем новую дату в локальном времени
     return new Date(date.getFullYear(), date.getMonth(), date.getDate());
   };
 
@@ -27,6 +28,7 @@ export default function WeekListScrollable({ selectedDate, setSelectedDate }: We
 
   const getWeeks = () => {
     const weeks = [];
+    // Работаем с локальным временем
     const baseDate = new Date(currentDate);
     baseDate.setDate(baseDate.getDate() - 14);
 
@@ -35,9 +37,11 @@ export default function WeekListScrollable({ selectedDate, setSelectedDate }: We
     const selectedStr = selectedDate ? formatDateLocal(selectedDate) : '';
 
     for (let i = 0; i < 35; i++) {
+      // Создаем дату в локальном времени
       const date = new Date(baseDate);
       date.setDate(date.getDate() + i);
 
+      // Очищаем время для корректного сравнения
       const dateWithoutTime = new Date(date.getFullYear(), date.getMonth(), date.getDate());
       const dateStr = formatDateLocal(dateWithoutTime);
 
@@ -69,8 +73,22 @@ export default function WeekListScrollable({ selectedDate, setSelectedDate }: We
   }, [selectedDate, currentDate]);
 
   const selectDay = (day: any) => {
+    // Передаем дату без времени
     const selected = new Date(day.date.getFullYear(), day.date.getMonth(), day.date.getDate());
     setSelectedDate(selected);
+  };
+
+  const scrollToToday = () => {
+    const todayStr = formatDateLocal(new Date());
+    const todayIndex = weeks.findIndex((week) => formatDateLocal(week.date) === todayStr);
+    if (todayIndex !== -1 && scrollContainerRef.current) {
+      const element = scrollContainerRef.current.children[todayIndex] as HTMLElement;
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+        const today = new Date();
+        setSelectedDate(new Date(today.getFullYear(), today.getMonth(), today.getDate()));
+      }
+    }
   };
 
   const goToPreviousWeek = () => {
@@ -85,58 +103,62 @@ export default function WeekListScrollable({ selectedDate, setSelectedDate }: We
     setCurrentDate(newDate);
   };
 
+  const getMonthYear = () => {
+    if (weeks.length === 0) return "";
+    const startMonth = weeks[0].date.toLocaleDateString("ru-RU", { month: "long" });
+    const endMonth = weeks[weeks.length - 1].date.toLocaleDateString("ru-RU", { month: "long" });
+    const year = weeks[0].date.getFullYear();
+
+    if (startMonth === endMonth) {
+      return `${startMonth} ${year}`;
+    }
+    return `${startMonth} - ${endMonth} ${year}`;
+  };
+
   return (
     <div className="w-full">
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex justify-between items-center mb-3">
         <button
-          onClick={goToPreviousWeek}
-          className="p-1.5 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-all flex-shrink-0"
+          onClick={scrollToToday}
+          className="flex items-center gap-1 px-2 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 text-xs rounded-lg transition-colors border border-blue-500/30"
         >
-          <ChevronLeft size={16} />
+          <Calendar size={12} />
+          Сегодня
         </button>
+      </div>
 
-        <div className="flex-1 overflow-hidden">
-          <div ref={scrollContainerRef} className="flex gap-1.5 overflow-x-auto pb-2 scroll-smooth relative">
-            {weeks.map((day, idx) => (
-              <div key={idx} className="relative flex flex-col items-center flex-shrink-0">
-                {day.isToday && !day.isSelected && (
-                  <div className="absolute -top-1 left-1/2 -translate-x-1/2">
-                    <div className="w-1.5 h-1.5 bg-rose-400 rounded-full shadow-sm shadow-rose-400/50"></div>
-                  </div>
-                )}
-                <button
-                  onClick={() => selectDay(day)}
-                  className={`
-                    flex flex-col items-center justify-center min-w-[44px] py-1.5 px-1.5 rounded-xl transition-all duration-200
-                    ${day.isSelected
-                      ? "bg-gradient-to-br from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/25"
-                      : day.isToday
-                        ? "bg-white/5 border border-rose-500/20 text-rose-300 hover:bg-white/10"
-                        : "bg-transparent hover:bg-white/5 text-gray-400 hover:text-white"
-                    }
-                  `}
-                >
-                  <span className={`text-[9px] font-medium uppercase tracking-wider ${day.isSelected ? "text-indigo-100" : day.isToday ? "text-rose-400" : "text-gray-500"}`}>
-                    {day.dayName}
-                  </span>
-                  <span className={`text-sm font-bold mt-0.5 ${day.isSelected ? "text-white" : day.isToday ? "text-rose-300" : "text-gray-200"}`}>
-                    {day.dayNumber}
-                  </span>
-                  <span className={`text-[8px] mt-0.5 ${day.isSelected ? "text-indigo-100" : day.isToday ? "text-rose-500" : "text-gray-500"}`}>
-                    {day.month}
-                  </span>
-                </button>
+      <div ref={scrollContainerRef} className="flex gap-1.5 overflow-x-auto pb-3 scroll-smooth relative">
+        {weeks.map((day, idx) => (
+          <div key={idx} className="relative flex flex-col items-center">
+            {day.isToday && !day.isSelected && (
+              <div className="absolute -top-2 left-1/2 -translate-x-1/2">
+                <div className="w-6 h-1 bg-green-500 rounded-full"></div>
               </div>
-            ))}
+            )}
+            <button
+              onClick={() => selectDay(day)}
+              className={`
+                flex flex-col items-center justify-center min-w-[52px] py-1.5 px-1 rounded-lg transition-all duration-200
+                ${day.isSelected
+                  ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md"
+                  : day.isToday
+                    ? "bg-green-500/15 border border-green-500/30 text-green-300"
+                    : "bg-white/5 hover:bg-white/10 text-gray-400 border border-white/5 hover:border-white/20"
+                }
+              `}
+            >
+              <span className={`text-[10px] font-medium ${day.isSelected ? "text-blue-100" : day.isToday ? "text-green-400" : "text-gray-500"}`}>
+                {day.dayName}
+              </span>
+              <span className={`text-base font-bold mt-0.5 ${day.isSelected ? "text-white" : day.isToday ? "text-green-300" : "text-gray-200"}`}>
+                {day.dayNumber}
+              </span>
+              <span className={`text-[9px] mt-0.5 ${day.isSelected ? "text-blue-100" : day.isToday ? "text-green-500" : "text-gray-500"}`}>
+                {day.month}
+              </span>
+            </button>
           </div>
-        </div>
-
-        <button
-          onClick={goToNextWeek}
-          className="p-1.5 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-all flex-shrink-0"
-        >
-          <ChevronRight size={16} />
-        </button>
+        ))}
       </div>
 
       <style jsx>{`

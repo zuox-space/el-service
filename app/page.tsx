@@ -90,7 +90,7 @@ export default function HomePage() {
   const tabs: TabType[] = [
     { id: "attendance", name: "Пропуски", icon: <FileText size={16} /> },
     { id: "self-exit", name: "Самовыход", icon: <UserCheck size={16} /> },
-    { id: "notes", name: "Заметки", icon: <BookMarked size={16} /> },
+    // { id: "notes", name: "Заметки", icon: <BookMarked size={16} /> },
   ];
 
   useEffect(() => {
