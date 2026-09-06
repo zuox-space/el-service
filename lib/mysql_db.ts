@@ -1,6 +1,7 @@
 // lib/db.ts
+import { Student } from '@/types';
 import mysql from 'mysql2/promise';
-import { Student, StudentFull } from '../types/student';
+
 
 // Типы для конфигурации
 interface DBConfig {
@@ -121,7 +122,7 @@ export async function getDistinctClasses(): Promise<string[]> {
 }
 
 // Получение студентов по ID
-export async function getStudentById(id: number): Promise<StudentFull | null> {
+export async function getStudentById(id: number): Promise<Student | null> {
     const sql = `
         SELECT 
             aisId,
@@ -132,7 +133,7 @@ export async function getStudentById(id: number): Promise<StudentFull | null> {
         FROM students 
         WHERE aisId = ? AND archive = 0
     `;
-    const results = await query<StudentFull>(sql, [id]);
+    const results = await query<Student>(sql, [id]);
     return results[0] || null;
 }
 
