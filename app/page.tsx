@@ -8,7 +8,8 @@ import {
   PenSquare, XCircle, Newspaper, BookMarked, CheckSquare, Plus, UserCheck,
   Settings,
   Shield,
-  School
+  School,
+  ArrowRight
 } from "lucide-react";
 import WeekListScrollable from "@/components/ui/WeekListScrollable";
 import PassModal from "@/components/ui/PassModal";
@@ -543,16 +544,16 @@ export default function HomePage() {
   // Рендер таба пропусков
   const renderAttendanceTab = () => (
     <div className="space-y-3">
-      <div className="flex gap-2 flex-col">
+      <div className="grid grid-cols-2 gap-2">
         {isSelectedDateToday && (
           <button
             onClick={() => setIsAttendanceModalOpen(true)}
-            className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-medium py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-base"
+            className="flex items-center justify-center gap-2 py-2.5 px-3 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white font-medium rounded-xl transition-all text-sm shadow-lg shadow-teal-500/20 hover:shadow-teal-500/30"
           >
-            <CheckCircle size={18} />
-            <span>Отметить присутствие</span>
+            <CheckCircle size={16} />
+            <span>Отметить</span>
             {!isTodayAttendanceMarked && (
-              <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-xs font-bold animate-pulse">
+              <div className="w-4 h-4 bg-red-400 rounded-full flex items-center justify-center text-[10px] font-bold animate-pulse">
                 !
               </div>
             )}
@@ -562,10 +563,10 @@ export default function HomePage() {
         {canIssue && (
           <button
             onClick={() => setIsPassModalOpen(true)}
-            className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-base"
+            className="flex items-center justify-center gap-2 py-2.5 px-3 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-medium rounded-xl transition-all text-sm shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30"
           >
-            <PenSquare size={18} />
-            <span>Выписать пропуск</span>
+            <PenSquare size={16} />
+            <span>Пропуск</span>
           </button>
         )}
       </div>
@@ -644,9 +645,9 @@ export default function HomePage() {
     <div className="space-y-2">
       <button
         onClick={() => setIsSelfExitModalOpen(true)}
-        className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-base"
+        className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-medium py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30"
       >
-        <Plus size={18} />
+        <Plus size={16} />
         <span>Добавить самовывод</span>
       </button>
 
@@ -669,14 +670,6 @@ export default function HomePage() {
                   {item.reason && (
                     <p className="text-sm text-gray-300 mt-1">Причина: {item.reason}</p>
                   )}
-                  {/* <a
-                    href={item.photoUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-blue-400 hover:text-blue-300 mt-2 inline-flex items-center gap-1"
-                  >
-                    📎 Фото заявления
-                  </a> */}
                 </div>
               </div>
               <button
@@ -709,9 +702,9 @@ export default function HomePage() {
     <div className="space-y-2">
       <button
         onClick={() => setIsNotesModalOpen(true)}
-        className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-medium py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-base"
+        className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-medium py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-amber-500/20 hover:shadow-amber-500/30"
       >
-        <Plus size={18} />
+        <Plus size={16} />
         <span>Добавить заметку</span>
       </button>
 
@@ -809,7 +802,7 @@ export default function HomePage() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg transition-all text-sm font-medium ${activeTab === tab.id
-                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg"
+                ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/20"
                 : "text-gray-400 hover:text-white hover:bg-white/10"
                 }`}
             >
