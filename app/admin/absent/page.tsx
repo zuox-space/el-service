@@ -51,7 +51,7 @@ interface Statistics {
 const reasonLabels: Record<string, string> = {
   sick: "🤒 Болен",
   family: "📝 По заявлению родителей",
-  other: "⚠️ Без уважительной причины",
+  other: "⚠️ Причина неясна или неизвестна",
   vacation: "✈️ Отпуск/каникулы",
   competition: "🏆 Соревнования/олимпиада"
 };
@@ -341,7 +341,7 @@ export default function AdminAbsentPage() {
           <tr><th>Причина</th><th>Количество</th></tr>
           <tr><td>🤒 Болеют</td><td>${filteredStatistics.byReason.sick}</td></tr>
           <tr><td>📝 По заявлению родителей</td><td>${filteredStatistics.byReason.family}</td></tr>
-          <tr><td>⚠️ Без уважительной причины</td><td>${filteredStatistics.byReason.other}</td></tr>
+          <tr><td>⚠️ Причина неясна или неизвестна</td><td>${filteredStatistics.byReason.other}</td></tr>
           <tr><td>✈️ Отпуск/каникулы</td><td>${filteredStatistics.byReason.vacation}</td></tr>
           <tr><td>🏆 Соревнования</td><td>${filteredStatistics.byReason.competition}</td></tr>
         </table>

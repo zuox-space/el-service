@@ -414,7 +414,7 @@ export default function HomePage() {
     const reasonLabels: Record<string, string> = {
       sick: "🤒 Болен",
       family: "📝 По заявлению родителей",
-      other: "⚠️ БУ",
+      other: "⚠️ Причина неясна или неизвестна",
       vacation: "✈️ Отпуск",
       competition: "🏆 Соревнования"
     };

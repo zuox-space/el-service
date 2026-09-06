@@ -57,7 +57,7 @@ interface GradeGroup {
 const absenceReasons = [
     { id: "sick", label: "Болен", icon: "🤒", color: "text-red-400" },
     { id: "family", label: "Заявление родителей", icon: "📝", color: "text-orange-400" },
-    { id: "other", label: "Без уважительной причины", icon: "⚠️", color: "text-yellow-400" },
+    { id: "other", label: "Причина неясна или неизвестна", icon: "⚠️", color: "text-yellow-400" },
     { id: "vacation", label: "Отпуск/каникулы", icon: "✈️", color: "text-blue-400" },
     { id: "competition", label: "Соревнования", icon: "🏆", color: "text-purple-400" },
 ];
