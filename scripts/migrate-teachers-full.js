@@ -25,11 +25,9 @@ async function fetchTeachers() {
 function parseClasses(classStr) {
   if (!classStr || classStr === 'нет' || classStr === null) return [];
 
-  // Разделяем по запятой и обрезаем пробелы
   const classes = classStr.split(',').map(c => c.trim());
 
   return classes.map(className => {
-    // Извлекаем номер класса и букву
     const match = className.match(/(\d+)-(\w+)/);
     if (match) {
       return {
@@ -67,6 +65,7 @@ async function normalizeExistingUsers() {
   const users = await prisma.user.findMany();
   let updated = 0;
   let skipped = 0;
+  let deleted = 0;
 
   for (const user of users) {
     const normalizedEmail = user.email.toLowerCase().trim();
@@ -78,37 +77,41 @@ async function normalizeExistingUsers() {
       });
 
       if (existingUser) {
-        // Если есть пользователь с нормализованным email, удаляем текущего
-        console.log(`   🗑️ Удаляем дубликат: ${user.email} (заменяем на ${normalizedEmail})`);
+        console.log(`   🗑️ Обнаружен дубликат: ${user.email} → ${normalizedEmail}`);
+        console.log(`      Удаляем пользователя ${user.email} и переносим данные на ${normalizedEmail}`);
 
-        // Переносим связанные данные
-        await prisma.$transaction([
-          // Обновляем классы
-          prisma.class.updateMany({
+        // Используем транзакцию для безопасности
+        await prisma.$transaction(async (tx) => {
+          // 1. Обновляем классы
+          await tx.class.updateMany({
             where: { ownerId: user.id },
             data: { ownerId: existingUser.id }
-          }),
-          // Обновляем роли
-          prisma.userRole.updateMany({
-            where: { userId: user.id },
-            data: { userId: existingUser.id }
-          }),
-          // Обновляем записи посещаемости
-          prisma.attendance.updateMany({
-            where: { teacherId: user.id },
-            data: { teacherId: existingUser.id }
-          }),
-          // Обновляем ClassShare
-          prisma.classShare.updateMany({
-            where: { teacherId: user.id },
-            data: { teacherId: existingUser.id }
-          }),
-          // Удаляем пользователя
-          prisma.user.delete({
-            where: { id: user.id }
-          })
-        ]);
+          });
 
+          // 2. Обновляем ClassShare
+          await tx.classShare.updateMany({
+            where: { teacherId: user.id },
+            data: { teacherId: existingUser.id }
+          });
+
+          // 3. Обновляем Attendance
+          await tx.attendance.updateMany({
+            where: { teacherId: user.id },
+            data: { teacherId: existingUser.id }
+          });
+
+          // 4. Удаляем старые роли пользователя
+          await tx.userRole.deleteMany({
+            where: { userId: user.id }
+          });
+
+          // 5. Удаляем пользователя
+          await tx.user.delete({
+            where: { id: user.id }
+          });
+        });
+
+        deleted++;
         updated++;
       } else {
         // Просто обновляем email
@@ -124,13 +127,13 @@ async function normalizeExistingUsers() {
     }
   }
 
-  console.log(`📊 Нормализация email: обновлено ${updated}, пропущено ${skipped}`);
+  console.log(`📊 Нормализация email: обновлено ${updated}, удалено дубликатов ${deleted}, пропущено ${skipped}`);
 }
 
 async function migrateTeachers() {
   console.log('🚀 Начинаем миграцию учителей...\n');
 
-  // 🔥 СНАЧАЛА НОРМАЛИЗУЕМ СУЩЕСТВУЮЩИХ ПОЛЬЗОВАТЕЛЕЙ
+  // Сначала нормализуем существующих пользователей
   await normalizeExistingUsers();
 
   console.log('\n' + '='.repeat(50) + '\n');
@@ -144,23 +147,19 @@ async function migrateTeachers() {
 
   console.log(`📋 Найдено ${teachers.length} записей`);
 
-  // Получаем ID ролей
   const teacherRoleId = await getRoleId('TEACHER');
   const classTeacherRoleId = await getRoleId('CLASS_TEACHER');
 
   let created = 0;
-  let skipped = 0;
   let invalid = 0;
   let classesCreated = 0;
   let classTeachersAssigned = 0;
 
   for (const teacher of teachers) {
-    // Приводим email к нижнему регистру
     const email = teacher.email ? teacher.email.toLowerCase().trim() : '';
     const name = teacher.name;
     const classStr = teacher.classStr;
 
-    // Проверяем валидность email
     if (!email || email === 'нет' || email === 'null' || !email.includes('@')) {
       invalid++;
       continue;
@@ -172,7 +171,6 @@ async function migrateTeachers() {
     }
 
     try {
-      // Находим или создаём пользователя
       let user = await prisma.user.findUnique({
         where: { email: email }
       });
@@ -190,7 +188,7 @@ async function migrateTeachers() {
         console.log(`\n👤 Пользователь уже существует: ${name} (${email})`);
       }
 
-      // Назначаем роль TEACHER (если ещё нет)
+      // Назначаем роль TEACHER
       const existingTeacherRole = await prisma.userRole.findFirst({
         where: { userId: user.id, roleId: teacherRoleId }
       });
@@ -201,7 +199,7 @@ async function migrateTeachers() {
         console.log(`   📌 Назначена роль TEACHER`);
       }
 
-      // Обрабатываем классы, если есть
+      // Обрабатываем классы
       if (classStr && classStr !== 'нет' && classStr !== null) {
         const classes = parseClasses(classStr);
 
@@ -209,7 +207,6 @@ async function migrateTeachers() {
           console.log(`   📚 Классы: ${classStr}`);
 
           for (const classInfo of classes) {
-            // Находим или создаём класс
             let classData = await prisma.class.findFirst({
               where: { name: classInfo.name }
             });
@@ -227,13 +224,12 @@ async function migrateTeachers() {
               classesCreated++;
               console.log(`      ✅ Создан класс: ${classInfo.name}`);
             } else {
-              // Обновляем ownerId, если класс уже существует
               if (classData.ownerId !== user.id) {
                 await prisma.class.update({
                   where: { id: classData.id },
                   data: { ownerId: user.id }
                 });
-                console.log(`      🔄 Обновлён класс: ${classInfo.name} (назначен классный руководитель)`);
+                console.log(`      🔄 Обновлён класс: ${classInfo.name}`);
               }
             }
 
