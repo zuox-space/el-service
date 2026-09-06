@@ -542,16 +542,18 @@ export default function HomePage() {
   }
 
   // Рендер таба пропусков
+  // Рендер таба пропусков
   const renderAttendanceTab = () => (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2">
+      {/* Кнопки */}
+      <div className="flex flex-col gap-2">
         {isSelectedDateToday && (
           <button
             onClick={() => setIsAttendanceModalOpen(true)}
             className="flex items-center justify-center gap-2 py-2.5 px-3 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white font-medium rounded-xl transition-all text-sm shadow-lg shadow-teal-500/20 hover:shadow-teal-500/30"
           >
             <CheckCircle size={16} />
-            <span>Отметить</span>
+            <span>Отметить присутствие</span>
             {!isTodayAttendanceMarked && (
               <div className="w-4 h-4 bg-red-400 rounded-full flex items-center justify-center text-[10px] font-bold animate-pulse">
                 !
@@ -563,14 +565,15 @@ export default function HomePage() {
         {canIssue && (
           <button
             onClick={() => setIsPassModalOpen(true)}
-            className="flex items-center justify-center gap-2 py-2.5 px-3 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-medium rounded-xl transition-all text-sm shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30"
+            className={`flex items-center justify-center gap-2 py-2.5 px-3 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-medium rounded-xl transition-all text-sm shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 ${!isSelectedDateToday ? 'w-full' : ''}`}
           >
             <PenSquare size={16} />
-            <span>Пропуск</span>
+            <span>Выписать пропуск</span>
           </button>
         )}
       </div>
 
+      {/* Остальной контент без изменений */}
       {absentStudentsList.length > 0 ? (
         <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border-l-4 border-red-500 border border-white/20">
           <div className="flex items-center gap-2 mb-2">
