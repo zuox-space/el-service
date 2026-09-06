@@ -64,11 +64,10 @@ export async function GET() {
 
           // Форматируем студентов в нужный формат
           const formattedStudents = studentsFromMySQL.map((student, index) => ({
-            id: index + 1,
+            id: student.aisId,
             name: student.name,
-            aisId: student.aisId || 0
           }));
-
+          console.log(formattedStudents)
           return {
             ...cls,
             // Заменяем students на данные из MySQL
