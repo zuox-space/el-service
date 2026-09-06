@@ -28,14 +28,15 @@ export async function GET(req: NextRequest) {
         }
 
         // 🔥 ПРАВИЛЬНОЕ СОЗДАНИЕ ДАТ ДЛЯ ПОИСКА В БД
-        // Создаем даты в UTC для корректного сравнения с БД
+        // Так как в БД даты хранятся как 2026-09-06T00:00:00.000Z
+        // Создаем даты в UTC
         const start = new Date(startDate + 'T00:00:00.000Z');
         const end = new Date(endDate + 'T23:59:59.999Z');
 
         console.log(`📊 Fetching truants from ${startDate} to ${endDate}`);
         console.log(`📊 Start: ${start.toISOString()}, End: ${end.toISOString()}`);
 
-        // 1. Получаем все записи посещаемости за период
+        // 🔥 ПОЛУЧАЕМ ВСЕ ЗАПИСИ ЗА ПЕРИОД
         const attendances = await prisma.attendance.findMany({
             where: {
                 date: {
@@ -72,6 +73,12 @@ export async function GET(req: NextRequest) {
                 }
             });
         }
+
+        // 🔥 ВЫВОДИМ ДАТЫ ДЛЯ ОТЛАДКИ
+        console.log('📅 Dates in DB:');
+        attendances.slice(0, 5).forEach(record => {
+            console.log(`  ${record.date.toISOString()}`);
+        });
 
         // 2. Получаем ВСЕ классы для сопоставления ID -> название
         const allClasses = await prisma.class.findMany({
@@ -112,7 +119,7 @@ export async function GET(req: NextRequest) {
             });
         });
 
-        // 4. Обрабатываем ТОЛЬКО записи за выбранный период
+        // 4. Обрабатываем записи
         const absenceMap = new Map<number, {
             studentId: number;
             name: string;
@@ -126,8 +133,6 @@ export async function GET(req: NextRequest) {
             }[];
             reasons: Record<string, number>;
         }>();
-
-        let processedRecords = 0;
 
         for (const record of attendances) {
             // Получаем название класса из карты
@@ -148,8 +153,6 @@ export async function GET(req: NextRequest) {
 
             if (absentIds.length === 0) continue;
 
-            processedRecords++;
-
             // Парсим absentReasons
             let absentReasons: Record<number, string> = {};
             if (typeof record.absentReasons === 'string') {
@@ -160,15 +163,6 @@ export async function GET(req: NextRequest) {
                 }
             } else if (typeof record.absentReasons === 'object') {
                 absentReasons = record.absentReasons;
-            }
-
-            // Проверяем дату записи
-            const recordDate = new Date(record.date);
-            const isInRange = recordDate >= start && recordDate <= end;
-
-            if (!isInRange) {
-                console.log(`⏭️ Skipping record ${record.id} - date ${recordDate.toISOString()} not in range`);
-                continue;
             }
 
             for (const studentId of absentIds) {
@@ -204,8 +198,6 @@ export async function GET(req: NextRequest) {
                 entry.reasons[reason] = (entry.reasons[reason] || 0) + 1;
             }
         }
-
-        console.log(`📊 Processed ${processedRecords} records for period`);
 
         // 5. Преобразуем в массив
         const truants = Array.from(absenceMap.values())
