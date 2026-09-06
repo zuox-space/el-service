@@ -7,6 +7,18 @@ import { query } from "@/lib/mysql_db";
 
 export const dynamic = 'force-dynamic';
 
+// Тип для записи посещаемости из raw SQL
+interface AttendanceRaw {
+    id: string;
+    date: Date;
+    classId: string;
+    teacherId: string;
+    presentStudents: string;
+    absentStudents: string;
+    absentReasons: string;
+    createdAt: Date;
+}
+
 export async function GET(req: NextRequest) {
     const session = await getServerSession(authOptions);
     if (!session) {
@@ -27,27 +39,15 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "Missing date range" }, { status: 400 });
         }
 
-        // 🔥 ПРАВИЛЬНОЕ СОЗДАНИЕ ДАТ ДЛЯ ПОИСКА В БД
-        // Так как в БД даты хранятся как 2026-09-06T00:00:00.000Z
-        // Создаем даты в UTC
-        const start = new Date(startDate + 'T00:00:00.000Z');
-        const end = new Date(endDate + 'T23:59:59.999Z');
-
         console.log(`📊 Fetching truants from ${startDate} to ${endDate}`);
-        console.log(`📊 Start: ${start.toISOString()}, End: ${end.toISOString()}`);
 
-        // 🔥 ПОЛУЧАЕМ ВСЕ ЗАПИСИ ЗА ПЕРИОД
-        const attendances = await prisma.attendance.findMany({
-            where: {
-                date: {
-                    gte: start,
-                    lte: end
-                }
-            },
-            orderBy: {
-                date: 'desc'
-            }
-        });
+        // 🔥 ИСПОЛЬЗУЕМ RAW SQL С ТИПИЗАЦИЕЙ
+        const attendances = await prisma.$queryRaw<AttendanceRaw[]>`
+            SELECT * FROM Attendance 
+            WHERE DATE(date) >= ${startDate} 
+            AND DATE(date) <= ${endDate}
+            ORDER BY date DESC
+        `;
 
         console.log(`📋 Found ${attendances.length} attendance records in period`);
 
@@ -73,12 +73,6 @@ export async function GET(req: NextRequest) {
                 }
             });
         }
-
-        // 🔥 ВЫВОДИМ ДАТЫ ДЛЯ ОТЛАДКИ
-        console.log('📅 Dates in DB:');
-        attendances.slice(0, 5).forEach(record => {
-            console.log(`  ${record.date.toISOString()}`);
-        });
 
         // 2. Получаем ВСЕ классы для сопоставления ID -> название
         const allClasses = await prisma.class.findMany({
