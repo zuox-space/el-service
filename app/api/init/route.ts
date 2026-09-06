@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 export async function POST() {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -40,13 +40,7 @@ export async function POST() {
     let createdClass = null;
 
     if (existingClasses.length === 0) {
-      const students = [
-        { id: 1, name: "Анна Иванова" },
-        { id: 2, name: "Борис Петров" },
-        { id: 3, name: "Виктор Сидоров" },
-        { id: 4, name: "Галина Смирнова" },
-        { id: 5, name: "Дмитрий Козлов" },
-      ];
+
 
       createdClass = await prisma.class.create({
         data: {
@@ -54,7 +48,6 @@ export async function POST() {
           grade: 7,
           letter: "А",
           ownerId: user.id,
-          students: JSON.stringify(students),
         }
       });
       console.log("Demo class created:", createdClass.id);
@@ -62,18 +55,18 @@ export async function POST() {
       console.log("Classes already exist:", existingClasses.length);
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       user: { id: user.id, email: user.email, name: user.name },
       class: createdClass,
       hasClasses: existingClasses.length > 0
     });
-    
+
   } catch (error) {
     console.error("Init error:", error);
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: String(error),
-      success: false 
+      success: false
     }, { status: 500 });
   }
 }
