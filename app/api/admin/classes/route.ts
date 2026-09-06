@@ -81,7 +81,6 @@ export async function POST(req: NextRequest) {
         grade: parseInt(grade),
         letter: letter.toUpperCase(),
         ownerId: ownerId,
-        students: JSON.stringify([]), // Поле нужно, пока есть в схеме
       }
     });
 
