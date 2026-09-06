@@ -1,9 +1,9 @@
 // types/index.ts
 export interface Student {
-  id: number;
+  id: string;
   name: string;
   className: string;
-  aisId: number
+  aisId: string
 }
 
 export interface Class {
