@@ -7,7 +7,7 @@ import { query } from "@/lib/mysql_db";
 
 export const dynamic = 'force-dynamic';
 
-// Тип для записи посещаемости из raw SQL
+// Тип для записи посещаемости
 interface AttendanceRaw {
     id: string;
     date: Date;
@@ -41,14 +41,22 @@ export async function GET(req: NextRequest) {
 
         console.log(`📊 Fetching truants from ${startDate} to ${endDate}`);
 
-        // 🔥 ИСПРАВЛЕНО: используем правильное имя таблицы в нижнем регистре
-        // В PostgreSQL все таблицы в нижнем регистре
-        const attendances = await prisma.$queryRaw<AttendanceRaw[]>`
-            SELECT * FROM "Attendance"
-            WHERE DATE(date) >= ${startDate} 
-            AND DATE(date) <= ${endDate}
-            ORDER BY date DESC
-        `;
+        // 🔥 ИСПОЛЬЗУЕМ ОБЫЧНЫЙ PRISMA ЗАПРОС (БЕЗ RAW SQL)
+        // Это самый надежный способ
+        const start = new Date(startDate + 'T00:00:00.000Z');
+        const end = new Date(endDate + 'T23:59:59.999Z');
+
+        const attendances = await prisma.attendance.findMany({
+            where: {
+                date: {
+                    gte: start,
+                    lte: end
+                }
+            },
+            orderBy: {
+                date: 'desc'
+            }
+        });
 
         console.log(`📋 Found ${attendances.length} attendance records in period`);
 
