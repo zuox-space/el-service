@@ -1,7 +1,9 @@
+// app/api/admin/dashboard-data/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { query } from "@/lib/mysql_db";
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +14,6 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Проверка прав администратора
     const roles = (session?.user?.roles as string[]) || [];
     if (!roles.includes("ADMIN")) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -26,16 +27,47 @@ export async function GET(req: NextRequest) {
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
 
-        // Получаем все классы
+        // 1. Получаем всех студентов из MySQL
+        const allStudentsFromMySQL = await query<{
+            aisId: number;
+            name: string;
+            className: string;
+        }>(`
+            SELECT 
+                aisId,
+                CONCAT(lastName, ' ', firstName) AS name,
+                className 
+            FROM students 
+            WHERE archive = 0
+        `);
+
+        const studentMap = new Map<number, { name: string; className: string }>();
+        allStudentsFromMySQL.forEach(student => {
+            studentMap.set(student.aisId, {
+                name: student.name,
+                className: student.className
+            });
+        });
+
+        console.log(`👥 Загружено ${allStudentsFromMySQL.length} студентов из MySQL`);
+
+        // 2. Получаем все классы
         const classes = await prisma.class.findMany({
             orderBy: { name: 'asc' }
+        });
+
+        const classMap = new Map();
+        classes.forEach(cls => {
+            classMap.set(cls.id, cls);
         });
 
         let passes: any[] = [];
         let selfExits: any[] = [];
         let departed: any[] = [];
 
-        // Получаем все пропуски за сегодня для всех классов
+        // ============================================
+        // 3. РАЗОВЫЕ ПРОПУСКИ (из таблицы Pass)
+        // ============================================
         const allPasses = await prisma.pass.findMany({
             where: {
                 date: {
@@ -46,25 +78,13 @@ export async function GET(req: NextRequest) {
             orderBy: { createdAt: "desc" }
         });
 
-        // Получаем все самовыводы (без фильтра по датам)
-        const allSelfExits = await prisma.selfExit.findMany({
-            orderBy: { createdAt: "desc" }
-        });
-
-        // Создаем карту классов для быстрого доступа
-        const classMap = new Map();
-        classes.forEach(cls => {
-            classMap.set(cls.id, cls);
-        });
-
-        // Форматируем пропуски
         for (const pass of allPasses) {
             const cls = classMap.get(pass.classId);
             const gradeMatch = cls?.name?.match(/(\d+)/);
             const grade = gradeMatch ? parseInt(gradeMatch[1]) : 0;
 
+            // Парсим students из JSON (для разовых пропусков)
             let students: any[] = [];
-
             if (typeof pass.students === 'string') {
                 try {
                     students = JSON.parse(pass.students);
@@ -75,6 +95,7 @@ export async function GET(req: NextRequest) {
                 students = pass.students;
             }
 
+            // Если students пустой, пробуем взять из класса
             if (students.length === 0 && cls) {
                 if (typeof cls.students === 'string') {
                     try {
@@ -87,17 +108,33 @@ export async function GET(req: NextRequest) {
                 }
             }
 
+            let studentName = "Неизвестно";
+            let studentClassName = cls?.name || "Неизвестный класс";
+
+            if (students.length > 0) {
+                const firstStudent = students[0];
+                studentName = firstStudent.name || "Неизвестно";
+
+                if (firstStudent.id) {
+                    const studentInfo = studentMap.get(firstStudent.id);
+                    if (studentInfo) {
+                        studentClassName = studentInfo.className;
+                    }
+                }
+            }
+
             const formattedPass = {
                 id: pass.id,
-                studentName: students.map((s: any) => s.name).join(", ") || "Неизвестно",
+                studentName: studentName,
                 exitTime: pass.exitTime,
-                reason: pass.reason,
+                reason: pass.reason || "Не указана",
                 date: pass.date,
-                className: cls?.name || "Неизвестный класс",
+                className: studentClassName,
                 grade: grade,
                 used: pass.used,
                 usedAt: pass.usedAt,
-                type: "single" as const
+                type: "single" as const,
+
             };
 
             if (pass.used) {
@@ -107,35 +144,42 @@ export async function GET(req: NextRequest) {
             }
         }
 
-        // 🔥 ФОРМАТИРУЕМ САМОВЫВОДЫ - ИСПРАВЛЕНО
+        // ============================================
+        // 4. САМОВЫВОДЫ (из таблицы SelfExit)
+        // ============================================
+        const allSelfExits = await prisma.selfExit.findMany({
+            orderBy: { createdAt: "desc" }
+        });
+
         for (const exit of allSelfExits) {
             const cls = classMap.get(exit.classId);
             const gradeMatch = cls?.name?.match(/(\d+)/);
             const grade = gradeMatch ? parseInt(gradeMatch[1]) : 0;
 
-            // ✅ ПРОСТО ИСПОЛЬЗУЕМ URL КАК ЕСТЬ
-            let photoUrl = exit.photoUrl || null;
+            // Для самовыводов используем studentId
+            const studentInfo = studentMap.get(exit.studentId);
+            const studentName = studentInfo?.name || exit.studentName || `Студент ${exit.studentId}`;
+            const studentClassName = studentInfo?.className || cls?.name || "Неизвестный класс";
 
             selfExits.push({
                 id: exit.id,
-                studentName: exit.studentName || "Неизвестно",
+                studentName: studentName,
                 exitTime: "самовывод",
                 reason: exit.reason || "По заявлению",
                 date: exit.startDate,
                 startDate: exit.startDate,
                 endDate: exit.endDate,
-                className: cls?.name || "Неизвестный класс",
+                className: studentClassName,
                 grade: grade,
                 type: "self-exit" as const,
-                photoUrl: photoUrl // ✅ ПРОСТО ИСПОЛЬЗУЕМ КАК ЕСТЬ
+                photoUrl: exit.photoUrl || null,
+
             });
         }
 
-        // Добавляем отладочную информацию
-        console.log(`🔍 Найдено пропусков: ${passes.length}, самовыводов: ${selfExits.length}, ушедших: ${departed.length}`);
-        console.log(`📊 Пример самовывода с photoUrl:`, selfExits[0] || "Нет самовыводов");
+        console.log(`📊 Найдено пропусков: ${passes.length}, самовыводов: ${selfExits.length}, ушедших: ${departed.length}`);
 
-        // Возвращаем данные в зависимости от запрошенной вкладки
+        // Возвращаем данные в зависимости от вкладки
         let result: any = {};
 
         switch (tab) {
@@ -150,18 +194,18 @@ export async function GET(req: NextRequest) {
                 break;
         }
 
-        // Добавляем общую статистику
         result.stats = {
             totalPasses: passes.length,
             totalSelfExits: selfExits.length,
             totalDeparted: departed.length,
-            totalClasses: classes.length
+            totalClasses: classes.length,
+            totalStudentsInMySQL: allStudentsFromMySQL.length
         };
 
         return NextResponse.json(result);
 
     } catch (error) {
-        console.error("Error fetching dashboard data:", error);
+        console.error("❌ Error fetching dashboard data:", error);
         return NextResponse.json(
             { error: "Failed to fetch dashboard data", details: String(error) },
             { status: 500 }
