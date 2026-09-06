@@ -118,7 +118,7 @@ model Note {
 
 model SelfExit {
   id          String   @id @default(cuid())
-  studentId   Int
+  studentId   String
   studentName String
   startDate   DateTime
   endDate     DateTime
@@ -133,7 +133,7 @@ model SelfExit {
 
 model UnauthorizedLeave {
   id          String   @id @default(cuid())
-  studentId   Int
+  studentId   String
   studentName String
   className   String
   leaveTime   DateTime
