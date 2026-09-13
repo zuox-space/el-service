@@ -675,6 +675,7 @@ export default function HomePage() {
       </div>
     );
   }
+  // 🔥 Рендер таба ВШУ
   const renderSchoolRecordTab = () => (
     <div className="space-y-3">
       {/* Заголовок с количеством */}
@@ -734,7 +735,7 @@ export default function HomePage() {
               </div>
 
               {/* Причина */}
-              <div className="bg-orange-500/10 rounded-lg p-2 border border-orange-500/20 mb-2">
+              <div className="bg-orange-500/10 rounded-lg p-2 border border-orange-500/20">
                 <p className="text-[10px] text-orange-400 mb-0.5">
                   Причина постановки
                 </p>
@@ -742,30 +743,6 @@ export default function HomePage() {
                   {record.reason}
                 </p>
               </div>
-
-              {/* Статистика ученика */}
-              {record.stats && (
-                <div className="grid grid-cols-3 gap-1.5">
-                  <div className="bg-white/5 rounded-lg p-2 text-center">
-                    <p className="text-[9px] text-gray-500">Нарушения</p>
-                    <p className="text-sm font-bold text-rose-400">
-                      {record.stats.violations}
-                    </p>
-                  </div>
-                  <div className="bg-white/5 rounded-lg p-2 text-center">
-                    <p className="text-[9px] text-gray-500">Пропуски</p>
-                    <p className="text-sm font-bold text-amber-400">
-                      {record.stats.absences}
-                    </p>
-                  </div>
-                  <div className="bg-white/5 rounded-lg p-2 text-center">
-                    <p className="text-[9px] text-gray-500">Пропуска</p>
-                    <p className="text-sm font-bold text-blue-400">
-                      {record.stats.passes}
-                    </p>
-                  </div>
-                </div>
-              )}
             </div>
           ))}
         </div>
