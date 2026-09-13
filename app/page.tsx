@@ -18,7 +18,7 @@ import NotesModal from "@/components/ui/NotesModal";
 import SelfExitModal from "@/components/ui/SelfExitModal";
 import ViolationModal from "@/components/ui/ViolationModal";
 import ViolationsList from "@/components/ui/ViolationsList";
-import { safeFormatShortName, formatDateLocal } from "@/lib/utils";
+import { safeFormatShortName } from "@/lib/utils";
 
 interface TabType {
   id: string;
@@ -64,7 +64,12 @@ export default function HomePage() {
       date1.getMonth() === date2.getMonth() &&
       date1.getDate() === date2.getDate();
   };
-
+  const formatDateLocal = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
   const roles = (session?.user?.roles as string[]) || [];
   const isAdmin = roles.includes("ADMIN");
   const isClassTeacher = roles.includes("CLASS_TEACHER");
@@ -899,8 +904,8 @@ export default function HomePage() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg transition-all text-sm font-medium ${activeTab === tab.id
-                  ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/20"
-                  : "text-gray-400 hover:text-white hover:bg-white/10"
+                ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/20"
+                : "text-gray-400 hover:text-white hover:bg-white/10"
                 }`}
             >
               {tab.icon}
