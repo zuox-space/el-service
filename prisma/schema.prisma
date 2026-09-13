@@ -158,3 +158,27 @@ model Violation {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+model SchoolRecord {
+  id              String    @id @default(cuid())
+  studentId       String
+  studentName     String
+  className       String
+  
+  // Постановка на учёт
+  registeredAt    DateTime  // дата постановки
+  registeredBy    String    // ID учителя
+  registeredByName String   // ФИО учителя
+  reason          String    // причина постановки
+  
+  // Снятие с учёта (null = ещё на учёте)
+  releasedAt      DateTime?
+  releasedBy      String?
+  releasedByName  String?
+  releaseReason   String?
+  
+  // Статус (активная запись или нет)
+  isActive        Boolean   @default(true)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
