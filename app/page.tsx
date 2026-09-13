@@ -18,6 +18,8 @@ import ClassSelector from "@/components/ui/ClassSelector";
 import NewsModal from "@/components/ui/NewsModal";
 import NotesModal from "@/components/ui/NotesModal";
 import SelfExitModal from "@/components/ui/SelfExitModal";
+import ViolationModal from "@/components/ui/ViolationModal";
+import { AlertTriangle } from "lucide-react"; // добавьте к существующим импортам
 import { formatShortName, safeFormatShortName, formatDateLocal } from "@/lib/utils"
 
 interface TabType {
@@ -35,6 +37,7 @@ export default function HomePage() {
   const [selectedDate, setSelectedDate] = useState(new Date(today.getFullYear(), today.getMonth(), today.getDate()));
   const [selectedClass, setSelectedClass] = useState<any>(null);
   const [classes, setClasses] = useState<any[]>([]);
+  const [isViolationModalOpen, setIsViolationModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("attendance");
   const [isPassModalOpen, setIsPassModalOpen] = useState(false);
   const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false);
@@ -329,7 +332,25 @@ export default function HomePage() {
       alert("Ошибка при добавлении самовыxода");
     }
   };
+  const handleSubmitViolation = async (data: any) => {
+    try {
+      const response = await fetch("/api/violations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
 
+      if (!response.ok) throw new Error("Failed to create violation");
+
+      const newViolation = await response.json();
+      alert("Нарушение зафиксировано!");
+      return newViolation;
+    } catch (error) {
+      console.error("Error creating violation:", error);
+      alert("Ошибка при сохранении нарушения");
+      throw error;
+    }
+  };
   const toggleNoteStatus = async (noteId: string, completed: boolean) => {
     try {
       const response = await fetch(`/api/notes`, {
@@ -739,6 +760,13 @@ export default function HomePage() {
           </div>
         ))
       )}
+      <button
+        onClick={() => setIsViolationModalOpen(true)}
+        className="fixed bottom-20 right-4 z-40 w-14 h-14 rounded-full bg-gradient-to-br from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 text-white shadow-2xl shadow-rose-500/40 flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+        title="Зафиксировать нарушение"
+      >
+        <AlertTriangle size={24} />
+      </button>
     </div>
   );
 
@@ -858,6 +886,11 @@ export default function HomePage() {
         onClose={() => setIsSelfExitModalOpen(false)}
         onSubmit={handleSubmitSelfExit}
         studentsList={studentsList}
+      />
+      <ViolationModal
+        isOpen={isViolationModalOpen}
+        onClose={() => setIsViolationModalOpen(false)}
+        onSubmit={handleSubmitViolation}
       />
     </div>
   );
