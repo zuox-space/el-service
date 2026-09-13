@@ -52,7 +52,6 @@ export async function GET(
         const student = studentInfo[0];
 
         // 2. Получаем все пропуска студента
-        // Pass хранит students как JSON, поэтому фильтруем все и ищем по ID
         const allPasses = await prisma.pass.findMany({
             orderBy: { date: 'desc' },
             take: 500,
@@ -67,21 +66,15 @@ export async function GET(
                     return false;
                 }
             })
-            .map(pass => {
-                let studentsList: any[] = [];
-                try {
-                    studentsList = JSON.parse(pass.students || '[]');
-                } catch { }
-                return {
-                    id: pass.id,
-                    date: pass.date,
-                    exitTime: pass.exitTime,
-                    reason: pass.reason,
-                    used: pass.used,
-                    usedAt: pass.usedAt,
-                    className: student.className,
-                };
-            });
+            .map(pass => ({
+                id: pass.id,
+                date: pass.date,
+                exitTime: pass.exitTime,
+                reason: pass.reason,
+                used: pass.used,
+                usedAt: pass.usedAt,
+                className: student.className,
+            }));
 
         // 3. Получаем самовыводы студента
         const selfExits = await prisma.selfExit.findMany({
@@ -124,7 +117,18 @@ export async function GET(
             }
         }
 
-        // 6. Считаем статистику
+        // 🔥 6. Получаем записи ВШУ
+        const schoolRecords = await prisma.schoolRecord.findMany({
+            where: { studentId: String(aisId) },
+            orderBy: { registeredAt: 'desc' },
+        });
+
+        const activeRecord = schoolRecords.find(r => r.isActive);
+        const isRegistered = !!activeRecord;
+
+        console.log(`📋 School records: ${schoolRecords.length} (active: ${isRegistered})`);
+
+        // 7. Считаем статистику
         const stats = {
             passes: {
                 total: passes.length,
@@ -149,6 +153,11 @@ export async function GET(
                     return acc;
                 }, {} as Record<string, number>),
             },
+            schoolRecord: {
+                isRegistered,
+                total: schoolRecords.length,
+                activeRecord: activeRecord || null,
+            },
         };
 
         console.log(`✅ Profile loaded: ${student.name} (${student.className})`);
@@ -160,6 +169,7 @@ export async function GET(
             selfExits,
             violations,
             absences,
+            schoolRecords,
             stats,
         });
 
