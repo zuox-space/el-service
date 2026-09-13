@@ -11,7 +11,8 @@ import {
   UserX, Menu, X as XClose, Home, Download, Eye,
   Bot,
   AlertTriangle,
-  ShieldAlert
+  ShieldAlert,
+  User
 } from "lucide-react";
 
 interface Pass {
@@ -621,71 +622,167 @@ export default function AdminDashboard() {
       )}
 
       {/* Десктопное меню */}
-      <div className="hidden lg:flex bg-white/5 border-b border-white/10 px-4">
-        <div className="flex gap-1">
-          <button
-            onClick={() => setActiveTab("single")}
-            className={`px-4 py-2 text-sm font-medium transition-all flex items-center gap-2 ${activeTab === "single" ? "text-blue-400 border-b-2 border-blue-400" : "text-gray-400 hover:text-white"}`}
-          >
-            <DoorOpen size={16} />
-            Разовый
-          </button>
-          <button
-            onClick={() => setActiveTab("self-exit")}
-            className={`px-4 py-2 text-sm font-medium transition-all flex items-center gap-2 ${activeTab === "self-exit" ? "text-blue-400 border-b-2 border-blue-400" : "text-gray-400 hover:text-white"}`}
-          >
-            <UserCheck size={16} />
-            Самовывод
-          </button>
-          <button
-            onClick={() => setActiveTab("departed")}
-            className={`px-4 py-2 text-sm font-medium transition-all flex items-center gap-2 ${activeTab === "departed" ? "text-blue-400 border-b-2 border-blue-400" : "text-gray-400 hover:text-white"}`}
-          >
-            <Users size={16} />
-            Ушедшие
-          </button>
-          <div className="w-px h-6 bg-white/10 mx-2 self-center" />
-          <button onClick={() => router.push("/admin/classes")} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-all flex items-center gap-2">
-            <School size={16} />
-            Классы
-          </button>
-          <button onClick={() => router.push("/admin/users")} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-all flex items-center gap-2">
-            <Users size={16} />
-            Персонал
-          </button>
-          <button onClick={() => router.push("/admin/absent")} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-all flex items-center gap-2">
-            <UserX size={16} />
-            Отсутствия
-          </button>
-          <button onClick={() => router.push("/admin/truants")} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-all flex items-center gap-2">
-            <UserX size={16} /> {/* ✅ ДОБАВЛЕНО */}
-            Прогульщики
-          </button>
-          <button
-            onClick={() => router.push("/admin/students")}
-            className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-all flex items-center gap-2"
-          >
-            <Users size={16} />
-            Ученики
-          </button>
-          <button
-            onClick={() => router.push("/admin/violations")}
-            className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-all flex items-center gap-2"
-          >
-            <AlertTriangle size={16} />
-            Нарушения
-          </button>
-          <button
-            onClick={() => router.push("/admin/school-records")}
-            className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-all flex items-center gap-2"
-          >
-            <ShieldAlert size={16} />
-            ВШУ
-          </button>
-          <button onClick={() => router.push("/")} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-all flex items-center gap-2">
-            <Home size={16} />
-            На главную
-          </button>
+      <div className="hidden lg:block bg-white/5 border-b border-white/10">
+        <div className="max-w-[1800px] mx-auto px-4">
+          <div className="flex items-center justify-between h-14">
+
+            {/* 🔥 ЛЕВАЯ ЧАСТЬ: Логотип + Основные вкладки */}
+            <div className="flex items-center gap-6">
+
+              {/* Логотип / Название раздела */}
+              <div className="flex items-center gap-2 pr-4 border-r border-white/10">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
+                  <Shield size={16} className="text-white" />
+                </div>
+                <span className="text-sm font-bold text-white whitespace-nowrap">
+                  Админ панель
+                </span>
+              </div>
+
+              {/* Группа: Рабочие вкладки (пропуска, самовывод, ушедшие) */}
+              <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1">
+                <button
+                  onClick={() => setActiveTab("single")}
+                  className={`relative px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${activeTab === "single"
+                      ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-md shadow-blue-500/20"
+                      : "text-gray-400 hover:text-white hover:bg-white/5"
+                    }`}
+                >
+                  <DoorOpen size={14} />
+                  Разовый
+                  {filteredPasses.length > 0 && (
+                    <span className={`ml-1 text-[10px] px-1.5 py-0.5 rounded-full ${activeTab === "single" ? "bg-white/20" : "bg-blue-500/20 text-blue-300"
+                      }`}>
+                      {filteredPasses.length}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => setActiveTab("self-exit")}
+                  className={`relative px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${activeTab === "self-exit"
+                      ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md shadow-indigo-500/20"
+                      : "text-gray-400 hover:text-white hover:bg-white/5"
+                    }`}
+                >
+                  <UserCheck size={14} />
+                  Самовывод
+                  {filteredSelfExits.length > 0 && (
+                    <span className={`ml-1 text-[10px] px-1.5 py-0.5 rounded-full ${activeTab === "self-exit" ? "bg-white/20" : "bg-indigo-500/20 text-indigo-300"
+                      }`}>
+                      {filteredSelfExits.length}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => setActiveTab("departed")}
+                  className={`relative px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${activeTab === "departed"
+                      ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-md shadow-green-500/20"
+                      : "text-gray-400 hover:text-white hover:bg-white/5"
+                    }`}
+                >
+                  <Users size={14} />
+                  Ушедшие
+                  {filteredDeparted.length > 0 && (
+                    <span className={`ml-1 text-[10px] px-1.5 py-0.5 rounded-full ${activeTab === "departed" ? "bg-white/20" : "bg-green-500/20 text-green-300"
+                      }`}>
+                      {filteredDeparted.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* 🔥 ПРАВАЯ ЧАСТЬ: Навигация по разделам */}
+            <div className="flex items-center gap-1">
+
+              {/* Группа: Ученики и данные */}
+              <div className="flex items-center gap-0.5">
+                <button
+                  onClick={() => router.push("/admin/students")}
+                  className="group px-3 py-1.5 rounded-md text-xs text-gray-400 hover:text-white hover:bg-cyan-500/10 transition-all flex items-center gap-1.5 relative"
+                  title="Профили учеников"
+                >
+                  <User size={14} className="group-hover:text-cyan-400 transition-colors" />
+                  <span className="hidden xl:inline">Ученики</span>
+                </button>
+
+                <button
+                  onClick={() => router.push("/admin/classes")}
+                  className="group px-3 py-1.5 rounded-md text-xs text-gray-400 hover:text-white hover:bg-purple-500/10 transition-all flex items-center gap-1.5 relative"
+                  title="Управление классами"
+                >
+                  <School size={14} className="group-hover:text-purple-400 transition-colors" />
+                  <span className="hidden xl:inline">Классы</span>
+                </button>
+
+                <button
+                  onClick={() => router.push("/admin/users")}
+                  className="group px-3 py-1.5 rounded-md text-xs text-gray-400 hover:text-white hover:bg-pink-500/10 transition-all flex items-center gap-1.5 relative"
+                  title="Персонал школы"
+                >
+                  <Users size={14} className="group-hover:text-pink-400 transition-colors" />
+                  <span className="hidden xl:inline">Персонал</span>
+                </button>
+              </div>
+
+              {/* Разделитель */}
+              <div className="w-px h-6 bg-white/10 mx-2" />
+
+              {/* Группа: Аналитика */}
+              <div className="flex items-center gap-0.5">
+                <button
+                  onClick={() => router.push("/admin/absent")}
+                  className="group px-3 py-1.5 rounded-md text-xs text-gray-400 hover:text-white hover:bg-amber-500/10 transition-all flex items-center gap-1.5 relative"
+                  title="Отсутствия"
+                >
+                  <UserX size={14} className="group-hover:text-amber-400 transition-colors" />
+                  <span className="hidden xl:inline">Отсутствия</span>
+                </button>
+
+                <button
+                  onClick={() => router.push("/admin/truants")}
+                  className="group px-3 py-1.5 rounded-md text-xs text-gray-400 hover:text-white hover:bg-red-500/10 transition-all flex items-center gap-1.5 relative"
+                  title="Прогульщики"
+                >
+                  <UserX size={14} className="group-hover:text-red-400 transition-colors" />
+                  <span className="hidden xl:inline">Прогульщики</span>
+                </button>
+
+                <button
+                  onClick={() => router.push("/admin/violations")}
+                  className="group px-3 py-1.5 rounded-md text-xs text-gray-400 hover:text-white hover:bg-rose-500/10 transition-all flex items-center gap-1.5 relative"
+                  title="Нарушения"
+                >
+                  <AlertTriangle size={14} className="group-hover:text-rose-400 transition-colors" />
+                  <span className="hidden xl:inline">Нарушения</span>
+                </button>
+
+                <button
+                  onClick={() => router.push("/admin/school-records")}
+                  className="group px-3 py-1.5 rounded-md text-xs text-gray-400 hover:text-white hover:bg-orange-500/10 transition-all flex items-center gap-1.5 relative"
+                  title="Внутришкольный учёт"
+                >
+                  <ShieldAlert size={14} className="group-hover:text-orange-400 transition-colors" />
+                  <span className="hidden xl:inline">ВШУ</span>
+                </button>
+              </div>
+
+              {/* Разделитель */}
+              <div className="w-px h-6 bg-white/10 mx-2" />
+
+              {/* Кнопка "На главную" */}
+              <button
+                onClick={() => router.push("/")}
+                className="px-3 py-1.5 rounded-md text-xs text-gray-400 hover:text-white hover:bg-blue-500/10 transition-all flex items-center gap-1.5 border border-white/10 hover:border-blue-500/30"
+                title="На главную страницу"
+              >
+                <Home size={14} />
+                <span className="hidden xl:inline">На главную</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
