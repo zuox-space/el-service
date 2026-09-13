@@ -5,20 +5,9 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   LogOut, Calendar, FileText, CheckCircle, Clock, UserRound,
-  PenSquare, XCircle, Newspaper, BookMarked, CheckSquare, Plus, UserCheck,
-  Settings,
-  Shield,
-  School,
-  ArrowRight,
-  AlertTriangle,
-  ClipboardList,
-  Users,
-  Bell,
-  BookOpen,
-  Info,
-  Sparkles,
-  TrendingUp,
-  Award
+  PenSquare, XCircle, BookMarked, CheckSquare, Plus, UserCheck,
+  Shield, School, AlertTriangle, ClipboardList, Users, Bell,
+  Info, Sparkles, TrendingUp, Award, Loader2
 } from "lucide-react";
 import WeekListScrollable from "@/components/ui/WeekListScrollable";
 import PassModal from "@/components/ui/PassModal";
@@ -28,7 +17,8 @@ import NewsModal from "@/components/ui/NewsModal";
 import NotesModal from "@/components/ui/NotesModal";
 import SelfExitModal from "@/components/ui/SelfExitModal";
 import ViolationModal from "@/components/ui/ViolationModal";
-import { formatShortName, safeFormatShortName, formatDateLocal } from "@/lib/utils"
+import ViolationsList from "@/components/ui/ViolationsList";
+import { safeFormatShortName, formatDateLocal } from "@/lib/utils";
 
 interface TabType {
   id: string;
@@ -58,16 +48,10 @@ export default function HomePage() {
   const [news, setNews] = useState<any[]>([]);
   const [notes, setNotes] = useState<any[]>([]);
   const [selfExits, setSelfExits] = useState<any[]>([]);
+  const [todayViolations, setTodayViolations] = useState<any[]>([]);
+  const [isLoadingViolations, setIsLoadingViolations] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
-
-  // Вспомогательная функция для форматирования даты в YYYY-MM-DD (локальное время)
-  const formatDateLocal = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
 
   // Функция для очистки времени у даты
   const clearTime = (date: Date): Date => {
@@ -85,13 +69,7 @@ export default function HomePage() {
   const isAdmin = roles.includes("ADMIN");
   const isClassTeacher = roles.includes("CLASS_TEACHER");
   const isTeacher = roles.includes("TEACHER");
-  const formatDisplayDate = (date: Date): string => {
-    return date.toLocaleDateString("ru-RU", {
-      day: "numeric",
-      month: "numeric",
-      year: "numeric"
-    });
-  };
+
   // Проверяем, есть ли у пользователя классы
   const hasClasses = classes.length > 0;
 
@@ -101,6 +79,7 @@ export default function HomePage() {
   const tabs: TabType[] = [
     { id: "attendance", name: "Пропуски", icon: <FileText size={16} /> },
     { id: "self-exit", name: "Самовыход", icon: <UserCheck size={16} /> },
+    { id: "violations", name: "Нарушения", icon: <AlertTriangle size={16} /> },
   ];
 
   useEffect(() => {
@@ -146,11 +125,8 @@ export default function HomePage() {
 
         if (Array.isArray(data) && data.length > 0) {
           setClasses(data);
-          // Выбираем первый класс
           const firstClass = data[0];
           setSelectedClass(firstClass);
-
-          // Устанавливаем список учеников для первого класса
           const students = getStudentsFromClass(firstClass);
           setStudentsList(students);
         } else {
@@ -176,10 +152,8 @@ export default function HomePage() {
   // Обработчик смены класса
   const handleClassChange = useCallback((classData: any) => {
     setSelectedClass(classData);
-    // Обновляем список учеников при смене класса
     const students = getStudentsFromClass(classData);
     setStudentsList(students);
-    console.log('Класс изменен:', classData?.name, 'Учеников:', students.length);
   }, [getStudentsFromClass]);
 
   // Загрузка данных для выбранной даты и класса
@@ -188,7 +162,6 @@ export default function HomePage() {
 
     const fetchData = async () => {
       try {
-        // Используем локальное форматирование даты
         const dateStr = formatDateLocal(selectedDate);
 
         const [attendanceRes, passesRes, newsRes, notesRes, selfExitRes] = await Promise.all([
@@ -223,6 +196,30 @@ export default function HomePage() {
     fetchData();
   }, [selectedClass, selectedDate]);
 
+  // 🔥 Загрузка нарушений за выбранную дату и класс
+  useEffect(() => {
+    if (!selectedClass || activeTab !== "violations") return;
+
+    const fetchViolations = async () => {
+      setIsLoadingViolations(true);
+      try {
+        const dateStr = formatDateLocal(selectedDate);
+        const response = await fetch(
+          `/api/violations?className=${encodeURIComponent(selectedClass.name)}&date=${dateStr}`
+        );
+        const data = await response.json();
+        setTodayViolations(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error("Error fetching violations:", error);
+        setTodayViolations([]);
+      } finally {
+        setIsLoadingViolations(false);
+      }
+    };
+
+    fetchViolations();
+  }, [selectedClass, selectedDate, activeTab]);
+
   const handleSubmitPass = async (passData: any) => {
     if (!selectedClass) {
       alert("Класс не выбран");
@@ -244,14 +241,11 @@ export default function HomePage() {
         body: JSON.stringify(payload)
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to create pass");
-      }
+      if (!response.ok) throw new Error("Failed to create pass");
 
       const newPass = await response.json();
       setPassesHistory(prev => [newPass, ...prev]);
       alert("Пропуск успешно оформлен!");
-
     } catch (error) {
       console.error("Error creating pass:", error);
       alert("Ошибка при создании пропуска");
@@ -266,9 +260,7 @@ export default function HomePage() {
         body: JSON.stringify({ ...attendanceData, classId: selectedClass.id })
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to save attendance");
-      }
+      if (!response.ok) throw new Error("Failed to save attendance");
 
       const newAttendance = await response.json();
       setAttendanceHistory([newAttendance]);
@@ -287,9 +279,7 @@ export default function HomePage() {
         body: JSON.stringify({ ...newsData, classId: selectedClass.id, date: formatDateLocal(selectedDate) })
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to create news");
-      }
+      if (!response.ok) throw new Error("Failed to create news");
 
       const newNews = await response.json();
       setNews(prev => [newNews, ...prev]);
@@ -308,9 +298,7 @@ export default function HomePage() {
         body: JSON.stringify({ ...noteData, classId: selectedClass.id, date: formatDateLocal(selectedDate) })
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to create note");
-      }
+      if (!response.ok) throw new Error("Failed to create note");
 
       const newNote = await response.json();
       setNotes(prev => [newNote, ...prev]);
@@ -336,7 +324,7 @@ export default function HomePage() {
       alert("Самовыход добавлен!");
     } catch (error) {
       console.error("Error creating self-exit:", error);
-      alert("Ошибка при добавлении самовыxода");
+      alert("Ошибка при добавлении самовывода");
     }
   };
 
@@ -352,6 +340,17 @@ export default function HomePage() {
 
       const newViolation = await response.json();
       alert("Нарушение зафиксировано!");
+
+      // 🔥 Обновляем список, если открыт таб нарушений
+      if (activeTab === "violations" && selectedClass) {
+        const dateStr = formatDateLocal(selectedDate);
+        const violationsRes = await fetch(
+          `/api/violations?className=${encodeURIComponent(selectedClass.name)}&date=${dateStr}`
+        );
+        const violationsData = await violationsRes.json();
+        setTodayViolations(Array.isArray(violationsData) ? violationsData : []);
+      }
+
       return newViolation;
     } catch (error) {
       console.error("Error creating violation:", error);
@@ -623,16 +622,10 @@ export default function HomePage() {
               <p className="text-xs text-gray-400">Для получения доступа к рабочему интерфейсу</p>
             </div>
             <p className="text-sm text-white font-medium">обратитесь к администратору системы</p>
-            <button
-              onClick={() => router.push("/")}
-              className="mt-3 px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg text-xs transition-all"
-            >
-              Обновить страницу
-            </button>
           </div>
         </div>
 
-        {/* 🔥 Круглая кнопка для фиксации нарушений - доступна всем */}
+        {/* 🔥 Круглая кнопка для фиксации нарушений */}
         <button
           onClick={() => setIsViolationModalOpen(true)}
           className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-gradient-to-br from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 text-white shadow-2xl shadow-rose-500/40 flex items-center justify-center transition-all hover:scale-110 active:scale-95"
@@ -682,7 +675,6 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* Остальной контент без изменений */}
       {absentStudentsList.length > 0 ? (
         <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border-l-4 border-red-500 border border-white/20">
           <div className="flex items-center gap-2 mb-2">
@@ -717,9 +709,7 @@ export default function HomePage() {
         <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
           <div className="flex items-center gap-2 mb-2">
             <FileText size={12} className="text-blue-400" />
-            <h3 className="font-semibold text-white text-sm">
-              Пропуска
-            </h3>
+            <h3 className="font-semibold text-white text-sm">Пропуска</h3>
           </div>
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {passesForSelectedDate.map((pass: any) => {
@@ -809,6 +799,43 @@ export default function HomePage() {
     </div>
   );
 
+  // 🔥 Рендер таба нарушений
+  const renderViolationsTab = () => (
+    <div className="space-y-3">
+      {/* Кнопка добавить нарушение */}
+      <button
+        onClick={() => setIsViolationModalOpen(true)}
+        className="w-full bg-gradient-to-r from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 text-white font-medium py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-rose-500/20 hover:shadow-rose-500/30"
+      >
+        <Plus size={16} />
+        <span>Добавить нарушение</span>
+      </button>
+
+      {/* Заголовок с количеством */}
+      <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={14} className="text-rose-400" />
+            <span className="text-sm text-white font-medium">
+              Нарушения за {new Date(selectedDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}
+            </span>
+          </div>
+          <span className="text-sm font-bold text-rose-400">
+            {todayViolations.length}
+          </span>
+        </div>
+      </div>
+
+      {/* Список нарушений */}
+      <ViolationsList
+        violations={todayViolations}
+        isLoading={isLoadingViolations}
+        showClassName={false}
+        emptyMessage="Сегодня нарушений нет"
+      />
+    </div>
+  );
+
   return (
     <div className="min-h-screen p-3 pb-24" style={{ background: "linear-gradient(135deg, #1a2332 0%, #2b3858 100%)" }}>
       <div className="max-w-md mx-auto space-y-3">
@@ -872,8 +899,8 @@ export default function HomePage() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg transition-all text-sm font-medium ${activeTab === tab.id
-                ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/20"
-                : "text-gray-400 hover:text-white hover:bg-white/10"
+                  ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/20"
+                  : "text-gray-400 hover:text-white hover:bg-white/10"
                 }`}
             >
               {tab.icon}
@@ -885,6 +912,7 @@ export default function HomePage() {
         {/* Контент активного таба */}
         {activeTab === "attendance" && renderAttendanceTab()}
         {activeTab === "self-exit" && renderSelfExitTab()}
+        {activeTab === "violations" && renderViolationsTab()}
       </div>
 
       {/* Модальные окна */}
@@ -926,7 +954,7 @@ export default function HomePage() {
         studentsList={studentsList}
       />
 
-      {/* 🔥 Круглая кнопка для фиксации нарушений - доступна всем */}
+      {/* 🔥 Круглая кнопка для фиксации нарушений */}
       <button
         onClick={() => setIsViolationModalOpen(true)}
         className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-gradient-to-br from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 text-white shadow-2xl shadow-rose-500/40 flex items-center justify-center transition-all hover:scale-110 active:scale-95"

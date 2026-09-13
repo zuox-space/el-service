@@ -2,7 +2,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { X, AlertTriangle, Search, ChevronDown, Loader2, User } from "lucide-react";
+import { X, AlertTriangle, Search, ChevronDown, Loader2, User, Clock } from "lucide-react";
+import { VIOLATION_TYPES, getViolationType } from "@/lib/violations";
 
 interface ViolationModalProps {
     isOpen: boolean;
@@ -16,16 +17,16 @@ interface Student {
     className: string;
 }
 
-const VIOLATION_TYPES = [
-    { id: "uniform", label: "Нарушение формы одежды", icon: "👔" },
-    { id: "late", label: "Опоздание", icon: "⏰" },
-    { id: "property", label: "Порча имущества", icon: "🔨" },
-    { id: "phone", label: "Использование телефона", icon: "📱" },
-    { id: "behavior", label: "Нарушение поведения", icon: "⚠️" },
-    { id: "disrespect", label: "Неуважение к персоналу", icon: "🚫" },
-    { id: "smoking", label: "Курение", icon: "🚭" },
-    { id: "other", label: "Другое нарушение", icon: "📋" },
-];
+interface ExistingViolation {
+    id: string;
+    studentId: string;
+    studentName: string;
+    className: string;
+    violationType: string;
+    comment: string | null;
+    teacherName: string;
+    date: string;
+}
 
 export default function ViolationModal({ isOpen, onClose, onSubmit }: ViolationModalProps) {
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -39,6 +40,13 @@ export default function ViolationModal({ isOpen, onClose, onSubmit }: ViolationM
     const [isSearching, setIsSearching] = useState(false);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
+
+    // Существующие нарушения выбранного ученика за сегодня
+    const [existingViolations, setExistingViolations] = useState<ExistingViolation[]>([]);
+    const [isLoadingViolations, setIsLoadingViolations] = useState(false);
+
+    // Сегодняшняя дата в формате YYYY-MM-DD
+    const today = new Date().toISOString().split('T')[0];
 
     // Поиск студентов с debounce
     useEffect(() => {
@@ -64,6 +72,32 @@ export default function ViolationModal({ isOpen, onClose, onSubmit }: ViolationM
         return () => clearTimeout(timer);
     }, [searchQuery]);
 
+    // 🔥 Загрузка существующих нарушений ученика за сегодня
+    useEffect(() => {
+        if (!selectedStudent) {
+            setExistingViolations([]);
+            return;
+        }
+
+        const fetchViolations = async () => {
+            setIsLoadingViolations(true);
+            try {
+                const response = await fetch(
+                    `/api/violations?studentId=${selectedStudent.aisId}&date=${today}`
+                );
+                const data = await response.json();
+                setExistingViolations(Array.isArray(data) ? data : []);
+            } catch (error) {
+                console.error("Error fetching violations:", error);
+                setExistingViolations([]);
+            } finally {
+                setIsLoadingViolations(false);
+            }
+        };
+
+        fetchViolations();
+    }, [selectedStudent, today]);
+
     // Закрытие дропдауна при клике вне
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -85,6 +119,16 @@ export default function ViolationModal({ isOpen, onClose, onSubmit }: ViolationM
             return;
         }
 
+        // 🔥 Проверка на дубликат
+        const duplicate = existingViolations.find(v => v.violationType === violationType);
+        if (duplicate) {
+            const type = getViolationType(violationType);
+            const confirmed = confirm(
+                `⚠️ У ученика уже есть нарушение "${type.label}" сегодня.\n\nЗафиксировать ещё одно?`
+            );
+            if (!confirmed) return;
+        }
+
         setIsLoading(true);
 
         try {
@@ -96,7 +140,6 @@ export default function ViolationModal({ isOpen, onClose, onSubmit }: ViolationM
                 comment,
             });
 
-            // Сброс формы
             resetForm();
             onClose();
         } catch (error) {
@@ -113,6 +156,7 @@ export default function ViolationModal({ isOpen, onClose, onSubmit }: ViolationM
         setComment("");
         setSearchQuery("");
         setSearchResults([]);
+        setExistingViolations([]);
     };
 
     const handleClose = () => {
@@ -216,24 +260,88 @@ export default function ViolationModal({ isOpen, onClose, onSubmit }: ViolationM
                         </div>
                     </div>
 
+                    {/* 🔥 Существующие нарушения ученика за сегодня */}
+                    {selectedStudent && (
+                        <>
+                            {isLoadingViolations ? (
+                                <div className="flex items-center justify-center py-2 text-gray-400 text-xs">
+                                    <Loader2 size={12} className="animate-spin mr-1" />
+                                    Проверка нарушений...
+                                </div>
+                            ) : existingViolations.length > 0 && (
+                                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <AlertTriangle size={12} className="text-amber-400" />
+                                        <span className="text-xs font-semibold text-amber-400">
+                                            Уже зафиксировано сегодня ({existingViolations.length})
+                                        </span>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        {existingViolations.map((v) => {
+                                            const type = getViolationType(v.violationType);
+                                            return (
+                                                <div
+                                                    key={v.id}
+                                                    className="flex items-start gap-2 p-2 bg-white/5 rounded-lg"
+                                                >
+                                                    <span className="text-sm flex-shrink-0">{type.icon}</span>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-1">
+                                                            <span className={`text-xs font-medium ${type.color}`}>
+                                                                {type.label}
+                                                            </span>
+                                                        </div>
+                                                        {v.comment && (
+                                                            <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-2">
+                                                                {v.comment}
+                                                            </p>
+                                                        )}
+                                                        <div className="flex items-center gap-1 mt-0.5">
+                                                            <Clock size={9} className="text-gray-500" />
+                                                            <span className="text-[10px] text-gray-500">
+                                                                {new Date(v.date).toLocaleTimeString('ru-RU', {
+                                                                    hour: '2-digit',
+                                                                    minute: '2-digit'
+                                                                })}
+                                                            </span>
+                                                            <span className="text-[10px] text-gray-500">
+                                                                · {v.teacherName}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    )}
+
                     {/* Тип нарушения */}
                     <div>
                         <label className="block text-white text-sm mb-1">Тип нарушения *</label>
                         <div className="grid grid-cols-2 gap-2">
-                            {VIOLATION_TYPES.map((type) => (
-                                <button
-                                    key={type.id}
-                                    type="button"
-                                    onClick={() => setViolationType(type.id)}
-                                    className={`flex items-center gap-2 p-2 rounded-lg text-xs transition-all text-left ${violationType === type.id
-                                        ? "bg-gradient-to-r from-rose-500 to-orange-500 text-white shadow-lg shadow-rose-500/20"
-                                        : "bg-white/5 text-gray-300 hover:bg-white/10 border border-white/10"
-                                        }`}
-                                >
-                                    <span className="text-base">{type.icon}</span>
-                                    <span className="truncate">{type.label}</span>
-                                </button>
-                            ))}
+                            {VIOLATION_TYPES.map((type) => {
+                                const isDuplicate = existingViolations.some(v => v.violationType === type.id);
+                                return (
+                                    <button
+                                        key={type.id}
+                                        type="button"
+                                        onClick={() => setViolationType(type.id)}
+                                        className={`relative flex items-center gap-2 p-2 rounded-lg text-xs transition-all text-left ${violationType === type.id
+                                                ? "bg-gradient-to-r from-rose-500 to-orange-500 text-white shadow-lg shadow-rose-500/20"
+                                                : "bg-white/5 text-gray-300 hover:bg-white/10 border border-white/10"
+                                            }`}
+                                    >
+                                        <span className="text-base">{type.icon}</span>
+                                        <span className="truncate">{type.label}</span>
+                                        {isDuplicate && (
+                                            <span className="absolute top-1 right-1 w-2 h-2 bg-amber-400 rounded-full" title="Уже зафиксировано сегодня" />
+                                        )}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
 

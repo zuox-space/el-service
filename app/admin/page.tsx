@@ -3,12 +3,14 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
+
 import {
   LogOut, DoorOpen, UserCheck, FileText, Clock, CalendarDays,
   Filter, School, Search, Shield,
   CheckCircle, Users, Undo2,
   UserX, Menu, X as XClose, Home, Download, Eye,
-  Bot
+  Bot,
+  AlertTriangle
 } from "lucide-react";
 
 interface Pass {
@@ -266,6 +268,7 @@ export default function AdminDashboard() {
     { id: "absent", name: "Отсутствия", icon: <UserX size={18} />, action: () => router.push("/admin/absent") },
     { id: "home", name: "На главную", icon: <Home size={18} />, action: () => router.push("/") },
     { id: "truants", name: "Прогульщики", icon: <UserX size={18} />, action: () => router.push("/admin/truants") },
+    { id: "violations", name: "Нарушения", icon: <AlertTriangle size={18} />, action: () => router.push("/admin/violations") },
 
   ];
 
@@ -654,6 +657,13 @@ export default function AdminDashboard() {
           <button onClick={() => router.push("/admin/truants")} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-all flex items-center gap-2">
             <UserX size={16} /> {/* ✅ ДОБАВЛЕНО */}
             Прогульщики
+          </button>
+          <button
+            onClick={() => router.push("/admin/violations")}
+            className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-all flex items-center gap-2"
+          >
+            <AlertTriangle size={16} />
+            Нарушения
           </button>
           <button onClick={() => router.push("/")} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-all flex items-center gap-2">
             <Home size={16} />
