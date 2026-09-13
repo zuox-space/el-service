@@ -10,7 +10,8 @@ import {
   CheckCircle, Users, Undo2,
   UserX, Menu, X as XClose, Home, Download, Eye,
   Bot,
-  AlertTriangle
+  AlertTriangle,
+  ShieldAlert
 } from "lucide-react";
 
 interface Pass {
@@ -270,6 +271,7 @@ export default function AdminDashboard() {
     { id: "truants", name: "Прогульщики", icon: <UserX size={18} />, action: () => router.push("/admin/truants") },
     { id: "violations", name: "Нарушения", icon: <AlertTriangle size={18} />, action: () => router.push("/admin/violations") },
     { id: "students", name: "Ученики", icon: <Users size={18} />, action: () => router.push("/admin/students") },
+    { id: "schoolRecords", name: "ВШУ", icon: <ShieldAlert size={18} />, action: () => router.push("/admin/school-records") },
 
   ];
 
@@ -672,6 +674,13 @@ export default function AdminDashboard() {
           >
             <AlertTriangle size={16} />
             Нарушения
+          </button>
+          <button
+            onClick={() => router.push("/admin/school-records")}
+            className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-all flex items-center gap-2"
+          >
+            <ShieldAlert size={16} />
+            ВШУ
           </button>
           <button onClick={() => router.push("/")} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-all flex items-center gap-2">
             <Home size={16} />
