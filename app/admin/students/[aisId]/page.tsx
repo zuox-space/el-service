@@ -7,10 +7,11 @@ import { useState, useEffect } from "react";
 import {
     ArrowLeft, User, FileText, UserCheck, AlertTriangle,
     Clock, Calendar, CheckCircle, XCircle, TrendingUp,
-    Loader2, Shield, Download, Award, BookOpen, Activity,
-    BarChart3, AlertCircle, Phone, Info
+    Loader2, Download, BookOpen, Activity,
+    BarChart3, AlertCircle, Info, ShieldAlert, ShieldCheck
 } from "lucide-react";
 import { getViolationType } from "@/lib/violations";
+import SchoolRecordModal from "@/components/ui/SchoolRecordModal";
 
 interface StudentInfo {
     aisId: string;
@@ -59,17 +60,37 @@ interface Absence {
     className: string;
 }
 
+interface SchoolRecord {
+    id: string;
+    studentId: string;
+    studentName: string;
+    className: string;
+    registeredAt: string;
+    registeredByName: string;
+    reason: string;
+    releasedAt: string | null;
+    releasedByName: string | null;
+    releaseReason: string | null;
+    isActive: boolean;
+}
+
 interface StudentProfile {
     student: StudentInfo;
     passes: Pass[];
     selfExits: SelfExit[];
     violations: Violation[];
     absences: Absence[];
+    schoolRecords: SchoolRecord[];
     stats: {
         passes: { total: number; used: number; notUsed: number };
         selfExits: { total: number; active: number };
         violations: { total: number; byType: Record<string, number> };
         absences: { total: number; byReason: Record<string, number> };
+        schoolRecord: {
+            isRegistered: boolean;
+            total: number;
+            activeRecord: SchoolRecord | null;
+        };
     };
 }
 
@@ -90,7 +111,13 @@ export default function StudentProfilePage() {
     const [profile, setProfile] = useState<StudentProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [mounted, setMounted] = useState(false);
-    const [activeTab, setActiveTab] = useState<"overview" | "passes" | "selfExits" | "violations" | "absences">("overview");
+    const [activeTab, setActiveTab] = useState<
+        "overview" | "schoolRecord" | "passes" | "selfExits" | "violations" | "absences"
+    >("overview");
+
+    // 🔥 Состояния для модалки ВШУ
+    const [isSchoolRecordModalOpen, setIsSchoolRecordModalOpen] = useState(false);
+    const [schoolRecordMode, setSchoolRecordMode] = useState<"register" | "release">("register");
 
     useEffect(() => {
         setMounted(true);
@@ -132,6 +159,68 @@ export default function StudentProfilePage() {
 
         fetchProfile();
     }, [aisId, session]);
+
+    const refreshProfile = async () => {
+        if (!aisId) return;
+        const res = await fetch(`/api/students/${aisId}`);
+        const updated = await res.json();
+        if (!updated.error) {
+            setProfile(updated);
+        }
+    };
+
+    const handleRegisterSchoolRecord = async (data: { date: string; reason: string }) => {
+        if (!profile) return;
+        try {
+            const response = await fetch("/api/school-records", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    studentId: profile.student.aisId,
+                    studentName: profile.student.name,
+                    className: profile.student.className,
+                    reason: data.reason,
+                    registeredAt: data.date,
+                }),
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || "Failed");
+            }
+
+            await refreshProfile();
+            alert("Ученик поставлен на внутришкольный учёт");
+        } catch (error) {
+            console.error("Error:", error);
+            alert("Ошибка при постановке на учёт");
+            throw error;
+        }
+    };
+
+    const handleReleaseSchoolRecord = async (data: { date: string; reason: string }) => {
+        if (!profile || !profile.stats.schoolRecord.activeRecord) return;
+        try {
+            const response = await fetch("/api/school-records", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    id: profile.stats.schoolRecord.activeRecord.id,
+                    releaseReason: data.reason,
+                    releasedAt: data.date,
+                }),
+            });
+
+            if (!response.ok) throw new Error("Failed");
+
+            await refreshProfile();
+            alert("Ученик снят с внутришкольного учёта");
+        } catch (error) {
+            console.error("Error:", error);
+            alert("Ошибка при снятии с учёта");
+            throw error;
+        }
+    };
 
     const formatDate = (dateStr: string) => {
         return new Date(dateStr).toLocaleDateString('ru-RU', {
@@ -186,6 +275,7 @@ export default function StudentProfilePage() {
     }
 
     const { student, stats } = profile;
+    const isRegistered = stats.schoolRecord.isRegistered;
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-[#1a2332] to-[#2b3858]">
@@ -208,18 +298,32 @@ export default function StudentProfilePage() {
                                 <p className="text-xs text-gray-400">{student.className}</p>
                             </div>
                         </div>
-                        <div className="flex items-center gap-1 px-2 py-1 bg-cyan-500/20 rounded-lg flex-shrink-0">
-                            <span className="text-[10px] text-cyan-300">ID: {student.aisId}</span>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                            {isRegistered && (
+                                <div className="flex items-center gap-1 px-2 py-1 bg-orange-500/20 rounded-lg border border-orange-500/30">
+                                    <ShieldAlert size={10} className="text-orange-400" />
+                                    <span className="text-[10px] text-orange-300">ВШУ</span>
+                                </div>
+                            )}
+                            <div className="flex items-center gap-1 px-2 py-1 bg-cyan-500/20 rounded-lg">
+                                <span className="text-[10px] text-cyan-300">ID: {student.aisId}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
             <div className="p-3 max-w-4xl mx-auto space-y-3">
-                {/* Карточка ученика */}
-                <div className="bg-gradient-to-br from-cyan-600/20 via-blue-600/15 to-indigo-600/20 backdrop-blur-lg rounded-2xl p-4 border border-white/20">
+                {/* 🔥 Карточка ученика + статус ВШУ */}
+                <div className={`bg-gradient-to-br backdrop-blur-lg rounded-2xl p-4 border ${isRegistered
+                        ? "from-orange-600/20 via-red-600/15 to-rose-600/20 border-orange-500/40"
+                        : "from-cyan-600/20 via-blue-600/15 to-indigo-600/20 border-white/20"
+                    }`}>
                     <div className="flex items-start gap-3">
-                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-cyan-500/30">
+                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg ${isRegistered
+                                ? "bg-gradient-to-br from-orange-500 to-red-600 shadow-orange-500/30"
+                                : "bg-gradient-to-br from-cyan-500 to-blue-600 shadow-cyan-500/30"
+                            }`}>
                             <span className="text-2xl font-bold text-white">
                                 {student.firstName?.charAt(0)?.toUpperCase() || '?'}
                             </span>
@@ -233,6 +337,50 @@ export default function StudentProfilePage() {
                                 <span className="text-[10px] text-gray-400">
                                     ID: {student.aisId}
                                 </span>
+
+                                {isRegistered && (
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-500/30 text-orange-300 flex items-center gap-1 border border-orange-500/50">
+                                        <ShieldAlert size={10} />
+                                        На ВШУ
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Кнопка постановки/снятия с ВШУ */}
+                            <div className="mt-3">
+                                {isRegistered ? (
+                                    <div className="space-y-2">
+                                        <div className="bg-orange-500/10 rounded-lg p-2 border border-orange-500/20">
+                                            <p className="text-[10px] text-orange-400 mb-0.5">
+                                                Поставлен {new Date(stats.schoolRecord.activeRecord!.registeredAt).toLocaleDateString('ru-RU')}
+                                            </p>
+                                            <p className="text-xs text-white line-clamp-2">
+                                                {stats.schoolRecord.activeRecord!.reason}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                setSchoolRecordMode("release");
+                                                setIsSchoolRecordModalOpen(true);
+                                            }}
+                                            className="w-full py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all"
+                                        >
+                                            <ShieldCheck size={14} />
+                                            Снять с учёта
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={() => {
+                                            setSchoolRecordMode("register");
+                                            setIsSchoolRecordModalOpen(true);
+                                        }}
+                                        className="w-full py-2 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all"
+                                    >
+                                        <ShieldAlert size={14} />
+                                        Поставить на внутришкольный учёт
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -288,10 +436,36 @@ export default function StudentProfilePage() {
                     <div className="flex gap-1 min-w-max">
                         {[
                             { id: "overview", name: "Обзор", icon: <BarChart3 size={14} /> },
-                            { id: "passes", name: "Пропуска", icon: <FileText size={14} />, count: stats.passes.total },
-                            { id: "selfExits", name: "Самовыводы", icon: <UserCheck size={14} />, count: stats.selfExits.total },
-                            { id: "violations", name: "Нарушения", icon: <AlertTriangle size={14} />, count: stats.violations.total },
-                            { id: "absences", name: "Пропуски", icon: <XCircle size={14} />, count: stats.absences.total },
+                            {
+                                id: "schoolRecord",
+                                name: "ВШУ",
+                                icon: <ShieldAlert size={14} />,
+                                count: stats.schoolRecord.total,
+                            },
+                            {
+                                id: "passes",
+                                name: "Пропуска",
+                                icon: <FileText size={14} />,
+                                count: stats.passes.total,
+                            },
+                            {
+                                id: "selfExits",
+                                name: "Самовыводы",
+                                icon: <UserCheck size={14} />,
+                                count: stats.selfExits.total,
+                            },
+                            {
+                                id: "violations",
+                                name: "Нарушения",
+                                icon: <AlertTriangle size={14} />,
+                                count: stats.violations.total,
+                            },
+                            {
+                                id: "absences",
+                                name: "Пропуски",
+                                icon: <XCircle size={14} />,
+                                count: stats.absences.total,
+                            },
                         ].map((tab: any) => (
                             <button
                                 key={tab.id}
@@ -316,37 +490,72 @@ export default function StudentProfilePage() {
 
                 {/* Контент таба */}
                 <div className="space-y-2">
-                    {activeTab === "overview" && (
-                        <OverviewTab profile={profile} />
+                    {activeTab === "overview" && <OverviewTab profile={profile} />}
+                    {activeTab === "schoolRecord" && (
+                        <SchoolRecordTab records={profile.schoolRecords} />
                     )}
-
                     {activeTab === "passes" && (
                         <PassesTab passes={profile.passes} formatDateTime={formatDateTime} />
                     )}
-
                     {activeTab === "selfExits" && (
                         <SelfExitsTab selfExits={profile.selfExits} formatDate={formatDate} />
                     )}
-
                     {activeTab === "violations" && (
                         <ViolationsTab violations={profile.violations} formatDateTime={formatDateTime} />
                     )}
-
                     {activeTab === "absences" && (
                         <AbsencesTab absences={profile.absences} formatDate={formatDate} />
                     )}
                 </div>
             </div>
+
+            {/* 🔥 Модалка ВШУ */}
+            <SchoolRecordModal
+                isOpen={isSchoolRecordModalOpen}
+                onClose={() => setIsSchoolRecordModalOpen(false)}
+                onSubmit={
+                    schoolRecordMode === "register"
+                        ? handleRegisterSchoolRecord
+                        : handleReleaseSchoolRecord
+                }
+                mode={schoolRecordMode}
+                studentName={profile.student.name}
+                existingReason={profile.stats.schoolRecord.activeRecord?.reason}
+            />
         </div>
     );
 }
 
 // ============ ТАБ: ОБЗОР ============
 function OverviewTab({ profile }: { profile: StudentProfile }) {
-    const { stats, passes, selfExits, violations, absences } = profile;
+    const { stats, passes, selfExits, violations, absences, schoolRecords } = profile;
+    const isRegistered = stats.schoolRecord.isRegistered;
 
     return (
         <div className="space-y-3">
+            {/* 🔥 Статус ВШУ */}
+            {isRegistered && stats.schoolRecord.activeRecord && (
+                <div className="bg-orange-500/10 backdrop-blur-lg rounded-xl p-3 border border-orange-500/30">
+                    <div className="flex items-center gap-2 mb-2">
+                        <ShieldAlert size={14} className="text-orange-400" />
+                        <h3 className="text-sm font-medium text-orange-300">
+                            Состоит на внутришкольном учёте
+                        </h3>
+                    </div>
+                    <div className="space-y-1">
+                        <p className="text-[10px] text-gray-400">
+                            Поставлен: <span className="text-white">
+                                {new Date(stats.schoolRecord.activeRecord.registeredAt).toLocaleDateString('ru-RU')}
+                            </span>
+                            {' '}({stats.schoolRecord.activeRecord.registeredByName})
+                        </p>
+                        <p className="text-xs text-white line-clamp-2">
+                            {stats.schoolRecord.activeRecord.reason}
+                        </p>
+                    </div>
+                </div>
+            )}
+
             {/* Последняя активность */}
             <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
                 <div className="flex items-center gap-2 mb-3">
@@ -367,7 +576,9 @@ function OverviewTab({ profile }: { profile: StudentProfile }) {
                                     {new Date(passes[0].date).toLocaleDateString('ru-RU')} · {passes[0].exitTime}
                                 </p>
                             </div>
-                            <span className={`text-[10px] px-2 py-0.5 rounded ${passes[0].used ? "bg-green-500/20 text-green-400" : "bg-yellow-500/20 text-yellow-400"
+                            <span className={`text-[10px] px-2 py-0.5 rounded ${passes[0].used
+                                    ? "bg-green-500/20 text-green-400"
+                                    : "bg-yellow-500/20 text-yellow-400"
                                 }`}>
                                 {passes[0].used ? "Использован" : "Активен"}
                             </span>
@@ -383,7 +594,7 @@ function OverviewTab({ profile }: { profile: StudentProfile }) {
                             <div className="flex-1 min-w-0">
                                 <p className="text-xs text-white font-medium">Самовывод</p>
                                 <p className="text-[10px] text-gray-400 truncate">
-                                    {new Date(selfExits[0].startDate).toLocaleDateString('ru-RU')} - {new Date(selfExits[0].endDate).toLocaleDateString('ru-RU')}
+                                    {new Date(selfExits[0].startDate).toLocaleDateString('ru-RU')} — {new Date(selfExits[0].endDate).toLocaleDateString('ru-RU')}
                                 </p>
                             </div>
                             <span className={`text-[10px] px-2 py-0.5 rounded ${new Date(selfExits[0].endDate) >= new Date()
@@ -429,12 +640,15 @@ function OverviewTab({ profile }: { profile: StudentProfile }) {
                         </div>
                     )}
 
-                    {passes.length === 0 && selfExits.length === 0 && violations.length === 0 && absences.length === 0 && (
-                        <div className="text-center py-6">
-                            <Info size={24} className="text-gray-600 mx-auto mb-2" />
-                            <p className="text-xs text-gray-400">Нет данных для отображения</p>
-                        </div>
-                    )}
+                    {passes.length === 0 &&
+                        selfExits.length === 0 &&
+                        violations.length === 0 &&
+                        absences.length === 0 && (
+                            <div className="text-center py-6">
+                                <Info size={24} className="text-gray-600 mx-auto mb-2" />
+                                <p className="text-xs text-gray-400">Нет данных для отображения</p>
+                            </div>
+                        )}
                 </div>
             </div>
 
@@ -473,7 +687,12 @@ function OverviewTab({ profile }: { profile: StudentProfile }) {
                         {Object.entries(stats.absences.byReason)
                             .sort(([, a], [, b]) => b - a)
                             .map(([reasonId, count]) => {
-                                const reason = ABSENCE_REASON_LABELS[reasonId] || { label: reasonId, icon: "❓", color: "text-gray-400" };
+                                const reason =
+                                    ABSENCE_REASON_LABELS[reasonId] || {
+                                        label: reasonId,
+                                        icon: "❓",
+                                        color: "text-gray-400",
+                                    };
                                 return (
                                     <div key={reasonId} className="flex items-center gap-2">
                                         <span className="text-sm">{reason.icon}</span>
@@ -489,8 +708,116 @@ function OverviewTab({ profile }: { profile: StudentProfile }) {
     );
 }
 
+// ============ ТАБ: ВНУТРИШКОЛЬНЫЙ УЧЁТ ============
+function SchoolRecordTab({ records }: { records: SchoolRecord[] }) {
+    if (records.length === 0) {
+        return (
+            <EmptyState
+                icon={<ShieldAlert size={28} className="text-gray-600" />}
+                message="Ученик не состоит на внутришкольном учёте"
+            />
+        );
+    }
+
+    const activeRecord = records.find((r) => r.isActive);
+
+    return (
+        <div className="space-y-3">
+            {/* Активная запись */}
+            {activeRecord && (
+                <div className="bg-orange-500/10 backdrop-blur-lg rounded-xl p-3 border border-orange-500/30">
+                    <div className="flex items-center gap-2 mb-2">
+                        <ShieldAlert size={14} className="text-orange-400" />
+                        <span className="text-xs font-semibold text-orange-400">
+                            Активная запись · На учёте
+                        </span>
+                    </div>
+                    <div className="space-y-1">
+                        <p className="text-xs text-gray-400">
+                            📅 Поставлен:{" "}
+                            <span className="text-white">
+                                {new Date(activeRecord.registeredAt).toLocaleDateString("ru-RU")}
+                            </span>
+                        </p>
+                        <p className="text-xs text-gray-400">
+                            👤 Поставил:{" "}
+                            <span className="text-white">{activeRecord.registeredByName}</span>
+                        </p>
+                        <p className="text-xs text-gray-400 mt-2">Причина:</p>
+                        <p className="text-sm text-white">{activeRecord.reason}</p>
+                    </div>
+                </div>
+            )}
+
+            {/* История */}
+            {records.filter((r) => !r.isActive).length > 0 && (
+                <div className="space-y-2">
+                    <p className="text-xs text-gray-400 px-1">История</p>
+                    {records
+                        .filter((r) => !r.isActive)
+                        .map((record) => (
+                            <div
+                                key={record.id}
+                                className="bg-white/5 backdrop-blur-lg rounded-xl p-3 border border-white/10"
+                            >
+                                <div className="flex items-center gap-2 mb-2">
+                                    <ShieldCheck size={12} className="text-green-400" />
+                                    <span className="text-[10px] font-medium text-green-400">
+                                        Завершено
+                                    </span>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2 text-xs mb-2">
+                                    <div>
+                                        <p className="text-[10px] text-gray-500">Поставлен</p>
+                                        <p className="text-white">
+                                            {new Date(record.registeredAt).toLocaleDateString("ru-RU")}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] text-gray-500">Снят</p>
+                                        <p className="text-white">
+                                            {record.releasedAt
+                                                ? new Date(record.releasedAt).toLocaleDateString("ru-RU")
+                                                : "—"}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1.5 mt-2 pt-2 border-t border-white/10">
+                                    <div>
+                                        <p className="text-[10px] text-gray-500">Причина постановки:</p>
+                                        <p className="text-xs text-white">{record.reason}</p>
+                                        <p className="text-[10px] text-gray-500">
+                                            ({record.registeredByName})
+                                        </p>
+                                    </div>
+                                    {record.releaseReason && (
+                                        <div>
+                                            <p className="text-[10px] text-gray-500">Причина снятия:</p>
+                                            <p className="text-xs text-white">{record.releaseReason}</p>
+                                            <p className="text-[10px] text-gray-500">
+                                                ({record.releasedByName})
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ============ ТАБ: ПРОПУСКА ============
-function PassesTab({ passes, formatDateTime }: { passes: Pass[]; formatDateTime: (d: string) => string }) {
+function PassesTab({
+    passes,
+    formatDateTime,
+}: {
+    passes: Pass[];
+    formatDateTime: (d: string) => string;
+}) {
     if (passes.length === 0) {
         return (
             <EmptyState
@@ -510,9 +837,14 @@ function PassesTab({ passes, formatDateTime }: { passes: Pass[]; formatDateTime:
                 >
                     <div className="flex items-start justify-between gap-2">
                         <div className="flex items-start gap-2 flex-1 min-w-0">
-                            <div className={`w-8 h-8 rounded-lg ${pass.used ? "bg-blue-500/20" : "bg-green-500/20"
-                                } flex items-center justify-center flex-shrink-0`}>
-                                <FileText size={14} className={pass.used ? "text-blue-400" : "text-green-400"} />
+                            <div
+                                className={`w-8 h-8 rounded-lg ${pass.used ? "bg-blue-500/20" : "bg-green-500/20"
+                                    } flex items-center justify-center flex-shrink-0`}
+                            >
+                                <FileText
+                                    size={14}
+                                    className={pass.used ? "text-blue-400" : "text-green-400"}
+                                />
                             </div>
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
@@ -554,7 +886,13 @@ function PassesTab({ passes, formatDateTime }: { passes: Pass[]; formatDateTime:
 }
 
 // ============ ТАБ: САМОВЫВОДЫ ============
-function SelfExitsTab({ selfExits, formatDate }: { selfExits: SelfExit[]; formatDate: (d: string) => string }) {
+function SelfExitsTab({
+    selfExits,
+    formatDate,
+}: {
+    selfExits: SelfExit[];
+    formatDate: (d: string) => string;
+}) {
     if (selfExits.length === 0) {
         return (
             <EmptyState
@@ -575,19 +913,26 @@ function SelfExitsTab({ selfExits, formatDate }: { selfExits: SelfExit[]; format
                             }`}
                     >
                         <div className="flex items-start gap-2">
-                            <div className={`w-8 h-8 rounded-lg ${isActive ? "bg-green-500/20" : "bg-indigo-500/20"
-                                } flex items-center justify-center flex-shrink-0`}>
-                                <UserCheck size={14} className={isActive ? "text-green-400" : "text-indigo-400"} />
+                            <div
+                                className={`w-8 h-8 rounded-lg ${isActive ? "bg-green-500/20" : "bg-indigo-500/20"
+                                    } flex items-center justify-center flex-shrink-0`}
+                            >
+                                <UserCheck
+                                    size={14}
+                                    className={isActive ? "text-green-400" : "text-indigo-400"}
+                                />
                             </div>
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
                                     <span className="text-xs font-medium text-white">
                                         {formatDate(exit.startDate)} — {formatDate(exit.endDate)}
                                     </span>
-                                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${isActive
-                                            ? "bg-green-500/20 text-green-400"
-                                            : "bg-gray-500/20 text-gray-400"
-                                        }`}>
+                                    <span
+                                        className={`text-[10px] px-1.5 py-0.5 rounded ${isActive
+                                                ? "bg-green-500/20 text-green-400"
+                                                : "bg-gray-500/20 text-gray-400"
+                                            }`}
+                                    >
                                         {isActive ? "Активен" : "Завершён"}
                                     </span>
                                 </div>
@@ -604,7 +949,13 @@ function SelfExitsTab({ selfExits, formatDate }: { selfExits: SelfExit[]; format
 }
 
 // ============ ТАБ: НАРУШЕНИЯ ============
-function ViolationsTab({ violations, formatDateTime }: { violations: Violation[]; formatDateTime: (d: string) => string }) {
+function ViolationsTab({
+    violations,
+    formatDateTime,
+}: {
+    violations: Violation[];
+    formatDateTime: (d: string) => string;
+}) {
     if (violations.length === 0) {
         return (
             <EmptyState
@@ -624,7 +975,9 @@ function ViolationsTab({ violations, formatDateTime }: { violations: Violation[]
                         className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20"
                     >
                         <div className="flex items-start gap-2">
-                            <div className={`w-8 h-8 rounded-lg ${type.bgColor} flex items-center justify-center flex-shrink-0`}>
+                            <div
+                                className={`w-8 h-8 rounded-lg ${type.bgColor} flex items-center justify-center flex-shrink-0`}
+                            >
                                 <span className="text-base">{type.icon}</span>
                             </div>
                             <div className="flex-1 min-w-0">
@@ -656,7 +1009,13 @@ function ViolationsTab({ violations, formatDateTime }: { violations: Violation[]
 }
 
 // ============ ТАБ: ПРОПУСКИ УРОКОВ ============
-function AbsencesTab({ absences, formatDate }: { absences: Absence[]; formatDate: (d: string) => string }) {
+function AbsencesTab({
+    absences,
+    formatDate,
+}: {
+    absences: Absence[];
+    formatDate: (d: string) => string;
+}) {
     if (absences.length === 0) {
         return (
             <EmptyState
@@ -669,7 +1028,12 @@ function AbsencesTab({ absences, formatDate }: { absences: Absence[]; formatDate
     return (
         <div className="space-y-2">
             {absences.map((a) => {
-                const reason = ABSENCE_REASON_LABELS[a.reason] || { label: a.reason, icon: "❓", color: "text-gray-400" };
+                const reason =
+                    ABSENCE_REASON_LABELS[a.reason] || {
+                        label: a.reason,
+                        icon: "❓",
+                        color: "text-gray-400",
+                    };
                 return (
                     <div
                         key={a.id}
