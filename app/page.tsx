@@ -9,7 +9,16 @@ import {
   Settings,
   Shield,
   School,
-  ArrowRight
+  ArrowRight,
+  AlertTriangle,
+  ClipboardList,
+  Users,
+  Bell,
+  BookOpen,
+  Info,
+  Sparkles,
+  TrendingUp,
+  Award
 } from "lucide-react";
 import WeekListScrollable from "@/components/ui/WeekListScrollable";
 import PassModal from "@/components/ui/PassModal";
@@ -19,7 +28,6 @@ import NewsModal from "@/components/ui/NewsModal";
 import NotesModal from "@/components/ui/NotesModal";
 import SelfExitModal from "@/components/ui/SelfExitModal";
 import ViolationModal from "@/components/ui/ViolationModal";
-import { AlertTriangle } from "lucide-react"; // добавьте к существующим импортам
 import { formatShortName, safeFormatShortName, formatDateLocal } from "@/lib/utils"
 
 interface TabType {
@@ -87,13 +95,12 @@ export default function HomePage() {
   // Проверяем, есть ли у пользователя классы
   const hasClasses = classes.length > 0;
 
-  // Показываем интерфейс, если пользователь имеет класс или является админом/классным руководителем
-  const showWorkInterface = hasClasses || isClassTeacher || isAdmin;
+  // Показываем рабочий интерфейс только если есть классы или права классного руководителя
+  const showWorkInterface = hasClasses || isClassTeacher;
 
   const tabs: TabType[] = [
     { id: "attendance", name: "Пропуски", icon: <FileText size={16} /> },
     { id: "self-exit", name: "Самовыход", icon: <UserCheck size={16} /> },
-    // { id: "notes", name: "Заметки", icon: <BookMarked size={16} /> },
   ];
 
   useEffect(() => {
@@ -332,6 +339,7 @@ export default function HomePage() {
       alert("Ошибка при добавлении самовыxода");
     }
   };
+
   const handleSubmitViolation = async (data: any) => {
     try {
       const response = await fetch("/api/violations", {
@@ -351,6 +359,7 @@ export default function HomePage() {
       throw error;
     }
   };
+
   const toggleNoteStatus = async (noteId: string, completed: boolean) => {
     try {
       const response = await fetch(`/api/notes`, {
@@ -461,51 +470,12 @@ export default function HomePage() {
     return null;
   }
 
-  // Если ADMIN — показываем упрощенную версию
-  if (isAdmin && roles.length === 1) {
-    return <div className="min-h-screen p-3" style={{ background: "linear-gradient(135deg, #1a2332 0%, #2b3858 100%)" }}>
-      <div className="max-w-md mx-auto space-y-3">
-        {/* Карточка администратора */}
-        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center">
-                <Shield size={18} className="text-white" />
-              </div>
-              <div>
-                <p className="text-base font-bold text-white">{session.user.name}</p>
-                <p className="text-xs text-gray-400">Администратор</p>
-              </div>
-            </div>
-            <button onClick={handleLogout} className="w-8 h-8 flex items-center justify-center bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg transition-all">
-              <LogOut size={16} />
-            </button>
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-purple-600/20 to-pink-600/20 backdrop-blur-lg rounded-2xl p-8 text-center border border-white/20">
-          <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Shield size={32} className="text-white" />
-          </div>
-          <h2 className="text-xl font-bold text-white mb-2">Панель администратора</h2>
-          <p className="text-gray-300 text-sm mb-4">Управление системой</p>
-          <button
-            onClick={() => router.push("/admin")}
-            className="px-6 py-3 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-xl transition-all w-full"
-          >
-            Перейти в админ-панель
-          </button>
-        </div>
-      </div>
-    </div>;
-  }
-
-  // Если у пользователя нет класса и нет роли классного руководителя или админа
+  // 🔥 ИНФОРМАЦИОННАЯ СТРАНИЦА для пользователей без классного руководства
   if (!showWorkInterface) {
     return (
-      <div className="min-h-screen p-3" style={{ background: "linear-gradient(135deg, #1a2332 0%, #2b3858 100%)" }}>
+      <div className="min-h-screen p-3 pb-24" style={{ background: "linear-gradient(135deg, #1a2332 0%, #2b3858 100%)" }}>
         <div className="max-w-md mx-auto space-y-3">
-          {/* Карточка преподавателя */}
+          {/* Карточка пользователя */}
           <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -514,6 +484,9 @@ export default function HomePage() {
                 </div>
                 <div>
                   <p className="text-base font-bold text-white">{safeFormatShortName(session.user.name)}</p>
+                  <p className="text-xs text-gray-400">
+                    {isAdmin ? "Администратор" : isTeacher ? "Преподаватель" : "Сотрудник"}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -537,32 +510,147 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Приветственная карточка */}
-          <div className="bg-gradient-to-br from-blue-600/20 to-indigo-600/20 backdrop-blur-lg rounded-2xl p-8 text-center border border-white/20">
-            <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <School size={32} className="text-white" />
+          {/* Главная карточка */}
+          <div className="bg-gradient-to-br from-indigo-600/30 via-purple-600/20 to-pink-600/20 backdrop-blur-lg rounded-2xl p-6 text-center border border-white/20">
+            <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-500/30">
+              <Sparkles size={28} className="text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-white mb-2">
-              Добро пожаловать!
-            </h1>
-            <p className="text-gray-300 mb-4">
-              ГБОУ Школа №1298 «Профиль Куркино»
-            </p>
-            <p className="text-gray-400 text-sm">
+            <h1 className="text-xl font-bold text-white mb-2">
               Электронные сервисы школы
+            </h1>
+            <p className="text-gray-300 text-sm leading-relaxed">
+              Единая система для работы с пропусками, формой одежды и нарушениями внутреннего распорядка
             </p>
-            <div className="mt-6 pt-4 border-t border-white/10">
-              <p className="text-xs text-gray-500">
-                Для доступа к полному функционалу обратитесь к администратору
-              </p>
+          </div>
+
+          {/* Функционал системы */}
+          <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-4 border border-white/20">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-6 h-6 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                <ClipboardList size={14} className="text-blue-400" />
+              </div>
+              <h2 className="font-semibold text-white text-sm">Возможности системы</h2>
+            </div>
+
+            <div className="space-y-3">
+              {/* Пропуска */}
+              <div className="flex items-start gap-3 p-3 bg-white/5 rounded-lg border border-white/10">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                  <FileText size={16} className="text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-white text-sm font-medium">Пропуска</h3>
+                  <p className="text-gray-400 text-xs mt-0.5">
+                    Оформление пропусков для учеников с указанием причины и времени выхода
+                  </p>
+                </div>
+              </div>
+
+              {/* Самовывод */}
+              <div className="flex items-start gap-3 p-3 bg-white/5 rounded-lg border border-white/10">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center flex-shrink-0">
+                  <UserCheck size={16} className="text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-white text-sm font-medium">Самовывод</h3>
+                  <p className="text-gray-400 text-xs mt-0.5">
+                    Фиксация заявлений на самостоятельный уход учеников с приложением фото
+                  </p>
+                </div>
+              </div>
+
+              {/* Нарушения */}
+              <div className="flex items-start gap-3 p-3 bg-white/5 rounded-lg border border-white/10">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-500 to-orange-600 flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle size={16} className="text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-white text-sm font-medium">Нарушения</h3>
+                  <p className="text-gray-400 text-xs mt-0.5">
+                    Учёт нарушений формы одежды, опозданий, порчи имущества и других проступков
+                  </p>
+                </div>
+              </div>
+
+              {/* Посещаемость */}
+              <div className="flex items-start gap-3 p-3 bg-white/5 rounded-lg border border-white/10">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center flex-shrink-0">
+                  <CheckCircle size={16} className="text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-white text-sm font-medium">Посещаемость</h3>
+                  <p className="text-gray-400 text-xs mt-0.5">
+                    Ежедневная отметка присутствия учеников с указанием причин отсутствия
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
+
+          {/* Назначение */}
+          <div className="bg-gradient-to-br from-blue-600/20 to-indigo-600/20 backdrop-blur-lg rounded-2xl p-4 border border-white/20">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-6 h-6 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                <Info size={14} className="text-amber-400" />
+              </div>
+              <h2 className="font-semibold text-white text-sm">Назначение</h2>
+            </div>
+            <p className="text-gray-300 text-xs leading-relaxed">
+              Приложение создано для сбора и систематизации общей информации об обучающихся:
+              контроля посещаемости, учёта уважительных причин отсутствия, фиксации нарушений
+              внутреннего распорядка и организации самостоятельного ухода учеников.
+            </p>
+            <div className="mt-3 pt-3 border-t border-white/10 space-y-1.5">
+              <div className="flex items-center gap-2 text-xs text-gray-400">
+                <TrendingUp size={12} className="text-green-400" />
+                <span>Оперативный сбор данных</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-gray-400">
+                <Users size={12} className="text-blue-400" />
+                <span>Работа с учениками из базы MySQL</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-gray-400">
+                <Award size={12} className="text-yellow-400" />
+                <span>Формирование отчётности</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Контакт администратора */}
+          <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-4 border border-white/10 text-center">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Bell size={14} className="text-blue-400" />
+              <p className="text-xs text-gray-400">Для получения доступа к рабочему интерфейсу</p>
+            </div>
+            <p className="text-sm text-white font-medium">обратитесь к администратору системы</p>
+            <button
+              onClick={() => router.push("/")}
+              className="mt-3 px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg text-xs transition-all"
+            >
+              Обновить страницу
+            </button>
+          </div>
         </div>
+
+        {/* 🔥 Круглая кнопка для фиксации нарушений - доступна всем */}
+        <button
+          onClick={() => setIsViolationModalOpen(true)}
+          className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-gradient-to-br from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 text-white shadow-2xl shadow-rose-500/40 flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+          title="Зафиксировать нарушение"
+        >
+          <AlertTriangle size={24} />
+        </button>
+
+        {/* Модальное окно нарушения */}
+        <ViolationModal
+          isOpen={isViolationModalOpen}
+          onClose={() => setIsViolationModalOpen(false)}
+          onSubmit={handleSubmitViolation}
+        />
       </div>
     );
   }
 
-  // Рендер таба пропусков
   // Рендер таба пропусков
   const renderAttendanceTab = () => (
     <div className="space-y-3">
@@ -721,57 +809,8 @@ export default function HomePage() {
     </div>
   );
 
-  // Рендер таба заметок
-  const renderNotesTab = () => (
-    <div className="space-y-2">
-      <button
-        onClick={() => setIsNotesModalOpen(true)}
-        className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-medium py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-amber-500/20 hover:shadow-amber-500/30"
-      >
-        <Plus size={16} />
-        <span>Добавить заметку</span>
-      </button>
-
-      {notes.length === 0 ? (
-        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 text-center border border-white/20">
-          <BookMarked size={32} className="text-gray-500 mx-auto mb-2" />
-          <p className="text-gray-400">Нет заметок на эту дату</p>
-        </div>
-      ) : (
-        notes.map((note) => (
-          <div key={note.id} className={`bg-white/10 backdrop-blur-lg rounded-xl p-3 border ${note.completed ? 'border-green-500/30 bg-green-500/5' : 'border-white/20'}`}>
-            <div className="flex items-start gap-2">
-              <button onClick={() => toggleNoteStatus(note.id, note.completed)}>
-                {note.completed ? (
-                  <CheckSquare size={18} className="text-green-400 mt-0.5" />
-                ) : (
-                  <CheckSquare size={18} className="text-gray-500 mt-0.5" />
-                )}
-              </button>
-              <div className="flex-1">
-                <p className={`text-white text-base ${note.completed ? 'line-through text-gray-400' : ''}`}>
-                  {note.content}
-                </p>
-                <p className="text-xs text-gray-500 mt-2">
-                  {new Date(note.createdAt).toLocaleTimeString("ru-RU")}
-                </p>
-              </div>
-            </div>
-          </div>
-        ))
-      )}
-      <button
-        onClick={() => setIsViolationModalOpen(true)}
-        className="fixed bottom-20 right-4 z-40 w-14 h-14 rounded-full bg-gradient-to-br from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 text-white shadow-2xl shadow-rose-500/40 flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-        title="Зафиксировать нарушение"
-      >
-        <AlertTriangle size={24} />
-      </button>
-    </div>
-  );
-
   return (
-    <div className="min-h-screen p-3" style={{ background: "linear-gradient(135deg, #1a2332 0%, #2b3858 100%)" }}>
+    <div className="min-h-screen p-3 pb-24" style={{ background: "linear-gradient(135deg, #1a2332 0%, #2b3858 100%)" }}>
       <div className="max-w-md mx-auto space-y-3">
         {/* Карточка преподавателя */}
         <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
@@ -846,7 +885,6 @@ export default function HomePage() {
         {/* Контент активного таба */}
         {activeTab === "attendance" && renderAttendanceTab()}
         {activeTab === "self-exit" && renderSelfExitTab()}
-        {activeTab === "notes" && renderNotesTab()}
       </div>
 
       {/* Модальные окна */}
@@ -887,6 +925,17 @@ export default function HomePage() {
         onSubmit={handleSubmitSelfExit}
         studentsList={studentsList}
       />
+
+      {/* 🔥 Круглая кнопка для фиксации нарушений - доступна всем */}
+      <button
+        onClick={() => setIsViolationModalOpen(true)}
+        className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-gradient-to-br from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 text-white shadow-2xl shadow-rose-500/40 flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+        title="Зафиксировать нарушение"
+      >
+        <AlertTriangle size={24} />
+      </button>
+
+      {/* Модальное окно нарушения */}
       <ViolationModal
         isOpen={isViolationModalOpen}
         onClose={() => setIsViolationModalOpen(false)}
