@@ -19,6 +19,8 @@ import SelfExitModal from "@/components/ui/SelfExitModal";
 import ViolationModal from "@/components/ui/ViolationModal";
 import ViolationsList from "@/components/ui/ViolationsList";
 import { safeFormatShortName } from "@/lib/utils";
+import { ShieldAlert } from "lucide-react";
+
 
 interface TabType {
   id: string;
@@ -35,6 +37,9 @@ export default function HomePage() {
   const [selectedDate, setSelectedDate] = useState(new Date(today.getFullYear(), today.getMonth(), today.getDate()));
   const [selectedClass, setSelectedClass] = useState<any>(null);
   const [classes, setClasses] = useState<any[]>([]);
+  // 🔥 Состояния для ВШУ
+  const [schoolRecords, setSchoolRecords] = useState<any[]>([]);
+  const [isLoadingSchoolRecords, setIsLoadingSchoolRecords] = useState(false);
   const [isViolationModalOpen, setIsViolationModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("attendance");
   const [isPassModalOpen, setIsPassModalOpen] = useState(false);
@@ -85,6 +90,8 @@ export default function HomePage() {
     { id: "attendance", name: "Пропуски", icon: <FileText size={16} /> },
     { id: "self-exit", name: "Самовыход", icon: <UserCheck size={16} /> },
     { id: "violations", name: "Нарушения", icon: <AlertTriangle size={16} /> },
+    { id: "schoolRecord", name: "ВШУ", icon: <ShieldAlert size={16} /> }, // 🔥 ДОБАВЛЕНО
+
   ];
 
   useEffect(() => {
@@ -224,7 +231,27 @@ export default function HomePage() {
 
     fetchViolations();
   }, [selectedClass, selectedDate, activeTab]);
+  useEffect(() => {
+    if (!selectedClass || activeTab !== "schoolRecord") return;
 
+    const fetchSchoolRecords = async () => {
+      setIsLoadingSchoolRecords(true);
+      try {
+        const response = await fetch(
+          `/api/school-records/class?className=${encodeURIComponent(selectedClass.name)}`
+        );
+        const data = await response.json();
+        setSchoolRecords(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error("Error fetching school records:", error);
+        setSchoolRecords([]);
+      } finally {
+        setIsLoadingSchoolRecords(false);
+      }
+    };
+
+    fetchSchoolRecords();
+  }, [selectedClass, activeTab]);
   const handleSubmitPass = async (passData: any) => {
     if (!selectedClass) {
       alert("Класс не выбран");
@@ -648,7 +675,103 @@ export default function HomePage() {
       </div>
     );
   }
+  const renderSchoolRecordTab = () => (
+    <div className="space-y-3">
+      {/* Заголовок с количеством */}
+      <div className="bg-orange-500/10 backdrop-blur-lg rounded-xl p-3 border border-orange-500/30">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ShieldAlert size={14} className="text-orange-400" />
+            <span className="text-sm text-white font-medium">
+              Ученики на внутришкольном учёте
+            </span>
+          </div>
+          <span className="text-sm font-bold text-orange-400">
+            {schoolRecords.length}
+          </span>
+        </div>
+      </div>
 
+      {/* Список учеников на ВШУ */}
+      {isLoadingSchoolRecords ? (
+        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 text-center border border-white/20">
+          <Loader2 size={28} className="animate-spin text-orange-400 mx-auto mb-2" />
+          <p className="text-gray-400 text-sm">Загрузка...</p>
+        </div>
+      ) : schoolRecords.length === 0 ? (
+        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 text-center border border-white/20">
+          <ShieldAlert size={32} className="text-gray-500 mx-auto mb-2" />
+          <p className="text-gray-400 text-sm">
+            Нет учеников на внутришкольном учёте
+          </p>
+          <p className="text-gray-500 text-xs mt-1">
+            В классе {selectedClass?.name} никто не состоит на учёте
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {schoolRecords.map((record) => (
+            <div
+              key={record.id}
+              className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-orange-500/30"
+            >
+              {/* Заголовок с именем */}
+              <div className="flex items-start gap-2 mb-2">
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center flex-shrink-0">
+                  <ShieldAlert size={16} className="text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-semibold text-white text-sm truncate">
+                    {record.studentName}
+                  </h4>
+                  <p className="text-[10px] text-gray-400">
+                    <Calendar size={9} className="inline mr-1" />
+                    Поставлен {new Date(record.registeredAt).toLocaleDateString('ru-RU')}
+                    {' · '}
+                    {record.registeredByName}
+                  </p>
+                </div>
+              </div>
+
+              {/* Причина */}
+              <div className="bg-orange-500/10 rounded-lg p-2 border border-orange-500/20 mb-2">
+                <p className="text-[10px] text-orange-400 mb-0.5">
+                  Причина постановки
+                </p>
+                <p className="text-xs text-white">
+                  {record.reason}
+                </p>
+              </div>
+
+              {/* Статистика ученика */}
+              {record.stats && (
+                <div className="grid grid-cols-3 gap-1.5">
+                  <div className="bg-white/5 rounded-lg p-2 text-center">
+                    <p className="text-[9px] text-gray-500">Нарушения</p>
+                    <p className="text-sm font-bold text-rose-400">
+                      {record.stats.violations}
+                    </p>
+                  </div>
+                  <div className="bg-white/5 rounded-lg p-2 text-center">
+                    <p className="text-[9px] text-gray-500">Пропуски</p>
+                    <p className="text-sm font-bold text-amber-400">
+                      {record.stats.absences}
+                    </p>
+                  </div>
+                  <div className="bg-white/5 rounded-lg p-2 text-center">
+                    <p className="text-[9px] text-gray-500">Пропуска</p>
+                    <p className="text-sm font-bold text-blue-400">
+                      {record.stats.passes}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
   // Рендер таба пропусков
   const renderAttendanceTab = () => (
     <div className="space-y-3">
@@ -918,6 +1041,8 @@ export default function HomePage() {
         {activeTab === "attendance" && renderAttendanceTab()}
         {activeTab === "self-exit" && renderSelfExitTab()}
         {activeTab === "violations" && renderViolationsTab()}
+        {activeTab === "schoolRecord" && renderSchoolRecordTab()} {/* 🔥 ДОБАВЛЕНО */}
+
       </div>
 
       {/* Модальные окна */}
