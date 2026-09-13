@@ -743,6 +743,22 @@ export default function HomePage() {
                   {record.reason}
                 </p>
               </div>
+              <div className="bg-orange-500/10 rounded-lg p-2 border border-orange-500/20 mb-2">
+                <p className="text-[10px] text-orange-400 mb-0.5">
+                  Причина постановки
+                </p>
+                <p className="text-xs text-white">
+                  {record.reason}
+                </p>
+
+                {/* 🔥 ДОБАВЛЕНО: Планируемая дата снятия */}
+                {record.plannedReleaseAt && (
+                  <p className="text-[10px] text-blue-400 mt-1 pt-1 border-t border-orange-500/20 flex items-center gap-1">
+                    <Clock size={9} />
+                    План. снятие: {new Date(record.plannedReleaseAt).toLocaleDateString('ru-RU')}
+                  </p>
+                )}
+              </div>
             </div>
           ))}
         </div>

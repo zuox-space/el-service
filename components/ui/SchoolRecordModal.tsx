@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { X, ShieldAlert, Loader2, Calendar } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, ShieldAlert, Loader2, Calendar, Clock } from "lucide-react";
 
 interface SchoolRecordModalProps {
     isOpen: boolean;
@@ -11,6 +11,15 @@ interface SchoolRecordModalProps {
     studentName: string;
     existingReason?: string;
 }
+
+// 🔥 Варианты периода
+const PERIOD_OPTIONS = [
+    { id: "1m", label: "1 месяц", months: 1, color: "text-green-400", bg: "bg-green-500/20" },
+    { id: "3m", label: "3 месяца", months: 3, color: "text-blue-400", bg: "bg-blue-500/20" },
+    { id: "6m", label: "6 месяцев", months: 6, color: "text-yellow-400", bg: "bg-yellow-500/20" },
+    { id: "1y", label: "1 год", months: 12, color: "text-orange-400", bg: "bg-orange-500/20" },
+    { id: "custom", label: "Другая дата", months: 0, color: "text-purple-400", bg: "bg-purple-500/20" },
+];
 
 export default function SchoolRecordModal({
     isOpen,
@@ -23,7 +32,37 @@ export default function SchoolRecordModal({
     const today = new Date().toISOString().split('T')[0];
     const [date, setDate] = useState(today);
     const [reason, setReason] = useState("");
+    const [selectedPeriod, setSelectedPeriod] = useState("3m");
+    const [customDate, setCustomDate] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+
+    // Сброс формы при открытии
+    useEffect(() => {
+        if (isOpen) {
+            const todayStr = new Date().toISOString().split('T')[0];
+            setDate(todayStr);
+            setReason("");
+            setSelectedPeriod("3m");
+            setCustomDate("");
+        }
+    }, [isOpen]);
+
+    // 🔥 Функция расчета предполагаемой даты снятия
+    const calculatePlannedRelease = (): string | null => {
+        if (mode === "release") return null;
+
+        if (selectedPeriod === "custom") {
+            return customDate || null;
+        }
+
+        const option = PERIOD_OPTIONS.find(p => p.id === selectedPeriod);
+        if (!option || option.months === 0) return null;
+
+        const startDate = new Date(date);
+        const plannedDate = new Date(startDate);
+        plannedDate.setMonth(plannedDate.getMonth() + option.months);
+        return plannedDate.toISOString().split('T')[0];
+    };
 
     const handleSubmit = async () => {
         if (!reason.trim()) {
@@ -31,11 +70,18 @@ export default function SchoolRecordModal({
             return;
         }
 
+        if (mode === "register" && selectedPeriod === "custom" && !customDate) {
+            alert("Укажите предполагаемую дату снятия");
+            return;
+        }
+
         setIsLoading(true);
         try {
-            await onSubmit({ date, reason });
-            setReason("");
-            setDate(today);
+            await onSubmit({
+                date,
+                reason,
+                plannedReleaseAt: calculatePlannedRelease(),
+            });
             onClose();
         } catch (error) {
             console.error("Submit error:", error);
@@ -45,20 +91,19 @@ export default function SchoolRecordModal({
     };
 
     const handleClose = () => {
-        setReason("");
-        setDate(today);
         onClose();
     };
 
     if (!isOpen) return null;
 
     const isRegister = mode === "register";
+    const plannedDate = calculatePlannedRelease();
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-3">
-            <div className="w-full max-w-md bg-gradient-to-br from-[#1a2332] to-[#2b3858] rounded-xl shadow-2xl border border-white/20 overflow-hidden">
+            <div className="w-full max-w-md bg-gradient-to-br from-[#1a2332] to-[#2b3858] rounded-xl shadow-2xl border border-white/20 overflow-hidden max-h-[90vh] overflow-y-auto">
                 {/* Заголовок */}
-                <div className={`px-4 py-3 ${isRegister
+                <div className={`px-4 py-3 sticky top-0 z-10 ${isRegister
                         ? "bg-gradient-to-r from-orange-600 to-red-600"
                         : "bg-gradient-to-r from-green-600 to-emerald-600"
                     }`}>
@@ -90,7 +135,7 @@ export default function SchoolRecordModal({
                         </div>
                     )}
 
-                    {/* Дата */}
+                    {/* Дата постановки/снятия */}
                     <div>
                         <label className="block text-white text-sm mb-1">
                             {isRegister ? "Дата постановки" : "Дата снятия"} *
@@ -105,6 +150,69 @@ export default function SchoolRecordModal({
                             />
                         </div>
                     </div>
+
+                    {/* 🔥 Период постановки (только при постановке) */}
+                    {isRegister && (
+                        <div>
+                            <label className="block text-white text-sm mb-2">
+                                Предполагаемый период
+                            </label>
+                            <div className="grid grid-cols-2 gap-2">
+                                {PERIOD_OPTIONS.map((option) => (
+                                    <button
+                                        key={option.id}
+                                        type="button"
+                                        onClick={() => setSelectedPeriod(option.id)}
+                                        className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition-all ${selectedPeriod === option.id
+                                                ? "bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg shadow-orange-500/20"
+                                                : "bg-white/5 text-gray-300 hover:bg-white/10 border border-white/10"
+                                            }`}
+                                    >
+                                        <Clock size={12} />
+                                        {option.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Кастомная дата */}
+                            {selectedPeriod === "custom" && (
+                                <div className="mt-3">
+                                    <label className="block text-white text-xs mb-1">
+                                        Предполагаемая дата снятия *
+                                    </label>
+                                    <div className="relative">
+                                        <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                        <input
+                                            type="date"
+                                            value={customDate}
+                                            onChange={(e) => setCustomDate(e.target.value)}
+                                            min={date}
+                                            className="w-full pl-9 pr-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Показываем рассчитанную дату */}
+                            {plannedDate && (
+                                <div className="mt-3 bg-blue-500/10 rounded-lg p-3 border border-blue-500/30">
+                                    <p className="text-[10px] text-blue-400 mb-0.5">
+                                        Планируемая дата снятия с учёта
+                                    </p>
+                                    <p className="text-white text-sm font-medium">
+                                        {new Date(plannedDate).toLocaleDateString('ru-RU', {
+                                            day: 'numeric',
+                                            month: 'long',
+                                            year: 'numeric',
+                                        })}
+                                    </p>
+                                    <p className="text-[10px] text-gray-400 mt-1">
+                                        Период: {PERIOD_OPTIONS.find(p => p.id === selectedPeriod)?.label}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Причина */}
                     <div>

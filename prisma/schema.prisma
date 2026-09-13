@@ -159,26 +159,29 @@ model Violation {
   updatedAt   DateTime @updatedAt
 }
 model SchoolRecord {
-  id              String    @id @default(cuid())
-  studentId       String
-  studentName     String
-  className       String
+  id               String    @id @default(cuid())
+  studentId        String
+  studentName      String
+  className        String
   
   // Постановка на учёт
-  registeredAt    DateTime  // дата постановки
-  registeredBy    String    // ID учителя
-  registeredByName String   // ФИО учителя
-  reason          String    // причина постановки
+  registeredAt     DateTime
+  registeredBy     String
+  registeredByName String
+  reason           String
   
-  // Снятие с учёта (null = ещё на учёте)
-  releasedAt      DateTime?
-  releasedBy      String?
-  releasedByName  String?
-  releaseReason   String?
+  // 🔥 Предполагаемый период
+  plannedReleaseAt DateTime?  // дата, когда планируется снять с учёта
   
-  // Статус (активная запись или нет)
-  isActive        Boolean   @default(true)
+  // Снятие с учёта
+  releasedAt       DateTime?
+  releasedBy       String?
+  releasedByName   String?
+  releaseReason    String?
   
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  // Статус
+  isActive         Boolean   @default(true)
+  
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 }

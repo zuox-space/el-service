@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const { studentId, studentName, className, reason, registeredAt } = body;
+        const { studentId, studentName, className, reason, registeredAt, plannedReleaseAt } = body;
 
         if (!studentId || !studentName || !reason) {
             return NextResponse.json({
@@ -75,6 +75,8 @@ export async function POST(req: NextRequest) {
                 registeredBy: session.user.id,
                 registeredByName: session.user.name || "Неизвестно",
                 reason,
+                // 🔥 Сохраняем предполагаемую дату снятия
+                plannedReleaseAt: plannedReleaseAt ? new Date(plannedReleaseAt) : null,
                 isActive: true,
             },
         });

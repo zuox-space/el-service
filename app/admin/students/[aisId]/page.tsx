@@ -68,6 +68,7 @@ interface SchoolRecord {
     registeredAt: string;
     registeredByName: string;
     reason: string;
+    plannedReleaseAt: string | null; // 🔥 ДОБАВЛЕНО
     releasedAt: string | null;
     releasedByName: string | null;
     releaseReason: string | null;
@@ -169,7 +170,7 @@ export default function StudentProfilePage() {
         }
     };
 
-    const handleRegisterSchoolRecord = async (data: { date: string; reason: string }) => {
+    const handleRegisterSchoolRecord = async (data: { date: string; reason: string; plannedReleaseAt?: string | null }) => {
         if (!profile) return;
         try {
             const response = await fetch("/api/school-records", {
@@ -181,6 +182,7 @@ export default function StudentProfilePage() {
                     className: profile.student.className,
                     reason: data.reason,
                     registeredAt: data.date,
+                    plannedReleaseAt: data.plannedReleaseAt, // 🔥 Передаём период
                 }),
             });
 
@@ -316,13 +318,13 @@ export default function StudentProfilePage() {
             <div className="p-3 max-w-4xl mx-auto space-y-3">
                 {/* 🔥 Карточка ученика + статус ВШУ */}
                 <div className={`bg-gradient-to-br backdrop-blur-lg rounded-2xl p-4 border ${isRegistered
-                        ? "from-orange-600/20 via-red-600/15 to-rose-600/20 border-orange-500/40"
-                        : "from-cyan-600/20 via-blue-600/15 to-indigo-600/20 border-white/20"
+                    ? "from-orange-600/20 via-red-600/15 to-rose-600/20 border-orange-500/40"
+                    : "from-cyan-600/20 via-blue-600/15 to-indigo-600/20 border-white/20"
                     }`}>
                     <div className="flex items-start gap-3">
                         <div className={`w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg ${isRegistered
-                                ? "bg-gradient-to-br from-orange-500 to-red-600 shadow-orange-500/30"
-                                : "bg-gradient-to-br from-cyan-500 to-blue-600 shadow-cyan-500/30"
+                            ? "bg-gradient-to-br from-orange-500 to-red-600 shadow-orange-500/30"
+                            : "bg-gradient-to-br from-cyan-500 to-blue-600 shadow-cyan-500/30"
                             }`}>
                             <span className="text-2xl font-bold text-white">
                                 {student.firstName?.charAt(0)?.toUpperCase() || '?'}
@@ -357,6 +359,16 @@ export default function StudentProfilePage() {
                                             <p className="text-xs text-white line-clamp-2">
                                                 {stats.schoolRecord.activeRecord!.reason}
                                             </p>
+
+                                            {/* 🔥 ДОБАВЛЕНО: Планируемая дата снятия */}
+                                            {stats.schoolRecord.activeRecord!.plannedReleaseAt && (
+                                                <div className="flex items-center gap-1 mt-1.5 pt-1.5 border-t border-orange-500/20">
+                                                    <Clock size={9} className="text-blue-400" />
+                                                    <span className="text-[10px] text-blue-400">
+                                                        План. снятие: {new Date(stats.schoolRecord.activeRecord!.plannedReleaseAt).toLocaleDateString('ru-RU')}
+                                                    </span>
+                                                </div>
+                                            )}
                                         </div>
                                         <button
                                             onClick={() => {
@@ -471,8 +483,8 @@ export default function StudentProfilePage() {
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
                                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${activeTab === tab.id
-                                        ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-500/20"
-                                        : "text-gray-400 hover:text-white hover:bg-white/10"
+                                    ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-500/20"
+                                    : "text-gray-400 hover:text-white hover:bg-white/10"
                                     }`}
                             >
                                 {tab.icon}
@@ -577,8 +589,8 @@ function OverviewTab({ profile }: { profile: StudentProfile }) {
                                 </p>
                             </div>
                             <span className={`text-[10px] px-2 py-0.5 rounded ${passes[0].used
-                                    ? "bg-green-500/20 text-green-400"
-                                    : "bg-yellow-500/20 text-yellow-400"
+                                ? "bg-green-500/20 text-green-400"
+                                : "bg-yellow-500/20 text-yellow-400"
                                 }`}>
                                 {passes[0].used ? "Использован" : "Активен"}
                             </span>
@@ -598,8 +610,8 @@ function OverviewTab({ profile }: { profile: StudentProfile }) {
                                 </p>
                             </div>
                             <span className={`text-[10px] px-2 py-0.5 rounded ${new Date(selfExits[0].endDate) >= new Date()
-                                    ? "bg-green-500/20 text-green-400"
-                                    : "bg-gray-500/20 text-gray-400"
+                                ? "bg-green-500/20 text-green-400"
+                                : "bg-gray-500/20 text-gray-400"
                                 }`}>
                                 {new Date(selfExits[0].endDate) >= new Date() ? "Активен" : "Завершён"}
                             </span>
@@ -929,8 +941,8 @@ function SelfExitsTab({
                                     </span>
                                     <span
                                         className={`text-[10px] px-1.5 py-0.5 rounded ${isActive
-                                                ? "bg-green-500/20 text-green-400"
-                                                : "bg-gray-500/20 text-gray-400"
+                                            ? "bg-green-500/20 text-green-400"
+                                            : "bg-gray-500/20 text-gray-400"
                                             }`}
                                     >
                                         {isActive ? "Активен" : "Завершён"}
