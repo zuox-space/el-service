@@ -269,6 +269,7 @@ export default function AdminDashboard() {
     { id: "home", name: "На главную", icon: <Home size={18} />, action: () => router.push("/") },
     { id: "truants", name: "Прогульщики", icon: <UserX size={18} />, action: () => router.push("/admin/truants") },
     { id: "violations", name: "Нарушения", icon: <AlertTriangle size={18} />, action: () => router.push("/admin/violations") },
+    { id: "students", name: "Ученики", icon: <Users size={18} />, action: () => router.push("/admin/students") },
 
   ];
 
@@ -657,6 +658,13 @@ export default function AdminDashboard() {
           <button onClick={() => router.push("/admin/truants")} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-all flex items-center gap-2">
             <UserX size={16} /> {/* ✅ ДОБАВЛЕНО */}
             Прогульщики
+          </button>
+          <button
+            onClick={() => router.push("/admin/students")}
+            className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-all flex items-center gap-2"
+          >
+            <Users size={16} />
+            Ученики
           </button>
           <button
             onClick={() => router.push("/admin/violations")}
