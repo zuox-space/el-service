@@ -81,7 +81,106 @@ export default function ClassesOverviewPage() {
 
         fetchData();
     }, [session]);
+    const exportToExcel = () => {
+        if (filteredClasses.length === 0) {
+            alert("Нет данных для экспорта");
+            return;
+        }
 
+        // Формируем строки таблицы
+        let rows = "";
+        filteredClasses.forEach((cls, index) => {
+            rows += `
+      <tr>
+        <td>${index + 1}</td>
+        <td>${cls.className}</td>
+        <td>${cls.grade || ""}</td>
+        <td>${cls.totalStudents}</td>
+        <td>${cls.activeSelfExits}</td>
+        <td>${cls.studentsWithSelfExit}</td>
+        <td>${cls.activeAuthorizations}</td>
+        <td>${cls.studentsWithAuth}</td>
+      </tr>
+    `;
+        });
+
+        // Итоговая статистика
+        const totalsRow = totals
+            ? `
+      <tr style="background: #f0f0f0; font-weight: bold;">
+        <td colspan="3">ИТОГО</td>
+        <td>${totals.totalStudents}</td>
+        <td>${totals.totalActiveSelfExits}</td>
+        <td>${totals.totalStudentsWithSelfExit}</td>
+        <td>${totals.totalActiveAuthorizations}</td>
+        <td>${totals.totalStudentsWithAuth}</td>
+      </tr>
+    `
+            : "";
+
+        const html = `
+    <html xmlns:o="urn:schemas-microsoft-com:office:office"
+          xmlns:x="urn:schemas-microsoft-com:office:excel"
+          xmlns="http://www.w3.org/TR/REC-html40">
+    <head>
+      <meta charset="UTF-8">
+      <title>Обзор классов</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { color: #333; margin-bottom: 5px; }
+        h2 { color: #666; font-size: 14px; font-weight: normal; margin-top: 0; }
+        .filters { color: #666; font-size: 12px; margin-bottom: 15px; }
+        table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        th { background-color: #06b6d4; color: white; font-weight: bold; }
+        tr:nth-child(even) td { background-color: #f9f9f9; }
+        .num { text-align: center; }
+      </style>
+    </head>
+    <body>
+      <h1>Обзор классов</h1>
+      <h2>Самовыводы и доверенности · ${new Date().toLocaleString('ru-RU')}</h2>
+      
+      <div class="filters">
+        ${searchQuery ? `Поиск: "${searchQuery}" · ` : ""}
+        ${selectedGrade !== "" ? `Параллель: ${selectedGrade} · ` : ""}
+        Классов: ${filteredClasses.length}
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Класс</th>
+            <th>Параллель</th>
+            <th>Учеников</th>
+            <th>Самовыводы (активных)</th>
+            <th>Детей с самовыводом</th>
+            <th>Доверенности (активных)</th>
+            <th>Детей с доверенностью</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+          ${totalsRow}
+        </tbody>
+      </table>
+    </body>
+    </html>
+  `;
+
+        const blob = new Blob([html], {
+            type: "application/vnd.ms-excel;charset=utf-8;"
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `обзор_классов_${new Date().toISOString().split("T")[0]}.xls`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
     // Фильтрация и сортировка
     const filteredClasses = useMemo(() => {
         let result = [...classes];
@@ -160,6 +259,17 @@ export default function ClassesOverviewPage() {
                                 </p>
                             </div>
                         </div>
+
+                        {/* 🔥 Кнопка экспорта */}
+                        <button
+                            onClick={exportToExcel}
+                            disabled={filteredClasses.length === 0}
+                            className="flex items-center gap-1.5 px-3 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg transition-all text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed border border-green-500/30"
+                            title="Экспорт в Excel"
+                        >
+                            <Download size={14} />
+                            <span className="hidden sm:inline">Экспорт</span>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -247,8 +357,8 @@ export default function ClassesOverviewPage() {
                             <button
                                 onClick={() => setSelectedGrade("")}
                                 className={`px-2 py-1 rounded-lg text-xs transition-all ${selectedGrade === ""
-                                        ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white"
-                                        : "bg-white/5 text-gray-400 hover:bg-white/10"
+                                    ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white"
+                                    : "bg-white/5 text-gray-400 hover:bg-white/10"
                                     }`}
                             >
                                 Все
@@ -258,8 +368,8 @@ export default function ClassesOverviewPage() {
                                     key={grade}
                                     onClick={() => setSelectedGrade(grade)}
                                     className={`px-2 py-1 rounded-lg text-xs transition-all ${selectedGrade === grade
-                                            ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white"
-                                            : "bg-white/5 text-gray-400 hover:bg-white/10"
+                                        ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white"
+                                        : "bg-white/5 text-gray-400 hover:bg-white/10"
                                         }`}
                                 >
                                     {grade}
@@ -280,8 +390,8 @@ export default function ClassesOverviewPage() {
                                     key={opt.id}
                                     onClick={() => setSortBy(opt.id as any)}
                                     className={`px-2 py-1 rounded-lg text-[10px] transition-all ${sortBy === opt.id
-                                            ? "bg-white/20 text-white"
-                                            : "bg-white/5 text-gray-400 hover:bg-white/10"
+                                        ? "bg-white/20 text-white"
+                                        : "bg-white/5 text-gray-400 hover:bg-white/10"
                                         }`}
                                 >
                                     {opt.label}
@@ -306,8 +416,8 @@ export default function ClassesOverviewPage() {
                                     key={cls.classId}
                                     onClick={() => handleClassClick(cls.className)}
                                     className={`w-full text-left bg-white/10 backdrop-blur-lg rounded-xl p-3 border transition-all hover:bg-white/20 ${hasActivity
-                                            ? "border-cyan-500/30 hover:border-cyan-500/50"
-                                            : "border-white/20 hover:border-white/40"
+                                        ? "border-cyan-500/30 hover:border-cyan-500/50"
+                                        : "border-white/20 hover:border-white/40"
                                         }`}
                                 >
                                     <div className="flex items-start justify-between gap-3 mb-2">
@@ -334,8 +444,8 @@ export default function ClassesOverviewPage() {
                                     {/* Мини-статистика */}
                                     <div className="grid grid-cols-2 gap-2">
                                         <div className={`rounded-lg p-2 ${cls.activeSelfExits > 0
-                                                ? "bg-indigo-500/20 border border-indigo-500/30"
-                                                : "bg-white/5 border border-white/10"
+                                            ? "bg-indigo-500/20 border border-indigo-500/30"
+                                            : "bg-white/5 border border-white/10"
                                             }`}>
                                             <div className="flex items-center gap-1 mb-0.5">
                                                 <UserCheck size={10} className={
@@ -357,8 +467,8 @@ export default function ClassesOverviewPage() {
                                         </div>
 
                                         <div className={`rounded-lg p-2 ${cls.activeAuthorizations > 0
-                                                ? "bg-cyan-500/20 border border-cyan-500/30"
-                                                : "bg-white/5 border border-white/10"
+                                            ? "bg-cyan-500/20 border border-cyan-500/30"
+                                            : "bg-white/5 border border-white/10"
                                             }`}>
                                             <div className="flex items-center gap-1 mb-0.5">
                                                 <Shield size={10} className={

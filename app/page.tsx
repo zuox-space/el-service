@@ -92,7 +92,7 @@ export default function HomePage() {
     const grade = selectedClass.grade ||
       parseInt(selectedClass.name?.match(/^(\d+)/)?.[1] || "0");
 
-    return grade >= 1 && grade <= 3;
+    return grade >= 1 && grade <= 4;
   }, [selectedClass]);
   const showJuniorFeatures = isAdmin || isJuniorClass;
 

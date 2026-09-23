@@ -307,8 +307,8 @@ export default function ClassDetailsPage() {
                                 key={f.id}
                                 onClick={() => setFilter(f.id)}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filter === f.id
-                                        ? `bg-${f.color}-500/30 text-${f.color}-300 border border-${f.color}-500/50`
-                                        : "bg-white/5 text-gray-400 hover:bg-white/10 border border-transparent"
+                                    ? `bg-${f.color}-500/30 text-${f.color}-300 border border-${f.color}-500/50`
+                                    : "bg-white/5 text-gray-400 hover:bg-white/10 border border-transparent"
                                     }`}
                                 style={
                                     filter === f.id
@@ -341,9 +341,7 @@ export default function ClassDetailsPage() {
                                     <th className="px-3 py-2 text-center text-[10px] font-medium text-gray-400 uppercase tracking-wider">
                                         Доверенности
                                     </th>
-                                    <th className="px-3 py-2 text-center text-[10px] font-medium text-gray-400 uppercase tracking-wider">
-                                        Итог
-                                    </th>
+
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/10">
@@ -413,18 +411,7 @@ export default function ClassDetailsPage() {
                                                             </span>
                                                         )}
                                                     </td>
-                                                    <td className="px-3 py-2 text-center">
-                                                        {hasAnyPermission ? (
-                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-green-500/20 text-green-300 border border-green-500/40">
-                                                                <CheckCircle size={9} />
-                                                                Ограничен
-                                                            </span>
-                                                        ) : (
-                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-white/5 text-gray-500">
-                                                                Свободен
-                                                            </span>
-                                                        )}
-                                                    </td>
+
                                                 </tr>
                                                 {isExpanded && (
                                                     <tr key={`${s.aisId}-details`}>

@@ -27,6 +27,12 @@ export async function GET() {
     try {
         // 1. Все классы из PostgreSQL
         const classes = await prisma.class.findMany({
+            where: {
+                grade: {
+                    gte: 1,
+                    lte: 4,
+                },
+            },
             orderBy: [{ grade: 'asc' }, { letter: 'asc' }],
         });
 
