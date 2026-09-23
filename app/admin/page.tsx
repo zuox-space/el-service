@@ -3,7 +3,7 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { LayoutGrid } from "lucide-react";
+import { DockIcon, LayoutGrid, ListOrdered } from "lucide-react";
 
 import {
   LogOut, DoorOpen, UserCheck, FileText, Clock, CalendarDays,
@@ -636,7 +636,7 @@ export default function AdminDashboard() {
             {/* 🔥 ЛЕВАЯ ЧАСТЬ: Логотип + Основные вкладки */}
             <div className="flex items-center gap-6">
 
-              {/* Логотип / Название раздела */}
+              {/* Логотип / Название раздела
               <div className="flex items-center gap-2 pr-4 border-r border-white/10">
                 <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
                   <Shield size={16} className="text-white" />
@@ -644,7 +644,7 @@ export default function AdminDashboard() {
                 <span className="text-sm font-bold text-white whitespace-nowrap">
                   Админ панель
                 </span>
-              </div>
+              </div> */}
 
               {/* Группа: Рабочие вкладки (пропуска, самовыход, ушедшие) */}
               <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1">
@@ -752,8 +752,8 @@ export default function AdminDashboard() {
                   className="group px-3 py-1.5 rounded-md text-xs text-gray-400 hover:text-white hover:bg-cyan-500/10 transition-all flex items-center gap-1.5 relative"
                   title="Обзор классов 1-3 (самовыходы и доверенности)"
                 >
-                  <LayoutGrid size={14} className="group-hover:text-cyan-400 transition-colors" />
-                  <span className="hidden xl:inline">Обзор 1-3</span>
+                  <ListOrdered size={14} className="group-hover:text-cyan-400 transition-colors" />
+                  <span className="hidden xl:inline">1-4 СВ и Дов.</span>
                 </button>
                 <button
                   onClick={() => router.push("/admin/truants")}
