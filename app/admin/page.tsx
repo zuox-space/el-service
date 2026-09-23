@@ -3,6 +3,7 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
+import { LayoutGrid } from "lucide-react";
 
 import {
   LogOut, DoorOpen, UserCheck, FileText, Clock, CalendarDays,
@@ -273,6 +274,12 @@ export default function AdminDashboard() {
     { id: "violations", name: "Нарушения", icon: <AlertTriangle size={18} />, action: () => router.push("/admin/violations") },
     { id: "students", name: "Ученики", icon: <Users size={18} />, action: () => router.push("/admin/students") },
     { id: "schoolRecords", name: "ВШУ", icon: <ShieldAlert size={18} />, action: () => router.push("/admin/school-records") },
+    {
+      id: "classes-overview",
+      name: "Обзор классов",
+      icon: <LayoutGrid size={18} />,
+      action: () => router.push("/admin/classes-overview")
+    },
 
   ];
 
