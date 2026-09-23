@@ -94,7 +94,7 @@ export default function HomePage() {
 
     return grade >= 1 && grade <= 4;
   }, [selectedClass]);
-  const showJuniorFeatures = isAdmin || isJuniorClass;
+  const showJuniorFeatures = isJuniorClass;
 
   // Проверяем, есть ли у пользователя классы
   const hasClasses = classes.length > 0;
@@ -1308,29 +1308,32 @@ export default function HomePage() {
         )}
 
         {/* Табы */}
-        <div className="flex gap-1 bg-white/5 rounded-xl p-1">
-          {tabs.map((tab) => {
-            // 🔥 Защита: если фича не разрешена, не рендерим эту вкладку
-            const isRestricted =
-              (tab.id === "self-exit" || tab.id === "authorizations") &&
-              !showJuniorFeatures;
+        {/* Табы со скроллом */}
+        <div className="bg-white/5 rounded-xl p-1">
+          <div className="flex gap-1 overflow-x-auto scrollbar-hide">
+            {tabs.map((tab) => {
+              // 🔥 Защита: если фича не разрешена, не рендерим эту вкладку
+              const isRestricted =
+                (tab.id === "self-exit" || tab.id === "authorizations") &&
+                !showJuniorFeatures;
 
-            if (isRestricted) return null;
+              if (isRestricted) return null;
 
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg transition-all text-sm font-medium ${activeTab === tab.id
-                  ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/20"
-                  : "text-gray-400 hover:text-white hover:bg-white/10"
-                  }`}
-              >
-                {tab.icon}
-                {tab.name}
-              </button>
-            );
-          })}
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex-shrink-0 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab === tab.id
+                    ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/20"
+                    : "text-gray-400 hover:text-white hover:bg-white/10"
+                    }`}
+                >
+                  {tab.icon}
+                  {tab.name}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Контент активного таба */}
