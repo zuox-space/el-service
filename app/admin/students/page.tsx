@@ -216,7 +216,7 @@ export default function StudentsSearchPage() {
                         <h2 className="text-base font-bold text-white mb-2">Профиль ученика</h2>
                         <p className="text-gray-400 text-xs leading-relaxed">
                             Введите фамилию или имя ученика для просмотра полной информации:
-                            пропуска, самовыводы, нарушения, пропуски уроков
+                            пропуска, самовыходы, нарушения, пропуски уроков
                         </p>
                     </div>
                 )}

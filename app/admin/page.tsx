@@ -159,7 +159,7 @@ export default function AdminDashboard() {
     setFilteredPasses(filtered);
   }, [searchQuery, selectedLetter, selectedGradeGroup, passes]);
 
-  // Фильтрация самовыводов
+  // Фильтрация самовыходов
   useEffect(() => {
     let filtered = selfExits;
 
@@ -264,7 +264,7 @@ export default function AdminDashboard() {
 
   const menuItems = [
     { id: "dashboard", name: "Пропуски", icon: <DoorOpen size={18} />, action: () => setActiveTab("single") },
-    { id: "self-exit", name: "Самовывод", icon: <UserCheck size={18} />, action: () => setActiveTab("self-exit") },
+    { id: "self-exit", name: "Самовыход", icon: <UserCheck size={18} />, action: () => setActiveTab("self-exit") },
     { id: "departed", name: "Ушедшие", icon: <Users size={18} />, action: () => setActiveTab("departed") },
     { id: "classes", name: "Классы", icon: <School size={18} />, action: () => router.push("/admin/classes") },
     { id: "users", name: "Персонал", icon: <Users size={18} />, action: () => router.push("/admin/users") },
@@ -324,7 +324,7 @@ export default function AdminDashboard() {
 
   const renderSelfExitTab = () => (
     <div className="space-y-2">
-      {/* Фильтры для самовыводов */}
+      {/* Фильтры для самовыходов */}
       <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
         <div className="flex flex-col gap-3">
           <div className="relative">
@@ -385,11 +385,11 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Список самовыводов */}
+      {/* Список самовыходов */}
       {filteredSelfExits.length === 0 ? (
         <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 text-center border border-white/20">
           <UserCheck size={32} className="text-gray-500 mx-auto mb-2" />
-          <p className="text-gray-400">Нет активных самовыводов</p>
+          <p className="text-gray-400">Нет активных самовыходов</p>
         </div>
       ) : (
         filteredSelfExits.map((pass) => (
@@ -646,7 +646,7 @@ export default function AdminDashboard() {
                 </span>
               </div>
 
-              {/* Группа: Рабочие вкладки (пропуска, самовывод, ушедшие) */}
+              {/* Группа: Рабочие вкладки (пропуска, самовыход, ушедшие) */}
               <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1">
                 <button
                   onClick={() => setActiveTab("single")}
@@ -673,7 +673,7 @@ export default function AdminDashboard() {
                     }`}
                 >
                   <UserCheck size={14} />
-                  Самовывод
+                  Самовыход
                   {filteredSelfExits.length > 0 && (
                     <span className={`ml-1 text-[10px] px-1.5 py-0.5 rounded-full ${activeTab === "self-exit" ? "bg-white/20" : "bg-indigo-500/20 text-indigo-300"
                       }`}>
@@ -750,7 +750,7 @@ export default function AdminDashboard() {
                 <button
                   onClick={() => router.push("/admin/classes-overview")}
                   className="group px-3 py-1.5 rounded-md text-xs text-gray-400 hover:text-white hover:bg-cyan-500/10 transition-all flex items-center gap-1.5 relative"
-                  title="Обзор классов 1-3 (самовыводы и доверенности)"
+                  title="Обзор классов 1-3 (самовыходы и доверенности)"
                 >
                   <LayoutGrid size={14} className="group-hover:text-cyan-400 transition-colors" />
                   <span className="hidden xl:inline">Обзор 1-3</span>
@@ -872,7 +872,7 @@ export default function AdminDashboard() {
             <div className="flex justify-between text-sm">
               <span className="text-gray-400">
                 {activeTab === "departed" ? "Ушедших сегодня:" :
-                  activeTab === "self-exit" ? "Активных самовыводов:" :
+                  activeTab === "self-exit" ? "Активных самовыходов:" :
                     "Всего пропусков:"}
               </span>
               <span className="text-white font-bold">

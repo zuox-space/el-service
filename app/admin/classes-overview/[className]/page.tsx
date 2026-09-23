@@ -146,14 +146,14 @@ export default function ClassDetailsPage() {
       <body>
         <h1>Класс ${className}</h1>
         <p>Всего учеников: ${data.stats.totalStudents}</p>
-        <p>Самовыводы: ${data.stats.activeSelfExits}</p>
+        <p>Самовыходы: ${data.stats.activeSelfExits}</p>
         <p>Доверенности: ${data.stats.activeAuthorizations}</p>
         
         <table>
           <tr>
             <th>#</th>
             <th>Ученик</th>
-            <th>Самовывод</th>
+            <th>Самовыход</th>
             <th>Доверенности</th>
           </tr>
     `;
@@ -266,7 +266,7 @@ export default function ClassDetailsPage() {
                     <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-indigo-500/30">
                         <div className="flex items-center gap-1.5 mb-1">
                             <UserCheck size={12} className="text-indigo-400" />
-                            <span className="text-[10px] text-gray-400">Самовыводы</span>
+                            <span className="text-[10px] text-gray-400">Самовыходы</span>
                         </div>
                         <p className="text-2xl font-bold text-indigo-400">{stats.activeSelfExits}</p>
                         <p className="text-[10px] text-gray-500">
@@ -304,7 +304,7 @@ export default function ClassDetailsPage() {
                     <div className="flex flex-wrap gap-1">
                         {[
                             { id: "all", label: "Все", count: stats.totalStudents, color: "blue" },
-                            { id: "selfExit", label: "Самовывод", count: stats.studentsWithSelfExit, color: "indigo" },
+                            { id: "selfExit", label: "Самовыход", count: stats.studentsWithSelfExit, color: "indigo" },
                             { id: "auth", label: "Доверенность", count: stats.studentsWithAuth, color: "cyan" },
                         ].map((f: any) => (
                             <button
@@ -340,7 +340,7 @@ export default function ClassDetailsPage() {
                                         ФИО
                                     </th>
                                     <th className="px-3 py-2 text-center text-[10px] font-medium text-gray-400 uppercase tracking-wider">
-                                        Самовывод
+                                        Самовыход
                                     </th>
                                     <th className="px-3 py-2 text-center text-[10px] font-medium text-gray-400 uppercase tracking-wider">
                                         Доверенности
@@ -421,13 +421,13 @@ export default function ClassDetailsPage() {
                                                     <tr key={`${s.aisId}-details`}>
                                                         <td colSpan={5} className="px-3 py-3 bg-white/5">
                                                             <div className="space-y-3">
-                                                                {/* Самовывод */}
+                                                                {/* Самовыход */}
                                                                 {s.hasActiveSelfExit && s.activeSelfExit && (
                                                                     <div className="bg-indigo-500/10 rounded-lg p-3 border border-indigo-500/30">
                                                                         <div className="flex items-center gap-2 mb-2">
                                                                             <UserCheck size={12} className="text-indigo-400" />
                                                                             <span className="text-xs font-semibold text-indigo-400">
-                                                                                Активный самовывод
+                                                                                Активный самовыход
                                                                             </span>
                                                                         </div>
                                                                         <div className="grid grid-cols-2 gap-2 text-[10px]">

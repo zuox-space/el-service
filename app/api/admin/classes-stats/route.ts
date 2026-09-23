@@ -57,7 +57,7 @@ export async function GET() {
             studentsByClass.get(s.className)!.push(s);
         });
 
-        // 3. Все активные самовыводы
+        // 3. Все активные самовыходы
         const today = new Date();
         const allSelfExits = await prisma.selfExit.findMany({
             where: {

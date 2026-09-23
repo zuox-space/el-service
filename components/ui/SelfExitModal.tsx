@@ -89,7 +89,7 @@ export default function SelfExitModal({ isOpen, onClose, onSubmit, studentsList 
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
               <User size={18} className="text-white" />
-              <h3 className="text-lg font-bold text-white">Самовывод ученика</h3>
+              <h3 className="text-lg font-bold text-white">Самовыход ученика</h3>
             </div>
             <button onClick={onClose} className="text-white/70 hover:text-white">
               <X size={20} />

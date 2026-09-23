@@ -241,7 +241,7 @@ export default function ClassesOverviewPage() {
         <!-- ВКЛАДКА 1: ОБЗОР                            -->
         <!-- ============================================ -->
         <h1>Обзор классов 1-3</h1>
-        <h2>Самовыводы и доверенности · ${new Date().toLocaleString("ru-RU")}</h2>
+        <h2>Самовыходы и доверенности · ${new Date().toLocaleString("ru-RU")}</h2>
         
         ${filtersInfo ? `<div class="filters">${filtersInfo}</div>` : ""}
         <div class="filters">Всего классов: ${filteredClasses.length}</div>
@@ -253,7 +253,7 @@ export default function ClassesOverviewPage() {
               <th>Класс</th>
               <th>Параллель</th>
               <th>Учеников</th>
-              <th>Самовыводы (активных)</th>
+              <th>Самовыходы (активных)</th>
               <th>Доверенности (активных)</th>
             </tr>
           </thead>
@@ -279,7 +279,7 @@ export default function ClassesOverviewPage() {
               <tr>
                 <th style="width:50px;">#</th>
                 <th>ФИО</th>
-                <th style="width:150px;">Самовывод</th>
+                <th style="width:150px;">Самовыход</th>
                 <th style="width:150px;">Доверенность</th>
               </tr>
             </thead>
@@ -389,7 +389,7 @@ export default function ClassesOverviewPage() {
                             <div className="min-w-0 flex-1">
                                 <p className="text-sm font-bold text-white truncate">Обзор классов</p>
                                 <p className="text-xs text-gray-400 hidden sm:block">
-                                    Самовыводы и доверенности
+                                    Самовыходы и доверенности
                                 </p>
                             </div>
                         </div>
@@ -432,7 +432,7 @@ export default function ClassesOverviewPage() {
                         <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-indigo-500/30">
                             <div className="flex items-center gap-1.5 mb-1">
                                 <UserCheck size={12} className="text-indigo-400" />
-                                <span className="text-[10px] text-gray-400">Самовыводы</span>
+                                <span className="text-[10px] text-gray-400">Самовыходы</span>
                             </div>
                             <p className="text-2xl font-bold text-indigo-400">
                                 {totals.totalActiveSelfExits}
@@ -585,7 +585,7 @@ export default function ClassesOverviewPage() {
                                                 <UserCheck size={10} className={
                                                     cls.activeSelfExits > 0 ? "text-indigo-400" : "text-gray-500"
                                                 } />
-                                                <span className="text-[9px] text-gray-400">Самовыводы</span>
+                                                <span className="text-[9px] text-gray-400">Самовыходы</span>
                                             </div>
                                             <div className="flex items-baseline gap-1">
                                                 <span className={`text-lg font-bold ${cls.activeSelfExits > 0 ? "text-indigo-400" : "text-gray-500"

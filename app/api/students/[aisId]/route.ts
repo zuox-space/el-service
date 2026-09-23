@@ -76,7 +76,7 @@ export async function GET(
                 className: student.className,
             }));
 
-        // 3. Получаем самовыводы студента
+        // 3. Получаем самовыходы студента
         const selfExits = await prisma.selfExit.findMany({
             where: {
                 studentId: String(aisId),

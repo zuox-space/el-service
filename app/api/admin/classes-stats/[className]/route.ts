@@ -63,7 +63,7 @@ export async function GET(
       ORDER BY lastName, firstName
     `, [className]);
 
-        // 4. Активные самовыводы класса
+        // 4. Активные самовыходы класса
         const today = new Date();
         const studentIds = students.map(s => String(s.aisId));
 
@@ -75,7 +75,7 @@ export async function GET(
             orderBy: { startDate: 'desc' },
         });
 
-        // 5. Все самовыводы (активные + завершённые) для подсчёта
+        // 5. Все самовыходы (активные + завершённые) для подсчёта
         const allSelfExits = await prisma.selfExit.findMany({
             where: {
                 studentId: { in: studentIds },
@@ -100,12 +100,12 @@ export async function GET(
         const studentsWithFlags = students.map(student => {
             const studentIdStr = String(student.aisId);
 
-            // Самовывод ученика (активный)
+            // Самовыход ученика (активный)
             const activeSelfExit = activeSelfExits.find(
                 s => String(s.studentId) === studentIdStr
             );
 
-            // Самовыводы ученика (все)
+            // Самовыходы ученика (все)
             const studentSelfExits = allSelfExits.filter(
                 s => String(s.studentId) === studentIdStr
             );
@@ -143,7 +143,7 @@ export async function GET(
             activeAuthorizations: activeAuthorizations.length,
             studentsWithAuth: new Set(activeAuthorizations.map(a => String(a.studentId))).size,
             totalAuthorizations: allAuthorizations.length,
-            // 🔥 Ученики у кого есть ЛЮБОЕ разрешение (самовывод или доверенность)
+            // 🔥 Ученики у кого есть ЛЮБОЕ разрешение (самовыход или доверенность)
             studentsWithAnyPermission: studentsWithFlags.filter(
                 s => s.hasActiveSelfExit || s.hasActiveAuthorization
             ).length,

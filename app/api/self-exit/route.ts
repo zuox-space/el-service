@@ -6,7 +6,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-// GET: Получить активные самовыводы
+// GET: Получить активные самовыходы
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) {
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST: Создать самовывод
+// POST: Создать самовыход
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) {
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// DELETE: Удалить самовывод
+// DELETE: Удалить самовыход
 export async function DELETE(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) {

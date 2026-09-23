@@ -150,7 +150,7 @@ export async function GET(req: NextRequest) {
             selfExits.push({
                 id: exit.id,
                 studentName: studentName,
-                exitTime: "самовывод",
+                exitTime: "самовыход",
                 reason: exit.reason || "По заявлению",
                 date: exit.startDate,
                 startDate: exit.startDate,
@@ -162,7 +162,7 @@ export async function GET(req: NextRequest) {
             });
         }
 
-        console.log(`📊 Найдено пропусков: ${passes.length}, самовыводов: ${selfExits.length}, ушедших: ${departed.length}`);
+        console.log(`📊 Найдено пропусков: ${passes.length}, самовыходов: ${selfExits.length}, ушедших: ${departed.length}`);
 
         let result: any = {};
 

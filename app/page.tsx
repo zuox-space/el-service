@@ -109,7 +109,7 @@ export default function HomePage() {
       { id: "schoolRecord", name: "ВШУ", icon: <ShieldAlert size={16} /> },
     ];
 
-    // 🔥 Самовывод и Доверенности — только для младших классов или админов
+    // 🔥 Самовыход и Доверенности — только для младших классов или админов
     if (showJuniorFeatures) {
       baseTabs.splice(1, 0,
         { id: "self-exit", name: "Самовыход", icon: <UserCheck size={16} /> }
@@ -702,7 +702,7 @@ export default function HomePage() {
       alert("Самовыход добавлен!");
     } catch (error) {
       console.error("Error creating self-exit:", error);
-      alert("Ошибка при добавлении самовывода");
+      alert("Ошибка при добавлении самовыхода");
     }
   };
 
@@ -923,13 +923,13 @@ export default function HomePage() {
                 </div>
               </div>
 
-              {/* Самовывод */}
+              {/* Самовыход */}
               <div className="flex items-start gap-3 p-3 bg-white/5 rounded-lg border border-white/10">
                 <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center flex-shrink-0">
                   <UserCheck size={16} className="text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-white text-sm font-medium">Самовывод</h3>
+                  <h3 className="text-white text-sm font-medium">Самовыход</h3>
                   <p className="text-gray-400 text-xs mt-0.5">
                     Фиксация заявлений на самостоятельный уход учеников с приложением фото
                   </p>
@@ -1210,7 +1210,7 @@ export default function HomePage() {
     </div>
   );
 
-  // Рендер таба самовывода
+  // Рендер таба самовыхода
   const renderSelfExitTab = () => (
     <div className="space-y-2">
       {showJuniorFeatures && (<button
@@ -1218,13 +1218,13 @@ export default function HomePage() {
         className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-medium py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30"
       >
         <Plus size={16} />
-        <span>Добавить самовывод</span>
+        <span>Добавить самовыход</span>
       </button>)}
 
       {selfExits.length === 0 ? (
         <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 text-center border border-white/20">
           <UserCheck size={32} className="text-gray-500 mx-auto mb-2" />
-          <p className="text-gray-400">Нет активных самовыводов</p>
+          <p className="text-gray-400">Нет активных самовыходов</p>
         </div>
       ) : (
         selfExits.map((item) => (
@@ -1256,7 +1256,7 @@ export default function HomePage() {
                   }
                 }}
                 className="text-red-400 hover:text-red-300 text-sm px-2 py-1"
-                title="Отменить самовывод"
+                title="Отменить самовыход"
               >
                 ✕
               </button>

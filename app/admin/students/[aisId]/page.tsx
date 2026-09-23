@@ -414,7 +414,7 @@ export default function StudentProfilePage() {
                     <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
                         <div className="flex items-center gap-1.5 mb-1">
                             <UserCheck size={12} className="text-indigo-400" />
-                            <span className="text-[10px] text-gray-400">Самовыводы</span>
+                            <span className="text-[10px] text-gray-400">Самовыходы</span>
                         </div>
                         <p className="text-xl font-bold text-indigo-400">{stats.selfExits.total}</p>
                         <p className="text-[10px] text-gray-500">
@@ -462,7 +462,7 @@ export default function StudentProfilePage() {
                             },
                             {
                                 id: "selfExits",
-                                name: "Самовыводы",
+                                name: "Самовыходы",
                                 icon: <UserCheck size={14} />,
                                 count: stats.selfExits.total,
                             },
@@ -597,14 +597,14 @@ function OverviewTab({ profile }: { profile: StudentProfile }) {
                         </div>
                     )}
 
-                    {/* Последний самовывод */}
+                    {/* Последний самовыход */}
                     {selfExits[0] && (
                         <div className="flex items-center gap-3 p-2 bg-white/5 rounded-lg">
                             <div className="w-7 h-7 rounded-lg bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
                                 <UserCheck size={13} className="text-indigo-400" />
                             </div>
                             <div className="flex-1 min-w-0">
-                                <p className="text-xs text-white font-medium">Самовывод</p>
+                                <p className="text-xs text-white font-medium">Самовыход</p>
                                 <p className="text-[10px] text-gray-400 truncate">
                                     {new Date(selfExits[0].startDate).toLocaleDateString('ru-RU')} — {new Date(selfExits[0].endDate).toLocaleDateString('ru-RU')}
                                 </p>
@@ -909,7 +909,7 @@ function SelfExitsTab({
         return (
             <EmptyState
                 icon={<UserCheck size={28} className="text-gray-600" />}
-                message="Самовыводов нет"
+                message="Самовыходов нет"
             />
         );
     }
