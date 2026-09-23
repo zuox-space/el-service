@@ -185,3 +185,32 @@ model SchoolRecord {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 }
+
+
+model Authorization {
+  id              String    @id @default(cuid())
+  
+  // Ребёнок
+  studentId       String
+  studentName     String
+  className       String
+  
+  // Доверенное лицо
+  trustedName     String    // ФИО того, кто забирает
+  relation        String    // Кем приходится ребёнку
+  phone           String?   // Телефон (опционально)
+  comment         String?   // Комментарий
+  
+  // Классный руководитель
+  teacherId       String
+  teacherName     String
+  
+  // Статус
+  isActive        Boolean   @default(true)  // true = активная, false = архив
+  revokedAt       DateTime?                 // Когда отозвана
+  revokedBy       String?                   // Кто отозвал
+  revokedByName   String?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}

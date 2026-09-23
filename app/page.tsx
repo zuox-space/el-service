@@ -20,7 +20,8 @@ import ViolationModal from "@/components/ui/ViolationModal";
 import ViolationsList from "@/components/ui/ViolationsList";
 import { safeFormatShortName } from "@/lib/utils";
 import { ShieldAlert } from "lucide-react";
-
+import AuthorizationModal from "@/components/ui/AuthorizationModal";
+import { Archive, Trash2, User } from "lucide-react";
 
 interface TabType {
   id: string;
@@ -57,7 +58,12 @@ export default function HomePage() {
   const [isLoadingViolations, setIsLoadingViolations] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
-
+  // Доверенности
+  const [authorizations, setAuthorizations] = useState<any[]>([]);
+  const [archivedAuthorizations, setArchivedAuthorizations] = useState<any[]>([]);
+  const [isLoadingAuthorizations, setIsLoadingAuthorizations] = useState(false);
+  const [isAuthorizationModalOpen, setIsAuthorizationModalOpen] = useState(false);
+  const [authorizationTab, setAuthorizationTab] = useState<"active" | "archive">("active");
   // Функция для очистки времени у даты
   const clearTime = (date: Date): Date => {
     return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -91,6 +97,8 @@ export default function HomePage() {
     { id: "self-exit", name: "Самовыход", icon: <UserCheck size={16} /> },
     { id: "violations", name: "Нарушения", icon: <AlertTriangle size={16} /> },
     { id: "schoolRecord", name: "ВШУ", icon: <ShieldAlert size={16} /> }, // 🔥 ДОБАВЛЕНО
+    { id: "authorizations", name: "Доверенности", icon: <Shield size={16} /> }, // 🔥
+
 
   ];
 
@@ -283,7 +291,258 @@ export default function HomePage() {
       alert("Ошибка при создании пропуска");
     }
   };
+  const handleSubmitAuthorization = async (data: any) => {
+    try {
+      const response = await fetch("/api/authorizations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
 
+      if (!response.ok) throw new Error("Failed");
+
+      const newAuth = await response.json();
+      setAuthorizations(prev => [newAuth, ...prev]);
+      alert("Доверенность добавлена!");
+    } catch (error) {
+      console.error("Error:", error);
+      alert("Ошибка при сохранении");
+      throw error;
+    }
+  };
+
+  const handleRevokeAuthorization = async (id: string) => {
+    if (!confirm("Отозвать доверенность? Она переместится в архив.")) return;
+
+    try {
+      const response = await fetch("/api/authorizations", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+
+      if (!response.ok) throw new Error("Failed");
+
+      const revoked = await response.json();
+
+      setAuthorizations(prev => prev.filter(a => a.id !== id));
+      setArchivedAuthorizations(prev => [revoked, ...prev]);
+
+      alert("Доверенность отозвана");
+    } catch (error) {
+      console.error("Error:", error);
+      alert("Ошибка при отзыве");
+    }
+  };
+  // 🔥 Загрузка доверенностей
+  useEffect(() => {
+    if (!selectedClass || activeTab !== "authorizations") return;
+
+    const fetchAuthorizations = async () => {
+      setIsLoadingAuthorizations(true);
+      try {
+        const [activeRes, archiveRes] = await Promise.all([
+          fetch(`/api/authorizations?className=${encodeURIComponent(selectedClass.name)}&active=true`),
+          fetch(`/api/authorizations?className=${encodeURIComponent(selectedClass.name)}&active=false`),
+        ]);
+
+        const activeData = await activeRes.json();
+        const archiveData = await archiveRes.json();
+
+        setAuthorizations(Array.isArray(activeData) ? activeData : []);
+        setArchivedAuthorizations(Array.isArray(archiveData) ? archiveData : []);
+      } catch (error) {
+        console.error("Error fetching authorizations:", error);
+        setAuthorizations([]);
+        setArchivedAuthorizations([]);
+      } finally {
+        setIsLoadingAuthorizations(false);
+      }
+    };
+
+    fetchAuthorizations();
+  }, [selectedClass, activeTab]);
+  const renderAuthorizationsTab = () => {
+    const studentsWithAuth = new Set(authorizations.map(a => a.studentId));
+
+    return (
+      <div className="space-y-3">
+        {/* Кнопка добавить */}
+        <button
+          onClick={() => setIsAuthorizationModalOpen(true)}
+          className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-medium py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-cyan-500/20"
+        >
+          <Plus size={16} />
+          <span>Добавить доверенность</span>
+        </button>
+
+        {/* Статистика */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
+            <div className="flex items-center gap-1.5 mb-1">
+              <Users size={12} className="text-cyan-400" />
+              <span className="text-[10px] text-gray-400">Учеников в классе</span>
+            </div>
+            <p className="text-xl font-bold text-cyan-400">{studentsList.length}</p>
+          </div>
+          <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
+            <div className="flex items-center gap-1.5 mb-1">
+              <Shield size={12} className="text-green-400" />
+              <span className="text-[10px] text-gray-400">С доверенностью</span>
+            </div>
+            <p className="text-xl font-bold text-green-400">{studentsWithAuth.size}</p>
+          </div>
+        </div>
+
+        {/* Табы Активные / Архив */}
+        <div className="grid grid-cols-2 gap-1 bg-white/5 rounded-xl p-1">
+          <button
+            onClick={() => setAuthorizationTab("active")}
+            className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all ${authorizationTab === "active"
+              ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-md"
+              : "text-gray-400 hover:text-white"
+              }`}
+          >
+            <Shield size={12} />
+            Активные
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${authorizationTab === "active" ? "bg-white/20" : "bg-white/10"
+              }`}>
+              {authorizations.length}
+            </span>
+          </button>
+          <button
+            onClick={() => setAuthorizationTab("archive")}
+            className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all ${authorizationTab === "archive"
+              ? "bg-gradient-to-r from-gray-500 to-slate-500 text-white shadow-md"
+              : "text-gray-400 hover:text-white"
+              }`}
+          >
+            <Archive size={12} />
+            Архив
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${authorizationTab === "archive" ? "bg-white/20" : "bg-white/10"
+              }`}>
+              {archivedAuthorizations.length}
+            </span>
+          </button>
+        </div>
+
+        {/* Список */}
+        {isLoadingAuthorizations ? (
+          <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 text-center border border-white/20">
+            <Loader2 size={28} className="animate-spin text-cyan-400 mx-auto mb-2" />
+            <p className="text-gray-400 text-sm">Загрузка...</p>
+          </div>
+        ) : authorizationTab === "active" ? (
+          authorizations.length === 0 ? (
+            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 text-center border border-white/20">
+              <Shield size={32} className="text-gray-500 mx-auto mb-2" />
+              <p className="text-gray-400 text-sm">Нет активных доверенностей</p>
+              <p className="text-gray-500 text-xs mt-1">
+                Нажмите «Добавить доверенность» чтобы создать
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {authorizations.map((auth) => (
+                <div
+                  key={auth.id}
+                  className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-cyan-500/30"
+                >
+                  <div className="flex items-start gap-2 mb-2">
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center flex-shrink-0">
+                      <Shield size={16} className="text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-white text-sm truncate">
+                        {auth.studentName}
+                      </h4>
+                      <p className="text-[10px] text-gray-400">
+                        Забирает: <span className="text-cyan-300">{auth.trustedName}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-[10px] mb-2">
+                    <div className="bg-white/5 rounded-lg p-2">
+                      <p className="text-gray-500 mb-0.5">Кем приходится</p>
+                      <p className="text-white font-medium">{auth.relation}</p>
+                    </div>
+                    {auth.phone && (
+                      <div className="bg-white/5 rounded-lg p-2">
+                        <p className="text-gray-500 mb-0.5">Телефон</p>
+                        <p className="text-white font-medium">{auth.phone}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {auth.comment && (
+                    <div className="bg-white/5 rounded-lg p-2 mb-2 text-[10px]">
+                      <p className="text-gray-500 mb-0.5">Комментарий</p>
+                      <p className="text-gray-300">{auth.comment}</p>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] text-gray-500">
+                      Добавил: {auth.teacherName} ·{' '}
+                      {new Date(auth.createdAt).toLocaleDateString('ru-RU')}
+                    </p>
+                    <button
+                      onClick={() => handleRevokeAuthorization(auth.id)}
+                      className="px-2 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg text-[10px] transition-all flex items-center gap-1"
+                    >
+                      <Trash2 size={10} />
+                      Отозвать
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        ) : (
+          archivedAuthorizations.length === 0 ? (
+            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 text-center border border-white/20">
+              <Archive size={32} className="text-gray-500 mx-auto mb-2" />
+              <p className="text-gray-400 text-sm">Архив пуст</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {archivedAuthorizations.map((auth) => (
+                <div
+                  key={auth.id}
+                  className="bg-white/5 backdrop-blur-lg rounded-xl p-3 border border-white/10 opacity-75"
+                >
+                  <div className="flex items-start gap-2 mb-2">
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-gray-500 to-slate-600 flex items-center justify-center flex-shrink-0">
+                      <Archive size={16} className="text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-gray-300 text-sm truncate">
+                        {auth.studentName}
+                      </h4>
+                      <p className="text-[10px] text-gray-500">
+                        Забирал: {auth.trustedName}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="text-[10px] text-gray-500 space-y-0.5">
+                    <p>Кем приходится: {auth.relation}</p>
+                    <p>
+                      Отозвана: {auth.revokedAt
+                        ? new Date(auth.revokedAt).toLocaleDateString('ru-RU')
+                        : '—'}
+                      {auth.revokedByName && ` · ${auth.revokedByName}`}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+      </div>
+    );
+  };
   const handleSubmitAttendance = async (attendanceData: any) => {
     try {
       const response = await fetch("/api/attendance", {
@@ -1035,6 +1294,8 @@ export default function HomePage() {
         {activeTab === "self-exit" && renderSelfExitTab()}
         {activeTab === "violations" && renderViolationsTab()}
         {activeTab === "schoolRecord" && renderSchoolRecordTab()} {/* 🔥 ДОБАВЛЕНО */}
+        {activeTab === "authorizations" && renderAuthorizationsTab()}
+
 
       </div>
 
@@ -1091,6 +1352,12 @@ export default function HomePage() {
         isOpen={isViolationModalOpen}
         onClose={() => setIsViolationModalOpen(false)}
         onSubmit={handleSubmitViolation}
+      />
+      <AuthorizationModal
+        isOpen={isAuthorizationModalOpen}
+        onClose={() => setIsAuthorizationModalOpen(false)}
+        onSubmit={handleSubmitAuthorization}
+        studentsList={studentsList}
       />
     </div>
   );

@@ -1,8 +1,11 @@
+// scripts/migrate-teachers-full.js
 const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 
 const TEACHERS_URL = 'https://school1298.ru/portal/workers/workersPS-no.json';
+
+// ============ ЗАГРУЗКА ДАННЫХ ============
 
 async function fetchTeachers() {
   try {
@@ -21,21 +24,26 @@ async function fetchTeachers() {
   }
 }
 
-// Парсинг строки с классами (например: "5-А,5-Б,6-В" или "5-А")
+// ============ ПАРСИНГ КЛАССОВ ============
+
 function parseClasses(classStr) {
   if (!classStr || classStr === 'нет' || classStr === null) return [];
 
   const classes = classStr.split(',').map(c => c.trim());
 
   return classes.map(className => {
-    const match = className.match(/(\d+)-(\w+)/);
+    // 🔥 ИСПРАВЛЕНО: поддержка русских букв (А-Я, Ё, а-я, ё)
+    const match = className.match(/^(\d+)-([А-ЯЁа-яёA-Za-z])$/);
     if (match) {
       return {
         name: className,
         grade: parseInt(match[1]),
-        letter: match[2]
+        letter: match[2].toUpperCase()
       };
     }
+
+    // Если не подходит под формат — возвращаем с пустыми данными
+    console.warn(`   ⚠️ Не удалось распарсить класс: "${className}"`);
     return {
       name: className,
       grade: 0,
@@ -43,6 +51,8 @@ function parseClasses(classStr) {
     };
   });
 }
+
+// ============ РОЛИ ============
 
 async function getRoleId(roleName) {
   let role = await prisma.role.findFirst({
@@ -59,8 +69,10 @@ async function getRoleId(roleName) {
   return role.id;
 }
 
+// ============ НОРМАЛИЗАЦИЯ EMAIL СУЩЕСТВУЮЩИХ ПОЛЬЗОВАТЕЛЕЙ ============
+
 async function normalizeExistingUsers() {
-  console.log('🔍 Проверка существующих пользователей...');
+  console.log('🔍 Проверка существующих пользователей...\n');
 
   const users = await prisma.user.findMany();
   let updated = 0;
@@ -77,10 +89,10 @@ async function normalizeExistingUsers() {
       });
 
       if (existingUser) {
-        console.log(`   🗑️ Обнаружен дубликат: ${user.email} → ${normalizedEmail}`);
-        console.log(`      Удаляем пользователя ${user.email} и переносим данные на ${normalizedEmail}`);
+        // Есть дубликат — удаляем текущего, переносим данные
+        console.log(`   🗑️ Дубликат: ${user.email} → ${normalizedEmail}`);
+        console.log(`      Переносим данные на существующего пользователя`);
 
-        // Используем транзакцию для безопасности
         await prisma.$transaction(async (tx) => {
           // 1. Обновляем классы
           await tx.class.updateMany({
@@ -100,26 +112,31 @@ async function normalizeExistingUsers() {
             data: { teacherId: existingUser.id }
           });
 
-          // 4. Удаляем старые роли пользователя
+          // 4. Обновляем Pass
+          await tx.pass.updateMany({
+            where: { teacherId: user.id },
+            data: { teacherId: existingUser.id }
+          });
+
+          // 5. Удаляем старые роли
           await tx.userRole.deleteMany({
             where: { userId: user.id }
           });
 
-          // 5. Удаляем пользователя
+          // 6. Удаляем пользователя
           await tx.user.delete({
             where: { id: user.id }
           });
         });
 
         deleted++;
-        updated++;
       } else {
         // Просто обновляем email
         await prisma.user.update({
           where: { id: user.id },
           data: { email: normalizedEmail }
         });
-        console.log(`   ✅ Обновлен email: ${user.email} → ${normalizedEmail}`);
+        console.log(`   ✅ Email обновлён: ${user.email} → ${normalizedEmail}`);
         updated++;
       }
     } else {
@@ -127,17 +144,20 @@ async function normalizeExistingUsers() {
     }
   }
 
-  console.log(`📊 Нормализация email: обновлено ${updated}, удалено дубликатов ${deleted}, пропущено ${skipped}`);
+  console.log(`\n📊 Нормализация: обновлено ${updated}, удалено ${deleted}, пропущено ${skipped}\n`);
 }
+
+// ============ ОСНОВНАЯ МИГРАЦИЯ ============
 
 async function migrateTeachers() {
   console.log('🚀 Начинаем миграцию учителей...\n');
 
-  // Сначала нормализуем существующих пользователей
+  // 1. Нормализуем существующих пользователей
   await normalizeExistingUsers();
 
-  console.log('\n' + '='.repeat(50) + '\n');
+  console.log('='.repeat(60) + '\n');
 
+  // 2. Загружаем учителей из JSON
   const teachers = await fetchTeachers();
 
   if (teachers.length === 0) {
@@ -145,21 +165,26 @@ async function migrateTeachers() {
     return;
   }
 
-  console.log(`📋 Найдено ${teachers.length} записей`);
+  console.log(`📋 Найдено ${teachers.length} записей\n`);
 
+  // 3. Получаем ID ролей
   const teacherRoleId = await getRoleId('TEACHER');
   const classTeacherRoleId = await getRoleId('CLASS_TEACHER');
 
+  // Счётчики
   let created = 0;
   let invalid = 0;
   let classesCreated = 0;
+  let classesUpdated = 0;
   let classTeachersAssigned = 0;
 
+  // 4. Обрабатываем каждого учителя
   for (const teacher of teachers) {
     const email = teacher.email ? teacher.email.toLowerCase().trim() : '';
     const name = teacher.name;
     const classStr = teacher.classStr;
 
+    // Валидация
     if (!email || email === 'нет' || email === 'null' || !email.includes('@')) {
       invalid++;
       continue;
@@ -171,6 +196,9 @@ async function migrateTeachers() {
     }
 
     try {
+      // ============================================
+      // ШАГ 1: НАЙТИ ИЛИ СОЗДАТЬ ПОЛЬЗОВАТЕЛЯ
+      // ============================================
       let user = await prisma.user.findUnique({
         where: { email: email }
       });
@@ -188,18 +216,27 @@ async function migrateTeachers() {
         console.log(`\n👤 Пользователь уже существует: ${name} (${email})`);
       }
 
-      // Назначаем роль TEACHER
+      // ============================================
+      // ШАГ 2: НАЗНАЧИТЬ РОЛЬ TEACHER (ВСЕГДА)
+      // ============================================
       const existingTeacherRole = await prisma.userRole.findFirst({
         where: { userId: user.id, roleId: teacherRoleId }
       });
+
       if (!existingTeacherRole) {
         await prisma.userRole.create({
-          data: { userId: user.id, roleId: teacherRoleId, assignedBy: 'migration' }
+          data: {
+            userId: user.id,
+            roleId: teacherRoleId,
+            assignedBy: 'migration'
+          }
         });
         console.log(`   📌 Назначена роль TEACHER`);
       }
 
-      // Обрабатываем классы
+      // ============================================
+      // ШАГ 3: ОБРАБОТКА КЛАССОВ (ВСЕГДА, ВНЕ if/else!)
+      // ============================================
       if (classStr && classStr !== 'нет' && classStr !== null) {
         const classes = parseClasses(classStr);
 
@@ -207,44 +244,75 @@ async function migrateTeachers() {
           console.log(`   📚 Классы: ${classStr}`);
 
           for (const classInfo of classes) {
+            // Ищем класс с учётом регистра (на всякий случай)
             let classData = await prisma.class.findFirst({
-              where: { name: classInfo.name }
+              where: {
+                OR: [
+                  { name: classInfo.name },
+                  { name: classInfo.name.toLowerCase() },
+                  { name: classInfo.name.toUpperCase() },
+                ]
+              }
             });
 
             if (!classData) {
+              // ============ КЛАССА НЕТ — СОЗДАЁМ ============
               classData = await prisma.class.create({
                 data: {
                   name: classInfo.name,
                   grade: classInfo.grade,
                   letter: classInfo.letter,
                   ownerId: user.id,
-                  students: JSON.stringify([]),
                 }
               });
               classesCreated++;
               console.log(`      ✅ Создан класс: ${classInfo.name}`);
             } else {
-              if (classData.ownerId !== user.id) {
+              // ============ КЛАСС ЕСТЬ — ОБНОВЛЯЕМ ============
+              const needsUpdate =
+                classData.ownerId !== user.id ||
+                classData.grade !== classInfo.grade ||
+                classData.letter !== classInfo.letter ||
+                classData.name !== classInfo.name;
+
+              if (needsUpdate) {
                 await prisma.class.update({
                   where: { id: classData.id },
-                  data: { ownerId: user.id }
+                  data: {
+                    ownerId: user.id,
+                    grade: classInfo.grade,
+                    letter: classInfo.letter,
+                    name: classInfo.name,
+                  }
                 });
-                console.log(`      🔄 Обновлён класс: ${classInfo.name}`);
+                classesUpdated++;
+                console.log(`      🔄 Обновлён класс: ${classInfo.name} (новый владелец)`);
+              } else {
+                console.log(`      ✓ Класс ${classInfo.name} без изменений`);
               }
             }
 
-            // Назначаем роль CLASS_TEACHER
+            // ============================================
+            // ШАГ 4: НАЗНАЧИТЬ РОЛЬ CLASS_TEACHER
+            // ============================================
             const existingClassTeacherRole = await prisma.userRole.findFirst({
               where: { userId: user.id, roleId: classTeacherRoleId }
             });
+
             if (!existingClassTeacherRole) {
               await prisma.userRole.create({
-                data: { userId: user.id, roleId: classTeacherRoleId, assignedBy: 'migration' }
+                data: {
+                  userId: user.id,
+                  roleId: classTeacherRoleId,
+                  assignedBy: 'migration'
+                }
               });
               console.log(`      📌 Назначена роль CLASS_TEACHER`);
               classTeachersAssigned++;
             }
           }
+        } else {
+          console.log(`   ⚠️ Не удалось распарсить классы: "${classStr}"`);
         }
       }
 
@@ -253,15 +321,24 @@ async function migrateTeachers() {
     }
   }
 
-  console.log('\n📊 Итог миграции:');
-  console.log(`   👥 Пользователей создано: ${created}`);
-  console.log(`   📚 Классов создано: ${classesCreated}`);
+  // 5. Итоги
+  console.log('\n' + '='.repeat(60));
+  console.log('📊 ИТОГИ МИГРАЦИИ:');
+  console.log('='.repeat(60));
+  console.log(`   👥 Пользователей создано:           ${created}`);
+  console.log(`   📚 Классов создано:                 ${classesCreated}`);
+  console.log(`   🔄 Классов обновлено:               ${classesUpdated}`);
   console.log(`   🎓 Назначено классных руководителей: ${classTeachersAssigned}`);
-  console.log(`   ⏭️ Пропущено (нет данных): ${invalid}`);
-  console.log(`   📋 Всего обработано: ${teachers.length}`);
+  console.log(`   ⏭️ Пропущено (нет данных):          ${invalid}`);
+  console.log(`   📋 Всего обработано:                ${teachers.length}`);
+  console.log('='.repeat(60) + '\n');
 
   await prisma.$disconnect();
 }
 
-// Запуск
-migrateTeachers().catch(console.error);
+// ============ ЗАПУСК ============
+
+migrateTeachers().catch((error) => {
+  console.error('❌ Критическая ошибка:', error);
+  process.exit(1);
+});

@@ -644,8 +644,8 @@ export default function AdminDashboard() {
                 <button
                   onClick={() => setActiveTab("single")}
                   className={`relative px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${activeTab === "single"
-                      ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-md shadow-blue-500/20"
-                      : "text-gray-400 hover:text-white hover:bg-white/5"
+                    ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-md shadow-blue-500/20"
+                    : "text-gray-400 hover:text-white hover:bg-white/5"
                     }`}
                 >
                   <DoorOpen size={14} />
@@ -661,8 +661,8 @@ export default function AdminDashboard() {
                 <button
                   onClick={() => setActiveTab("self-exit")}
                   className={`relative px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${activeTab === "self-exit"
-                      ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md shadow-indigo-500/20"
-                      : "text-gray-400 hover:text-white hover:bg-white/5"
+                    ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md shadow-indigo-500/20"
+                    : "text-gray-400 hover:text-white hover:bg-white/5"
                     }`}
                 >
                   <UserCheck size={14} />
@@ -678,8 +678,8 @@ export default function AdminDashboard() {
                 <button
                   onClick={() => setActiveTab("departed")}
                   className={`relative px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${activeTab === "departed"
-                      ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-md shadow-green-500/20"
-                      : "text-gray-400 hover:text-white hover:bg-white/5"
+                    ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-md shadow-green-500/20"
+                    : "text-gray-400 hover:text-white hover:bg-white/5"
                     }`}
                 >
                   <Users size={14} />
