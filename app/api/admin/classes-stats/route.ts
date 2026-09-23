@@ -25,16 +25,18 @@ export async function GET() {
     }
 
     try {
-        // 1. Все классы из PostgreSQL
+        // 🔥 1. Только классы 1-3 параллелей
         const classes = await prisma.class.findMany({
             where: {
                 grade: {
                     gte: 1,
-                    lte: 4,
+                    lte: 3,
                 },
             },
             orderBy: [{ grade: 'asc' }, { letter: 'asc' }],
         });
+
+        console.log(`📚 Найдено классов 1-3: ${classes.length}`);
 
         // 2. Все студенты из MySQL
         const allStudents = await query<StudentInfo>(`
@@ -59,7 +61,7 @@ export async function GET() {
         const today = new Date();
         const allSelfExits = await prisma.selfExit.findMany({
             where: {
-                endDate: { gte: today }, // активные
+                endDate: { gte: today },
             },
         });
 
@@ -72,21 +74,16 @@ export async function GET() {
         const stats = classes.map(cls => {
             const students = studentsByClass.get(cls.name) || [];
 
-            // Активные самовыводы в классе
-            const activeSelfExits = allSelfExits.filter(s => {
-                // проверяем, есть ли ученик из этого класса
-                return students.some(st => String(st.aisId) === String(s.studentId));
-            });
+            const activeSelfExits = allSelfExits.filter(s =>
+                students.some(st => String(st.aisId) === String(s.studentId))
+            );
 
-            // Активные доверенности в классе
             const activeAuths = allAuthorizations.filter(a => a.className === cls.name);
 
-            // Уникальные ученики с самовыводом
             const studentsWithSelfExit = new Set(
                 activeSelfExits.map(s => String(s.studentId))
             );
 
-            // Уникальные ученики с доверенностью
             const studentsWithAuth = new Set(
                 activeAuths.map(a => String(a.studentId))
             );
@@ -108,11 +105,11 @@ export async function GET() {
         // 6. Общая статистика
         const totals = {
             totalClasses: classes.length,
-            totalStudents: allStudents.length,
-            totalActiveSelfExits: allSelfExits.length,
-            totalStudentsWithSelfExit: new Set(allSelfExits.map(s => String(s.studentId))).size,
-            totalActiveAuthorizations: allAuthorizations.length,
-            totalStudentsWithAuth: new Set(allAuthorizations.map(a => String(a.studentId))).size,
+            totalStudents: stats.reduce((sum, c) => sum + c.totalStudents, 0),
+            totalActiveSelfExits: stats.reduce((sum, c) => sum + c.activeSelfExits, 0),
+            totalStudentsWithSelfExit: stats.reduce((sum, c) => sum + c.studentsWithSelfExit, 0),
+            totalActiveAuthorizations: stats.reduce((sum, c) => sum + c.activeAuthorizations, 0),
+            totalStudentsWithAuth: stats.reduce((sum, c) => sum + c.studentsWithAuth, 0),
         };
 
         return NextResponse.json({ classes: stats, totals });
