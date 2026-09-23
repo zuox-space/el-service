@@ -747,7 +747,14 @@ export default function AdminDashboard() {
                   <UserX size={14} className="group-hover:text-amber-400 transition-colors" />
                   <span className="hidden xl:inline">Отсутствия</span>
                 </button>
-
+                <button
+                  onClick={() => router.push("/admin/classes-overview")}
+                  className="group px-3 py-1.5 rounded-md text-xs text-gray-400 hover:text-white hover:bg-cyan-500/10 transition-all flex items-center gap-1.5 relative"
+                  title="Обзор классов 1-3 (самовыводы и доверенности)"
+                >
+                  <LayoutGrid size={14} className="group-hover:text-cyan-400 transition-colors" />
+                  <span className="hidden xl:inline">Обзор 1-3</span>
+                </button>
                 <button
                   onClick={() => router.push("/admin/truants")}
                   className="group px-3 py-1.5 rounded-md text-xs text-gray-400 hover:text-white hover:bg-red-500/10 transition-all flex items-center gap-1.5 relative"
