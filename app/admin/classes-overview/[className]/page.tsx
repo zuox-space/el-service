@@ -27,7 +27,21 @@ export default function ClassDetailsPage() {
     const { data: session, status } = useSession();
     const router = useRouter();
     const params = useParams();
-    const className = params?.className as string;
+    const rawClassName = params?.className as string;
+
+    // Безопасно декодируем (если уже декодировано — не сломает)
+    const className = (() => {
+        try {
+            // Проверяем, есть ли в строке %XX
+            if (rawClassName && /%[0-9A-Fa-f]{2}/.test(rawClassName)) {
+                return decodeURIComponent(rawClassName);
+            }
+            return rawClassName;
+        } catch (e) {
+            console.error('Error decoding className:', e);
+            return rawClassName;
+        }
+    })();
 
     const [mounted, setMounted] = useState(false);
     const [isLoading, setIsLoading] = useState(true);

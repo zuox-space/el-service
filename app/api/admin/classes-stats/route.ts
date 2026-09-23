@@ -25,18 +25,18 @@ export async function GET() {
     }
 
     try {
-        // 🔥 1. Только классы 1-3 параллелей
+        // 🔥 1. Только классы 1-4 параллелей
         const classes = await prisma.class.findMany({
             where: {
                 grade: {
                     gte: 1,
-                    lte: 3,
+                    lte: 4,
                 },
             },
             orderBy: [{ grade: 'asc' }, { letter: 'asc' }],
         });
 
-        console.log(`📚 Найдено классов 1-3: ${classes.length}`);
+        console.log(`📚 Найдено классов 1-4: ${classes.length}`);
 
         // 2. Все студенты из MySQL
         const allStudents = await query<StudentInfo>(`
