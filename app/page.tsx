@@ -319,11 +319,19 @@ export default function HomePage() {
     }
   };
   const handleSubmitAuthorization = async (data: any) => {
+    if (!selectedClass) {
+      alert("Класс не выбран");
+      return;
+    }
+
     try {
       const response = await fetch("/api/authorizations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          className: selectedClass.name, // 🔥 Принудительно из выбранного класса
+        }),
       });
 
       if (!response.ok) throw new Error("Failed");

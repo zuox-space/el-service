@@ -28,7 +28,8 @@ export async function GET(
     }
 
     try {
-        const className = decodeURIComponent(params.className);
+        const className = params.className;
+
 
         if (!className) {
             return NextResponse.json({ error: "Missing className" }, { status: 400 });
