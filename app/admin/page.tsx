@@ -269,17 +269,18 @@ export default function AdminDashboard() {
     { id: "classes", name: "Классы", icon: <School size={18} />, action: () => router.push("/admin/classes") },
     { id: "users", name: "Персонал", icon: <Users size={18} />, action: () => router.push("/admin/users") },
     { id: "absent", name: "Отсутствия", icon: <UserX size={18} />, action: () => router.push("/admin/absent") },
-    { id: "home", name: "На главную", icon: <Home size={18} />, action: () => router.push("/") },
     { id: "truants", name: "Прогульщики", icon: <UserX size={18} />, action: () => router.push("/admin/truants") },
     { id: "violations", name: "Нарушения", icon: <AlertTriangle size={18} />, action: () => router.push("/admin/violations") },
     { id: "students", name: "Ученики", icon: <Users size={18} />, action: () => router.push("/admin/students") },
     { id: "schoolRecords", name: "ВШУ", icon: <ShieldAlert size={18} />, action: () => router.push("/admin/school-records") },
     {
       id: "classes-overview",
-      name: "Обзор классов",
+      name: "1-4 СВ/Дов.",
       icon: <LayoutGrid size={18} />,
       action: () => router.push("/admin/classes-overview")
     },
+    { id: "home", name: "На главную", icon: <Home size={18} />, action: () => router.push("/") },
+
 
   ];
 
