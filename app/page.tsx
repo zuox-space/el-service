@@ -85,6 +85,16 @@ export default function HomePage() {
   const isAdmin = roles.includes("ADMIN");
   const isClassTeacher = roles.includes("CLASS_TEACHER");
   const isTeacher = roles.includes("TEACHER");
+  const isJuniorClass = useMemo(() => {
+    if (!selectedClass) return false;
+
+    // Берём grade из класса, либо парсим из названия
+    const grade = selectedClass.grade ||
+      parseInt(selectedClass.name?.match(/^(\d+)/)?.[1] || "0");
+
+    return grade >= 1 && grade <= 3;
+  }, [selectedClass]);
+  const showJuniorFeatures = isAdmin || isJuniorClass;
 
   // Проверяем, есть ли у пользователя классы
   const hasClasses = classes.length > 0;
@@ -92,15 +102,25 @@ export default function HomePage() {
   // Показываем рабочий интерфейс только если есть классы или права классного руководителя
   const showWorkInterface = hasClasses || isClassTeacher;
 
-  const tabs: TabType[] = [
-    { id: "attendance", name: "Пропуски", icon: <FileText size={16} /> },
-    { id: "self-exit", name: "Самовыход", icon: <UserCheck size={16} /> },
-    { id: "violations", name: "Нарушения", icon: <AlertTriangle size={16} /> },
-    { id: "schoolRecord", name: "ВШУ", icon: <ShieldAlert size={16} /> }, // 🔥 ДОБАВЛЕНО
-    { id: "authorizations", name: "Доверенности", icon: <Shield size={16} /> }, // 🔥
+  const tabs: TabType[] = useMemo(() => {
+    const baseTabs: TabType[] = [
+      { id: "attendance", name: "Пропуски", icon: <FileText size={16} /> },
+      { id: "violations", name: "Нарушения", icon: <AlertTriangle size={16} /> },
+      { id: "schoolRecord", name: "ВШУ", icon: <ShieldAlert size={16} /> },
+    ];
 
+    // 🔥 Самовывод и Доверенности — только для младших классов или админов
+    if (showJuniorFeatures) {
+      baseTabs.splice(1, 0,
+        { id: "self-exit", name: "Самовыход", icon: <UserCheck size={16} /> }
+      );
+      baseTabs.push(
+        { id: "authorizations", name: "Доверенности", icon: <Shield size={16} /> }
+      );
+    }
 
-  ];
+    return baseTabs;
+  }, [showJuniorFeatures]);
 
   useEffect(() => {
     setMounted(true);
@@ -239,6 +259,13 @@ export default function HomePage() {
 
     fetchViolations();
   }, [selectedClass, selectedDate, activeTab]);
+  // 🔥 Сброс вкладки при смене класса на старший
+  useEffect(() => {
+    if (!showJuniorFeatures &&
+      (activeTab === "self-exit" || activeTab === "authorizations")) {
+      setActiveTab("attendance");
+    }
+  }, [showJuniorFeatures, activeTab]);
   useEffect(() => {
     if (!selectedClass || activeTab !== "schoolRecord") return;
 
@@ -1125,13 +1152,13 @@ export default function HomePage() {
   // Рендер таба самовывода
   const renderSelfExitTab = () => (
     <div className="space-y-2">
-      <button
+      {showJuniorFeatures && (<button
         onClick={() => setIsSelfExitModalOpen(true)}
         className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-medium py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30"
       >
         <Plus size={16} />
         <span>Добавить самовывод</span>
-      </button>
+      </button>)}
 
       {selfExits.length === 0 ? (
         <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 text-center border border-white/20">
@@ -1274,27 +1301,36 @@ export default function HomePage() {
 
         {/* Табы */}
         <div className="flex gap-1 bg-white/5 rounded-xl p-1">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg transition-all text-sm font-medium ${activeTab === tab.id
-                ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/20"
-                : "text-gray-400 hover:text-white hover:bg-white/10"
-                }`}
-            >
-              {tab.icon}
-              {tab.name}
-            </button>
-          ))}
+          {tabs.map((tab) => {
+            // 🔥 Защита: если фича не разрешена, не рендерим эту вкладку
+            const isRestricted =
+              (tab.id === "self-exit" || tab.id === "authorizations") &&
+              !showJuniorFeatures;
+
+            if (isRestricted) return null;
+
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg transition-all text-sm font-medium ${activeTab === tab.id
+                  ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/20"
+                  : "text-gray-400 hover:text-white hover:bg-white/10"
+                  }`}
+              >
+                {tab.icon}
+                {tab.name}
+              </button>
+            );
+          })}
         </div>
 
         {/* Контент активного таба */}
         {activeTab === "attendance" && renderAttendanceTab()}
-        {activeTab === "self-exit" && renderSelfExitTab()}
+        {activeTab === "self-exit" && showJuniorFeatures && renderSelfExitTab()}
         {activeTab === "violations" && renderViolationsTab()}
-        {activeTab === "schoolRecord" && renderSchoolRecordTab()} {/* 🔥 ДОБАВЛЕНО */}
-        {activeTab === "authorizations" && renderAuthorizationsTab()}
+        {activeTab === "schoolRecord" && renderSchoolRecordTab()}
+        {activeTab === "authorizations" && showJuniorFeatures && renderAuthorizationsTab()}
 
 
       </div>
@@ -1331,12 +1367,7 @@ export default function HomePage() {
         onSubmit={handleSubmitNote}
       />
 
-      <SelfExitModal
-        isOpen={isSelfExitModalOpen}
-        onClose={() => setIsSelfExitModalOpen(false)}
-        onSubmit={handleSubmitSelfExit}
-        studentsList={studentsList}
-      />
+
 
       {/* 🔥 Круглая кнопка для фиксации нарушений */}
       <button
@@ -1353,12 +1384,23 @@ export default function HomePage() {
         onClose={() => setIsViolationModalOpen(false)}
         onSubmit={handleSubmitViolation}
       />
-      <AuthorizationModal
-        isOpen={isAuthorizationModalOpen}
-        onClose={() => setIsAuthorizationModalOpen(false)}
-        onSubmit={handleSubmitAuthorization}
-        studentsList={studentsList}
-      />
+      {showJuniorFeatures && (
+        <>
+          <SelfExitModal
+            isOpen={isSelfExitModalOpen}
+            onClose={() => setIsSelfExitModalOpen(false)}
+            onSubmit={handleSubmitSelfExit}
+            studentsList={studentsList}
+          />
+
+          <AuthorizationModal
+            isOpen={isAuthorizationModalOpen}
+            onClose={() => setIsAuthorizationModalOpen(false)}
+            onSubmit={handleSubmitAuthorization}
+            studentsList={studentsList}
+          />
+        </>
+      )}
     </div>
   );
 }
