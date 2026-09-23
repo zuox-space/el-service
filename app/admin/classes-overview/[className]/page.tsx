@@ -285,16 +285,7 @@ export default function ClassDetailsPage() {
                         </p>
                     </div>
 
-                    <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-green-500/30">
-                        <div className="flex items-center gap-1.5 mb-1">
-                            <CheckCircle size={12} className="text-green-400" />
-                            <span className="text-[10px] text-gray-400">Без ограничений</span>
-                        </div>
-                        <p className="text-2xl font-bold text-green-400">
-                            {stats.studentsWithoutPermission}
-                        </p>
-                        <p className="text-[10px] text-gray-500">свободный выход</p>
-                    </div>
+
                 </div>
 
                 {/* Фильтры */}
@@ -315,7 +306,6 @@ export default function ClassDetailsPage() {
                             { id: "all", label: "Все", count: stats.totalStudents, color: "blue" },
                             { id: "selfExit", label: "Самовывод", count: stats.studentsWithSelfExit, color: "indigo" },
                             { id: "auth", label: "Доверенность", count: stats.studentsWithAuth, color: "cyan" },
-                            { id: "none", label: "Без ограничений", count: stats.studentsWithoutPermission, color: "green" },
                         ].map((f: any) => (
                             <button
                                 key={f.id}

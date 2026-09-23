@@ -81,105 +81,239 @@ export default function ClassesOverviewPage() {
 
         fetchData();
     }, [session]);
-    const exportToExcel = () => {
+    const exportToExcel = async () => {
         if (filteredClasses.length === 0) {
             alert("Нет данных для экспорта");
             return;
         }
 
-        // Формируем строки таблицы
-        let rows = "";
-        filteredClasses.forEach((cls, index) => {
-            rows += `
-      <tr>
-        <td>${index + 1}</td>
-        <td>${cls.className}</td>
-        <td>${cls.grade || ""}</td>
-        <td>${cls.totalStudents}</td>
-        <td>${cls.activeSelfExits}</td>
-        <td>${cls.studentsWithSelfExit}</td>
-        <td>${cls.activeAuthorizations}</td>
-        <td>${cls.studentsWithAuth}</td>
-      </tr>
-    `;
-        });
+        try {
+            // 🔥 Загружаем детальные данные по каждому классу
+            const classesWithDetails = await Promise.all(
+                filteredClasses.map(async (cls) => {
+                    try {
+                        const response = await fetch(
+                            `/api/admin/classes-stats/${encodeURIComponent(cls.className)}`
+                        );
+                        const detail = await response.json();
+                        return {
+                            className: cls.className,
+                            students: detail.students || [],
+                            ok: true,
+                        };
+                    } catch (error) {
+                        console.error(`Error fetching ${cls.className}:`, error);
+                        return {
+                            className: cls.className,
+                            students: [],
+                            ok: false,
+                        };
+                    }
+                })
+            );
 
-        // Итоговая статистика
-        const totalsRow = totals
-            ? `
-      <tr style="background: #f0f0f0; font-weight: bold;">
-        <td colspan="3">ИТОГО</td>
-        <td>${totals.totalStudents}</td>
-        <td>${totals.totalActiveSelfExits}</td>
-        <td>${totals.totalStudentsWithSelfExit}</td>
-        <td>${totals.totalActiveAuthorizations}</td>
-        <td>${totals.totalStudentsWithAuth}</td>
-      </tr>
-    `
-            : "";
+            // ============================================
+            // ВКЛАДКА 1: Общая статистика
+            // ============================================
+            let summaryRows = "";
+            filteredClasses.forEach((cls, index) => {
+                summaryRows += `
+        <tr>
+          <td style="text-align:center;">${index + 1}</td>
+          <td>${cls.className}</td>
+          <td style="text-align:center;">${cls.grade || ""}</td>
+          <td style="text-align:center;">${cls.totalStudents}</td>
+          <td style="text-align:center;">${cls.activeSelfExits}</td>
+          <td style="text-align:center;">${cls.activeAuthorizations}</td>
+        </tr>
+      `;
+            });
 
-        const html = `
-    <html xmlns:o="urn:schemas-microsoft-com:office:office"
-          xmlns:x="urn:schemas-microsoft-com:office:excel"
-          xmlns="http://www.w3.org/TR/REC-html40">
-    <head>
-      <meta charset="UTF-8">
-      <title>Обзор классов</title>
-      <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        h1 { color: #333; margin-bottom: 5px; }
-        h2 { color: #666; font-size: 14px; font-weight: normal; margin-top: 0; }
-        .filters { color: #666; font-size: 12px; margin-bottom: 15px; }
-        table { border-collapse: collapse; width: 100%; margin-top: 10px; }
-        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-        th { background-color: #06b6d4; color: white; font-weight: bold; }
-        tr:nth-child(even) td { background-color: #f9f9f9; }
-        .num { text-align: center; }
-      </style>
-    </head>
-    <body>
-      <h1>Обзор классов</h1>
-      <h2>Самовыводы и доверенности · ${new Date().toLocaleString('ru-RU')}</h2>
-      
-      <div class="filters">
-        ${searchQuery ? `Поиск: "${searchQuery}" · ` : ""}
-        ${selectedGrade !== "" ? `Параллель: ${selectedGrade} · ` : ""}
-        Классов: ${filteredClasses.length}
-      </div>
+            const totalsRow = totals
+                ? `
+        <tr style="background:#e5e5e5;font-weight:bold;">
+          <td colspan="3" style="text-align:right;">ИТОГО:</td>
+          <td style="text-align:center;">${totals.totalStudents}</td>
+          <td style="text-align:center;">${totals.totalActiveSelfExits}</td>
+          <td style="text-align:center;">${totals.totalActiveAuthorizations}</td>
+        </tr>
+      `
+                : "";
 
-      <table>
-        <thead>
+            // ============================================
+            // ВКЛАДКИ ПО КЛАССАМ
+            // ============================================
+            const classSheets = classesWithDetails.map((cls) => {
+                let rows = "";
+
+                if (cls.students.length === 0) {
+                    rows = `
           <tr>
-            <th>#</th>
-            <th>Класс</th>
-            <th>Параллель</th>
-            <th>Учеников</th>
-            <th>Самовыводы (активных)</th>
-            <th>Детей с самовыводом</th>
-            <th>Доверенности (активных)</th>
-            <th>Детей с доверенностью</th>
+            <td colspan="4" style="text-align:center; color:#999; padding: 20px;">
+              Нет данных об учениках
+            </td>
           </tr>
-        </thead>
-        <tbody>
-          ${rows}
-          ${totalsRow}
-        </tbody>
-      </table>
-    </body>
-    </html>
-  `;
+        `;
+                } else {
+                    cls.students.forEach((s: any, index: number) => {
+                        const selfExitText = s.hasActiveSelfExit ? "Да" : "Нет";
+                        const authText = s.hasActiveAuthorization ? "Да" : "Нет";
 
-        const blob = new Blob([html], {
-            type: "application/vnd.ms-excel;charset=utf-8;"
-        });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `обзор_классов_${new Date().toISOString().split("T")[0]}.xls`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+                        rows += `
+            <tr>
+              <td style="text-align:center;">${index + 1}</td>
+              <td>${s.name}</td>
+              <td style="text-align:center; ${s.hasActiveSelfExit ? "color:#16a34a;font-weight:bold;" : "color:#999;"}">${selfExitText}</td>
+              <td style="text-align:center; ${s.hasActiveAuthorization ? "color:#16a34a;font-weight:bold;" : "color:#999;"}">${authText}</td>
+            </tr>
+          `;
+                    });
+                }
+
+                return { className: cls.className, rows };
+            });
+
+            // ============================================
+            // Собираем HTML с несколькими вкладками
+            // ============================================
+            const filtersInfo = [
+                searchQuery ? `Поиск: "${searchQuery}"` : null,
+                selectedGrade !== "" ? `Параллель: ${selectedGrade}` : null,
+            ].filter(Boolean).join(" · ");
+
+            // Экранирование для имени листа Excel (макс 31 символ, без : \ / ? * [ ])
+            const safeSheetName = (name: string) => {
+                return name.replace(/[:\\\/\?\*\[\]]/g, "_").substring(0, 31);
+            };
+
+            // Формируем XML со списком вкладок
+            const sheetsXml = [
+                `<x:ExcelWorksheet>
+        <x:Name>Обзор</x:Name>
+        <x:WorksheetOptions>
+          <x:DisplayGridlines/>
+        </x:WorksheetOptions>
+      </x:ExcelWorksheet>`,
+                ...classSheets.map(
+                    (cls) => `
+        <x:ExcelWorksheet>
+          <x:Name>${safeSheetName(cls.className)}</x:Name>
+          <x:WorksheetOptions>
+            <x:DisplayGridlines/>
+          </x:WorksheetOptions>
+        </x:ExcelWorksheet>
+      `
+                ),
+            ].join("");
+
+            const html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office"
+            xmlns:x="urn:schemas-microsoft-com:office:excel"
+            xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="UTF-8">
+        <title>Обзор классов</title>
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              ${sheetsXml}
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          h1 { color: #333; margin-bottom: 5px; font-size: 20px; }
+          h2 { color: #666; font-size: 12px; font-weight: normal; margin-top: 0; }
+          .filters { color: #666; font-size: 11px; margin-bottom: 15px; }
+          table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+          th, td { border: 1px solid #999; padding: 6px 8px; text-align: left; }
+          th { background-color: #06b6d4; color: white; font-weight: bold; font-size: 12px; text-align: center; }
+          td { font-size: 11px; }
+          tr:nth-child(even) td { background-color: #f9f9f9; }
+          .sheet-separator { page-break-after: always; }
+        </style>
+      </head>
+      <body>
+
+        <!-- ============================================ -->
+        <!-- ВКЛАДКА 1: ОБЗОР                            -->
+        <!-- ============================================ -->
+        <h1>Обзор классов 1-3</h1>
+        <h2>Самовыводы и доверенности · ${new Date().toLocaleString("ru-RU")}</h2>
+        
+        ${filtersInfo ? `<div class="filters">${filtersInfo}</div>` : ""}
+        <div class="filters">Всего классов: ${filteredClasses.length}</div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Класс</th>
+              <th>Параллель</th>
+              <th>Учеников</th>
+              <th>Самовыводы (активных)</th>
+              <th>Доверенности (активных)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${summaryRows}
+            ${totalsRow}
+          </tbody>
+        </table>
+
+        <!-- ============================================ -->
+        <!-- ОСТАЛЬНЫЕ ВКЛАДКИ: ПО КЛАССАМ              -->
+        <!-- ============================================ -->
+        ${classSheets
+                    .map(
+                        (cls) => `
+          <div class="sheet-separator"></div>
+          
+          <h1>Класс ${cls.className}</h1>
+          <h2>Список учеников · ${new Date().toLocaleDateString("ru-RU")}</h2>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="width:50px;">#</th>
+                <th>ФИО</th>
+                <th style="width:150px;">Самовывод</th>
+                <th style="width:150px;">Доверенность</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${cls.rows}
+            </tbody>
+          </table>
+        `
+                    )
+                    .join("")}
+
+      </body>
+      </html>
+    `;
+
+            // ============================================
+            // Скачиваем файл
+            // ============================================
+            const blob = new Blob(["\ufeff" + html], {
+                type: "application/vnd.ms-excel;charset=utf-8;",
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `обзор_классов_с_деталями_${new Date().toISOString().split("T")[0]}.xls`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+        } catch (error) {
+            console.error("Error exporting:", error);
+            alert("Ошибка при выгрузке");
+        }
     };
     // Фильтрация и сортировка
     const filteredClasses = useMemo(() => {

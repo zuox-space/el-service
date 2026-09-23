@@ -888,6 +888,7 @@ export default function AdminDashboard() {
           {activeTab === "self-exit" && renderSelfExitTab()}
           {activeTab === "departed" && renderDepartedTab()}
         </div>
+
       </div>
     </div>
   );
