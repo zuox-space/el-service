@@ -439,7 +439,7 @@ export default function ClassesOverviewPage() {
                             </p>
                         </div>
 
-                        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-indigo-500/30">
+                        {/* <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-indigo-500/30">
                             <div className="flex items-center gap-1.5 mb-1">
                                 <User size={12} className="text-indigo-300" />
                                 <span className="text-[10px] text-gray-400">Детей с СВ</span>
@@ -447,7 +447,7 @@ export default function ClassesOverviewPage() {
                             <p className="text-2xl font-bold text-indigo-300">
                                 {totals.totalStudentsWithSelfExit}
                             </p>
-                        </div>
+                        </div> */}
 
                         <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-cyan-500/30">
                             <div className="flex items-center gap-1.5 mb-1">
@@ -459,7 +459,7 @@ export default function ClassesOverviewPage() {
                             </p>
                         </div>
 
-                        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-cyan-500/30">
+                        {/* <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-cyan-500/30">
                             <div className="flex items-center gap-1.5 mb-1">
                                 <User size={12} className="text-cyan-300" />
                                 <span className="text-[10px] text-gray-400">Детей с дов.</span>
@@ -467,7 +467,7 @@ export default function ClassesOverviewPage() {
                             <p className="text-2xl font-bold text-cyan-300">
                                 {totals.totalStudentsWithAuth}
                             </p>
-                        </div>
+                        </div> */}
                     </div>
                 )}
 
