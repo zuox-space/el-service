@@ -59,3 +59,15 @@ input[type="date"]::-webkit-datetime-edit-year-field {
 input[type="date"]:invalid::-webkit-datetime-edit {
   color: #6b7280;
 }
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  /* IE и Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+  /* Chrome, Safari, Opera */
+}

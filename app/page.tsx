@@ -2,7 +2,7 @@
 
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   LogOut, Calendar, FileText, CheckCircle, Clock, UserRound,
   PenSquare, XCircle, BookMarked, CheckSquare, Plus, UserCheck,
@@ -121,7 +121,59 @@ export default function HomePage() {
 
     return baseTabs;
   }, [showJuniorFeatures]);
+  {/* Состояния для отслеживания скролла */ }
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const tabsContainerRef = useRef<HTMLDivElement>(null);
 
+  // 🔥 Проверка скролла
+  const checkScroll = () => {
+    if (!tabsContainerRef.current) return;
+    const el = tabsContainerRef.current;
+
+    setCanScrollLeft(el.scrollLeft > 5);
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 5);
+  };
+
+  // Проверяем при монтировании, скролле и изменении размера
+  useEffect(() => {
+    const el = tabsContainerRef.current;
+    if (!el) return;
+
+    checkScroll();
+
+    el.addEventListener("scroll", checkScroll);
+    window.addEventListener("resize", checkScroll);
+
+    // Небольшая задержка для правильного расчёта
+    const timer = setTimeout(checkScroll, 100);
+
+    return () => {
+      el.removeEventListener("scroll", checkScroll);
+      window.removeEventListener("resize", checkScroll);
+      clearTimeout(timer);
+    };
+  }, [tabs]);
+
+  // Проверяем после смены вкладки
+  useEffect(() => {
+    checkScroll();
+
+    // Автоскролл к активному табу
+    if (tabsContainerRef.current) {
+      const activeButton = tabsContainerRef.current.querySelector(
+        `[data-tab-id="${activeTab}"]`
+      ) as HTMLElement;
+
+      if (activeButton) {
+        activeButton.scrollIntoView({
+          behavior: "smooth",
+          block: "nearest",
+          inline: "center",
+        });
+      }
+    }
+  }, [activeTab]);
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -1062,6 +1114,7 @@ export default function HomePage() {
   // Рендер таба пропусков
   const renderAttendanceTab = () => (
     <div className="space-y-3">
+
       {/* Кнопки */}
       <div className="flex flex-col gap-2">
         {isSelectedDateToday && (
@@ -1309,8 +1362,42 @@ export default function HomePage() {
 
         {/* Табы */}
         {/* Табы со скроллом */}
-        <div className="bg-white/5 rounded-xl p-1">
-          <div className="flex gap-1 overflow-x-auto scrollbar-hide">
+        <div className="bg-white/5 rounded-xl p-1 relative">
+
+          {/* 🔥 Стрелка влево */}
+          {canScrollLeft && (
+            <div className="absolute left-1 top-1/2 -translate-y-1/2 z-20 pointer-events-none">
+              <div className="w-6 h-6 rounded-full bg-blue-500/80 flex items-center justify-center shadow-lg animate-pulse">
+                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" />
+                </svg>
+              </div>
+            </div>
+          )}
+
+          {/* 🔥 Стрелка вправо */}
+          {canScrollRight && (
+            <div className="absolute right-1 top-1/2 -translate-y-1/2 z-20 pointer-events-none">
+              <div className="w-6 h-6 rounded-full bg-blue-500/80 flex items-center justify-center shadow-lg animate-pulse">
+                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </div>
+          )}
+
+          {/* Градиенты слева/справа */}
+          {canScrollLeft && (
+            <div className="absolute left-1 top-1 bottom-1 w-8 bg-gradient-to-r from-[#1a2332] to-transparent pointer-events-none z-10 rounded-l-lg" />
+          )}
+          {canScrollRight && (
+            <div className="absolute right-1 top-1 bottom-1 w-8 bg-gradient-to-l from-[#1a2332] to-transparent pointer-events-none z-10 rounded-r-lg" />
+          )}
+
+          <div
+            ref={tabsContainerRef}
+            className="flex gap-1 overflow-x-auto scrollbar-hide"
+          >
             {tabs.map((tab) => {
               // 🔥 Защита: если фича не разрешена, не рендерим эту вкладку
               const isRestricted =
