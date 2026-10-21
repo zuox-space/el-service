@@ -2,8 +2,7 @@
 
 // components/shell/ProfileMenu.tsx
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { LogOut, Moon, Shield, Sun, UserRound } from "lucide-react";
+import { LogOut, Moon, Sun, UserRound } from "lucide-react";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { Button, Sheet } from "@/components/ui/kit";
 import { cn } from "@/lib/cn";
@@ -11,27 +10,24 @@ import { cn } from "@/lib/cn";
 /**
  * Профиль = настройки.
  *
- * Нажатие на аватар открывает панель настроек: тема, переход в расширенный режим
- * (для администраторов) и выход. Работает одинаково на телефоне и на десктопе,
+ * Нажатие на аватар открывает панель настроек: тема и выход.
+ * Работает одинаково на телефоне и на десктопе,
  * поэтому тема доступна на любом экране — раньше на мобильном её не было видно.
  */
 export function ProfileMenu({
     userName,
     userEmail,
-    isAdmin,
     onLogout,
     variant = "compact",
     className,
 }: {
     userName?: string | null;
     userEmail?: string | null;
-    isAdmin: boolean;
     onLogout: () => void;
     /** compact — только аватар (шапка), full — аватар + имя (главная) */
     variant?: "compact" | "full";
     className?: string;
 }) {
-    const router = useRouter();
     const { theme, setTheme } = useTheme();
     const [open, setOpen] = useState(false);
 
@@ -101,27 +97,6 @@ export function ProfileMenu({
                         </div>
                     </div>
 
-                    {isAdmin && (
-                        <div>
-                            <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-fg-subtle">
-                                Режим
-                            </p>
-                            <Button
-                                fullWidth
-                                variant="secondary"
-                                leftIcon={Shield}
-                                onClick={() => {
-                                    setOpen(false);
-                                    router.push("/admin");
-                                }}
-                            >
-                                Расширенный режим
-                            </Button>
-                            <p className="mt-1.5 text-xs text-fg-subtle">
-                                Аналитика, классы, ВШУ, прогульщики и управление сотрудниками
-                            </p>
-                        </div>
-                    )}
 
                     {userEmail && <p className="truncate text-xs text-fg-subtle">{userEmail}</p>}
 

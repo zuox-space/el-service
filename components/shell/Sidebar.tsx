@@ -127,7 +127,6 @@ export function Sidebar({
                 <div className={cn("flex items-center gap-2 px-1 py-1", alignClass)}>
                     <ProfileMenu
                         userName={userName}
-                        isAdmin={roles.includes("ADMIN")}
                         onLogout={onLogout}
                         variant="compact"
                     />

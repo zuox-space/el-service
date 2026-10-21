@@ -120,7 +120,6 @@ export default function PortalPage() {
                     <ProfileMenu
                         userName={shortName(data?.user.name ?? session.user.name)}
                         userEmail={data?.user.email ?? session.user.email ?? null}
-                        isAdmin={roles.includes("ADMIN")}
                         onLogout={() => void handleLogout()}
                         variant="full"
                     />

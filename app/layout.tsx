@@ -3,6 +3,7 @@ import { Providers } from "./providers";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { ToastProvider } from "@/components/ui/kit/Toast";
 import { AccessProvider } from "@/components/access/AccessProvider";
+import { GlobalViolationFab } from "@/components/ui/GlobalViolationFab";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
@@ -50,7 +51,10 @@ export default function RootLayout({
         <ThemeProvider>
           <Providers>
             <AccessProvider>
-              <ToastProvider>{children}</ToastProvider>
+              <ToastProvider>
+                {children}
+                <GlobalViolationFab />
+              </ToastProvider>
             </AccessProvider>
           </Providers>
         </ThemeProvider>

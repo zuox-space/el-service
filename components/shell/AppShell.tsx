@@ -86,7 +86,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                                     <ProfileMenu
                                         userName={userName}
                                         userEmail={session?.user?.email ?? null}
-                                        isAdmin={roles.includes("ADMIN")}
                                         onLogout={handleLogout}
                                     />
                                 </div>

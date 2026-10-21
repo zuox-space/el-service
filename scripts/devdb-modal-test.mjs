@@ -83,7 +83,7 @@ async function login() {
     return me?.user ?? null;
 }
 
-const created = { passes: [], violations: [], selfExits: [], authorizations: [], schoolRecords: [] };
+const created = { passes: [], violations: [], selfExits: [], authorizations: [], schoolRecords: [], attendance: [] };
 
 function cleanup() {
     return Promise.allSettled([
@@ -92,6 +92,10 @@ function cleanup() {
         ...created.selfExits.map(id => prisma.selfExit.delete({ where: { id } })),
         ...created.authorizations.map(id => prisma.authorization.delete({ where: { id } })),
         ...created.schoolRecords.map(id => prisma.schoolRecord.delete({ where: { id } })),
+        // Отметку посещаемости удаляем по классу и дню: она могла уже существовать
+        ...created.attendance.map(item => prisma.attendance.deleteMany({
+            where: { classId: item.classId, date: { gte: item.from, lt: item.to } },
+        })),
     ]);
 }
 
@@ -142,6 +146,12 @@ async function main() {
             absentStudents: [absent],
             absentReasons: { [absent]: 'sick' },
         };
+        // Запоминаем день, чтобы убрать отметку после проверки и не засорять данные
+        const from = new Date(`${today}T00:00:00`);
+        const to = new Date(from);
+        to.setDate(to.getDate() + 1);
+        created.attendance.push({ classId: cls.id, from, to });
+
         const res = await session.json(`${BASE}/api/attendance`, 'POST', payload);
         const data = await res.json().catch(() => ({}));
         check('отметка сохранена', res.ok, `HTTP ${res.status}`);
