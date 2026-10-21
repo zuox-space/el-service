@@ -1,11 +1,12 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { ChevronRight, LogOut } from "lucide-react";
 import { BottomSheet } from "@/components/ui/kit";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { cn } from "@/lib/cn";
-import { NAV_GROUPS, filterByRoles, isLinkActive } from "./nav-config";
+import { NAV_GROUPS, filterByAccess, filterByRoles, isLinkActive } from "./nav-config";
+import { useAccess } from "@/components/access/AccessProvider";
 
 /**
  * MoreSheet — полноэкранный список второстепенных разделов («Ещё»).
@@ -29,7 +30,10 @@ export function MoreSheet({
     userName?: string | null;
     onLogout: () => void;
 }) {
-    const groups = filterByRoles(NAV_GROUPS, roles);
+    const { can, loading: accessLoading } = useAccess();
+    const groups = accessLoading
+        ? filterByRoles(NAV_GROUPS, roles)
+        : filterByAccess(filterByRoles(NAV_GROUPS, roles), can);
 
     return (
         <BottomSheet

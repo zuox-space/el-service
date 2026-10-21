@@ -1,10 +1,11 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { IconButton } from "@/components/ui/kit";
-import { NAV_GROUPS, filterByRoles, isLinkActive } from "./nav-config";
+import { NAV_GROUPS, filterByAccess, filterByRoles, isLinkActive } from "./nav-config";
+import { useAccess } from "@/components/access/AccessProvider";
 import { ProfileMenu } from "./ProfileMenu";
 
 /**
@@ -31,7 +32,11 @@ export function Sidebar({
     collapsed: boolean | null;
     onToggleCollapsed: () => void;
 }) {
-    const groups = filterByRoles(NAV_GROUPS, roles);
+    const { can, loading: accessLoading } = useAccess();
+    // Пока доступы грузятся, показываем пункты по ролям — иначе меню пустое
+    const groups = accessLoading
+        ? filterByRoles(NAV_GROUPS, roles)
+        : filterByAccess(filterByRoles(NAV_GROUPS, roles), can);
 
     const widthClass = collapsed === null ? "md:w-[72px] lg:w-[240px]" : collapsed ? "w-[72px]" : "w-[240px]";
     const labelClass = collapsed === null ? "hidden lg:inline" : collapsed ? "hidden" : "inline";

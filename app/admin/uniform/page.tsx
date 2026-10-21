@@ -1,4 +1,4 @@
-﻿// app/admin/uniform/page.tsx
+// app/admin/uniform/page.tsx
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";

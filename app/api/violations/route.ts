@@ -1,11 +1,14 @@
-﻿// app/api/violations/route.ts
+// app/api/violations/route.ts
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+import { requireAnySection, requireSection } from "@/lib/access/server";
 import { getDayRange, parseLocalDate } from "@/lib/date";
+
 
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_PAGE_SIZE = 25;
@@ -19,6 +22,11 @@ function parseIntParam(value: string | null, fallback: number, min: number, max:
 
 // GET: Получить нарушения с фильтрами, пагинацией и статистикой
 export async function GET(req: NextRequest) {
+    // Фиксировать нарушение может учитель на рабочем экране и раздел «Нарушения»
+    const accessGuard = await requireAnySection(["violations", "workspace"]);
+    if (!accessGuard.ok) return accessGuard.response;
+
+
     const session = await getServerSession(authOptions);
     if (!session) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -165,6 +173,11 @@ export async function GET(req: NextRequest) {
 
 // POST: Создать нарушение
 export async function POST(req: NextRequest) {
+    // Фиксировать нарушение может учитель на рабочем экране и раздел «Нарушения»
+    const accessGuard = await requireAnySection(["violations", "workspace"]);
+    if (!accessGuard.ok) return accessGuard.response;
+
+
     const session = await getServerSession(authOptions);
     if (!session) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -203,15 +216,16 @@ export async function POST(req: NextRequest) {
 
 // DELETE: Удалить нарушение (для админов)
 export async function DELETE(req: NextRequest) {
+    // Просмотр нарушений доступен и учителю на рабочем экране (свой класс)
+    const accessGuard = await requireSection("violations");
+    if (!accessGuard.ok) return accessGuard.response;
+
+
     const session = await getServerSession(authOptions);
     if (!session) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const roles = (session?.user?.roles as string[]) || [];
-    if (!roles.includes("ADMIN")) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
 
     try {
         const { searchParams } = new URL(req.url);

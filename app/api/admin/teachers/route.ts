@@ -1,11 +1,20 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from "next/server";
+
+import { requireAnySection } from "@/lib/access/server";
 import { getServerSession } from "next-auth";
+
 import { authOptions } from "@/lib/auth";
+
 import { prisma } from "@/lib/prisma";
 
+
 export async function GET() {
+
+    const accessGuard = await requireAnySection(["users", "workspace"]);
+    if (!accessGuard.ok) return accessGuard.response;
+
   try {
     const session = await getServerSession(authOptions);
     if (!session) {

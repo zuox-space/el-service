@@ -1,4 +1,4 @@
-﻿export default function OfflinePage() {
+export default function OfflinePage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="bg-surface border border-border shadow-card rounded-2xl p-8 text-center border border-border">

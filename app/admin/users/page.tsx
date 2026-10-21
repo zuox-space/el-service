@@ -19,9 +19,11 @@ import {
     SearchInput,
     Sheet,
     Skeleton,
+    Switch,
     useToast,
     type Column,
 } from "@/components/ui/kit";
+import { ACCESS_GROUPS, ACCESS_SECTIONS } from "@/lib/access/registry";
 import { formatDateRu } from "@/lib/date";
 
 /**
@@ -64,6 +66,9 @@ const roleTone = (name: string) => ROLE_META[name]?.tone ?? "neutral";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** Сколько разделов можно выдать (без админского «Персонал») */
+const ALL_GRANTABLE = ACCESS_SECTIONS.filter(section => !section.adminOnly).length;
+
 export default function AdminUsersPage() {
     const { data: session, status } = useSession();
     const router = useRouter();
@@ -81,6 +86,16 @@ export default function AdminUsersPage() {
     // панель редактирования: id, а не объект — после обновления списка данные свежие
     const [editingId, setEditingId] = useState<string | null>(null);
     const [busyRoleId, setBusyRoleId] = useState<string | null>(null);
+
+    // Доступы к разделам выбранного сотрудника
+    const [accessInfo, setAccessInfo] = useState<{
+        override: boolean;
+        granted: string[];
+        roleDefaults: string[];
+        effective: string[];
+    } | null>(null);
+    const [accessLoading, setAccessLoading] = useState(false);
+    const [accessBusy, setAccessBusy] = useState<string | null>(null);
 
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [createForm, setCreateForm] = useState({ name: "", email: "" });
@@ -169,6 +184,7 @@ export default function AdminUsersPage() {
     }, [users, search, roleFilter]);
 
     const editingUser = editingId ? users.find(user => user.id === editingId) ?? null : null;
+    const isSelf = Boolean(editingUser && session?.user?.email === editingUser.email);
 
     const copyEmail = async (email: string) => {
         try {
@@ -205,6 +221,7 @@ export default function AdminUsersPage() {
             }
 
             await fetchData();
+            await loadAccess(user.id);
             toast.show({
                 title: checked ? "Роль выдана" : "Роль снята",
                 description: `${roleLabel(role.name)} · ${user.name}`,
@@ -218,6 +235,81 @@ export default function AdminUsersPage() {
         } finally {
             setBusyRoleId(null);
         }
+    };
+
+    /* ------------------------- Доступы к разделам ------------------------- */
+
+    const loadAccess = useCallback(async (userId: string) => {
+        setAccessLoading(true);
+        try {
+            const response = await fetch(`/api/admin/users/${userId}/access`);
+            if (!response.ok) throw new Error("Не удалось получить доступы");
+
+            const data = await response.json();
+            setAccessInfo({
+                override: Boolean(data.override),
+                granted: Array.isArray(data.granted) ? data.granted : [],
+                roleDefaults: Array.isArray(data.roleDefaults) ? data.roleDefaults : [],
+                effective: Array.isArray(data.effective) ? data.effective : [],
+            });
+        } catch {
+            setAccessInfo(null);
+        } finally {
+            setAccessLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!editingId) {
+            setAccessInfo(null);
+            return;
+        }
+        void loadAccess(editingId);
+    }, [editingId, loadAccess]);
+
+    const saveAccess = async (override: boolean, sections: string[]) => {
+        if (!editingId) return;
+
+        setAccessBusy("save");
+        try {
+            const response = await fetch(`/api/admin/users/${editingId}/access`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ override, sections }),
+            });
+
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.error || "Не удалось сохранить доступы");
+            }
+
+            await loadAccess(editingId);
+            toast.show({ title: "Доступы сохранены", tone: "success" });
+        } catch (e) {
+            toast.show({
+                title: e instanceof Error ? e.message : "Не удалось сохранить доступы",
+                tone: "danger",
+            });
+        } finally {
+            setAccessBusy(null);
+        }
+    };
+
+    const toggleSection = (section: string) => {
+        if (!accessInfo) return;
+
+        const current = accessInfo.override ? accessInfo.granted : accessInfo.effective;
+        const next = current.includes(section)
+            ? current.filter(value => value !== section)
+            : [...current, section];
+
+        void saveAccess(true, next);
+    };
+
+    const switchOverride = (enabled: boolean) => {
+        if (!accessInfo) return;
+        // Включаем индивидуальные доступы — стартуем с того, что дают роли
+        void saveAccess(enabled, enabled ? accessInfo.roleDefaults : []);
     };
 
     const createUser = async () => {
@@ -507,6 +599,93 @@ export default function AdminUsersPage() {
                             <p className="text-xs text-fg">
                                 Роль «Администратор» нельзя снять у последнего администратора — система
                                 останется без управления.
+                            </p>
+                        </div>
+
+                        {/* Доступы к разделам данных */}
+                        <div>
+                            <div className="mb-1.5 flex items-center justify-between gap-2">
+                                <p className="text-xs font-medium uppercase tracking-wide text-fg-subtle">
+                                    Доступ к разделам
+                                </p>
+                                <span className="text-xs text-fg-subtle">
+                                    {accessInfo ? `${accessInfo.effective.length} из ${ALL_GRANTABLE} разделов` : ""}
+                                </span>
+                            </div>
+
+                            {accessLoading ? (
+                                <div className="space-y-2">
+                                    <Skeleton height={44} radius="control" />
+                                    <Skeleton height={44} radius="control" />
+                                </div>
+                            ) : !accessInfo ? (
+                                <p className="text-xs text-danger">Не удалось загрузить доступы</p>
+                            ) : isSelf ? (
+                                <div className="rounded-control border border-dashed border-border px-3 py-2 text-xs text-fg-muted">
+                                    Это ваша учётная запись — свои доступы менять нельзя, чтобы не потерять
+                                    управление системой. Изменять может другой администратор.
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    <Switch
+                                        checked={accessInfo.override}
+                                        onChange={checked => void switchOverride(checked)}
+                                        label="Индивидуальные доступы"
+                                        description={
+                                            accessInfo.override
+                                                ? "Действует только отмеченное ниже"
+                                                : "Пока считается по ролям — включите, чтобы настроить вручную"
+                                        }
+                                    />
+
+                                    {ACCESS_GROUPS.map(group => {
+                                        const groupSections = ACCESS_SECTIONS.filter(
+                                            section => section.group === group.id && !section.adminOnly,
+                                        );
+                                        if (groupSections.length === 0) return null;
+
+                                        return (
+                                            <div key={group.id}>
+                                                <p className="mb-1 px-1 text-[11px] font-medium uppercase tracking-wide text-fg-subtle">
+                                                    {group.title}
+                                                </p>
+                                                <div className="rounded-card border border-dashed border-border p-1">
+                                                    {groupSections.map(section => {
+                                                        const checked = accessInfo.effective.includes(section.id);
+                                                        // Пока доступы по ролям, чекбоксы только показывают
+                                                        // результат; первое нажатие включает индивидуальный режим
+                                                        return (
+                                                            <Checkbox
+                                                                key={section.id}
+                                                                checked={checked}
+                                                                disabled={accessBusy !== null}
+                                                                onChange={() => toggleSection(section.id)}
+                                                                label={section.label}
+                                                                description={section.description}
+                                                            />
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+
+                                    {accessInfo.override && (
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => void switchOverride(false)}
+                                            disabled={accessBusy !== null}
+                                        >
+                                            Вернуть доступы по ролям
+                                        </Button>
+                                    )}
+                                </div>
+                            )}
+
+                            <p className="mt-2 text-xs text-fg-subtle">
+                                Администратор всегда видит все разделы. «Персонал» выдать нельзя —
+                                это админский раздел.
                             </p>
                         </div>
                     </div>

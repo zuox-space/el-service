@@ -1,12 +1,22 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from "next/server";
+
+import { requireSection } from "@/lib/access/server";
 import { writeFile, mkdir } from "fs/promises";
+
 import path from "path";
+
 import { getServerSession } from "next-auth";
+
 import { authOptions } from "@/lib/auth";
 
+
 export async function POST(req: NextRequest) {
+
+    const accessGuard = await requireSection("workspace");
+    if (!accessGuard.ok) return accessGuard.response;
+
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

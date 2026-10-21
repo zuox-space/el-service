@@ -1,4 +1,4 @@
-﻿// app/admin/absent/page.tsx
+// app/admin/absent/page.tsx
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";

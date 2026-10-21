@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 // components/ui/SelfExitModal.tsx
 import { useEffect, useMemo } from "react";

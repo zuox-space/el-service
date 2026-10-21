@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { cn } from "@/lib/cn";
-import { MORE_LINK, TAB_BAR_LINKS, isLinkActive } from "./nav-config";
+import { MORE_LINK, TAB_BAR_LINKS, filterLinksByAccess, isLinkActive } from "./nav-config";
+import { useAccess } from "@/components/access/AccessProvider";
 
 /**
  * TabBar — постоянная навигация на мобильном (до 768px).
@@ -15,6 +16,9 @@ import { MORE_LINK, TAB_BAR_LINKS, isLinkActive } from "./nav-config";
  * разметка совпадают, и нет чтения window во время рендера.
  */
 export function TabBar({ pathname, onMoreClick }: { pathname: string; onMoreClick: () => void }) {
+    const { can, loading } = useAccess();
+    const links = loading ? TAB_BAR_LINKS : filterLinksByAccess(TAB_BAR_LINKS, can);
+
     return (
         <nav
             aria-label="Основная навигация"
@@ -24,9 +28,9 @@ export function TabBar({ pathname, onMoreClick }: { pathname: string; onMoreClic
             <ul
                 role="list"
                 className="grid"
-                style={{ gridTemplateColumns: `repeat(${TAB_BAR_LINKS.length + 1}, minmax(0, 1fr))` }}
+                style={{ gridTemplateColumns: `repeat(${links.length + 1}, minmax(0, 1fr))` }}
             >
-                {TAB_BAR_LINKS.map(link => {
+                {links.map(link => {
                     const active = isLinkActive(pathname, link);
                     const Icon = link.icon;
 

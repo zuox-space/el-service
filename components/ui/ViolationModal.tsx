@@ -1,4 +1,4 @@
-﻿// components/ui/ViolationModal.tsx
+// components/ui/ViolationModal.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";

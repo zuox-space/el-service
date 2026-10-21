@@ -5,7 +5,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+import { requireSection } from "@/lib/access/server";
 import { query } from "@/lib/mysql_db";
+
 
 interface StudentInfo {
     aisId: string;
@@ -19,6 +22,10 @@ export async function GET(
     req: NextRequest,
     { params }: { params: { aisId: string } }
 ) {
+    const accessGuard = await requireSection("students");
+    if (!accessGuard.ok) return accessGuard.response;
+
+
     const session = await getServerSession(authOptions);
     if (!session) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

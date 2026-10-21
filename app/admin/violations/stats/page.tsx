@@ -1,4 +1,4 @@
-﻿// app/admin/violations/stats/page.tsx
+// app/admin/violations/stats/page.tsx
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";

@@ -1,4 +1,4 @@
-﻿// app/admin/page.tsx
+// app/admin/page.tsx
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";

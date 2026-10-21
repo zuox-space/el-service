@@ -1,4 +1,5 @@
-﻿import {
+import type { AccessSectionId } from "@/lib/access/registry";
+import {
     AlertTriangle,
     Shirt,
     BarChart3,
@@ -38,6 +39,8 @@ export interface NavLink {
     roles?: string[];
     /** Требует точного совпадения пути (для корня раздела) */
     exact?: boolean;
+    /** Раздел доступа из lib/access/registry.ts — по нему фильтруется меню */
+    section?: AccessSectionId;
 }
 
 export interface NavGroup {
@@ -54,9 +57,10 @@ export const TAB_BAR_LINKS: NavLink[] = [
         href: "/admin",
         icon: LayoutDashboard,
         exact: true,
+        section: "dashboard",
     },
-    { id: "violations", label: "Нарушения", shortLabel: "Нарушения", href: "/admin/violations", icon: AlertTriangle },
-    { id: "classes", label: "Классы", shortLabel: "Классы", href: "/admin/classes", icon: ClipboardList },
+    { id: "violations", label: "Нарушения", shortLabel: "Нарушения", href: "/admin/violations", icon: AlertTriangle, section: "violations" },
+    { id: "classes", label: "Классы", shortLabel: "Классы", href: "/admin/classes", icon: ClipboardList, section: "classes" },
 ];
 
 export const MORE_LINK: NavLink = {
@@ -70,22 +74,22 @@ export const MORE_LINK: NavLink = {
 export const NAV_GROUPS: NavGroup[] = [
     {
         title: "Оперативно",
-        items: [{ id: "dashboard", label: "Контроль выхода", href: "/admin", icon: LayoutDashboard, exact: true }],
+        items: [{ id: "dashboard", label: "Контроль выхода", href: "/admin", icon: LayoutDashboard, exact: true, section: "dashboard" }],
     },
     {
         title: "Ученики и классы",
         items: [
-            { id: "students", label: "Портфолио ученика", href: "/admin/students", icon: Users },
-            { id: "classes", label: "Классы", href: "/admin/classes", icon: ClipboardList },
-            { id: "classes-overview", label: "1-4 СВ и Дов.", href: "/admin/classes-overview", icon: ListOrdered },
+            { id: "students", label: "Портфолио ученика", href: "/admin/students", icon: Users, section: "students" },
+            { id: "classes", label: "Классы", href: "/admin/classes", icon: ClipboardList, section: "classes" },
+            { id: "classes-overview", label: "1-4 СВ и Дов.", href: "/admin/classes-overview", icon: ListOrdered, section: "classesOverview" },
         ],
     },
     {
         title: "Дисциплина",
         items: [
-            { id: "violations", label: "Нарушения", href: "/admin/violations", icon: AlertTriangle, exact: true },
-            { id: "school-records", label: "ВШУ", href: "/admin/school-records", icon: ShieldAlert },
-            { id: "truants", label: "Прогульщики", href: "/admin/truants", icon: UserX },
+            { id: "violations", label: "Нарушения", href: "/admin/violations", icon: AlertTriangle, exact: true, section: "violations" },
+            { id: "school-records", label: "ВШУ", href: "/admin/school-records", icon: ShieldAlert, section: "schoolRecords" },
+            { id: "truants", label: "Прогульщики", href: "/admin/truants", icon: UserX, section: "truants" },
         ],
     },
     {
@@ -97,14 +101,15 @@ export const NAV_GROUPS: NavGroup[] = [
                 href: "/admin/violations/stats",
                 icon: ChartPie,
                 exact: true,
+                section: "violationsStats",
             },
-            { id: "uniform", label: "Форма одежды", href: "/admin/uniform", icon: Shirt, exact: true },
-            { id: "absent", label: "Отсутствия", href: "/admin/absent", icon: BarChart3 },
+            { id: "uniform", label: "Форма одежды", href: "/admin/uniform", icon: Shirt, exact: true, section: "uniform" },
+            { id: "absent", label: "Отсутствия", href: "/admin/absent", icon: BarChart3, section: "absent" },
         ],
     },
     {
         title: "Администрирование",
-        items: [{ id: "users", label: "Персонал", href: "/admin/users", icon: Users }],
+        items: [{ id: "users", label: "Персонал", href: "/admin/users", icon: Users, section: "users" }],
     },
     {
         title: "Аккаунт",
@@ -162,4 +167,18 @@ export function filterByRoles(groups: NavGroup[], roles: string[]): NavGroup[] {
 
 export function filterLinksByRoles(links: NavLink[], roles: string[]): NavLink[] {
     return links.filter(link => !link.roles || link.roles.some(role => roles.includes(role)));
+}
+
+/** Фильтр по доступам сотрудника: пункт без section показывается всегда. */
+export function filterLinksByAccess(links: NavLink[], can: (section: AccessSectionId) => boolean): NavLink[] {
+    return links.filter(link => !link.section || can(link.section));
+}
+
+export function filterByAccess(
+    groups: NavGroup[],
+    can: (section: AccessSectionId) => boolean,
+): NavGroup[] {
+    return groups
+        .map(group => ({ ...group, items: filterLinksByAccess(group.items, can) }))
+        .filter(group => group.items.length > 0);
 }

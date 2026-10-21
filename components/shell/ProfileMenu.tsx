@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 // components/shell/ProfileMenu.tsx
 import { useState } from "react";

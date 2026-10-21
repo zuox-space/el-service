@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 // app/page.tsx
 import { useSession, signOut } from "next-auth/react";
@@ -46,6 +46,8 @@ import {
     useToast,
 } from "@/components/ui/kit";
 import { ProfileMenu } from "@/components/shell/ProfileMenu";
+import { useAccess } from "@/components/access/AccessProvider";
+import { NoAccess } from "@/components/access/NoAccess";
 import { formatDateRu } from "@/lib/date";
 import { safeFormatShortName } from "@/lib/utils";
 
@@ -100,6 +102,7 @@ export default function HomePage() {
     const { data: session, status } = useSession();
     const router = useRouter();
     const toast = useToast();
+    const { can, loading: accessLoading } = useAccess();
 
     const today = new Date();
     const [selectedDate, setSelectedDate] = useState(new Date(today.getFullYear(), today.getMonth(), today.getDate()));
@@ -647,6 +650,10 @@ export default function HomePage() {
     }
 
     if (!session) return null;
+
+    // Рабочий экран — отдельный раздел доступа: учителю можно закрыть его,
+    // оставив, например, только аналитику.
+    if (!accessLoading && !can("workspace")) return <NoAccess title="Нет доступа к рабочему экрану" />;
 
     /* ------------------ Экран для сотрудника без классов ------------------ */
     if (!showWorkInterface) {

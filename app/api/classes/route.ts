@@ -6,9 +6,16 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getStudentsGroupedByClass } from "@/lib/mysql_db";
+
+import { requireSection } from "@/lib/access/server";
 import { withDbMetrics, startDbMetrics } from "@/lib/dev-metrics";
 
+
 export async function GET() {
+    const accessGuard = await requireSection("workspace");
+    if (!accessGuard.ok) return accessGuard.response;
+
+
   startDbMetrics();
   try {
     const session = await getServerSession(authOptions);

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Providers } from "./providers";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { ToastProvider } from "@/components/ui/kit/Toast";
+import { AccessProvider } from "@/components/access/AccessProvider";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
@@ -48,7 +49,9 @@ export default function RootLayout({
       <body>
         <ThemeProvider>
           <Providers>
-            <ToastProvider>{children}</ToastProvider>
+            <AccessProvider>
+              <ToastProvider>{children}</ToastProvider>
+            </AccessProvider>
           </Providers>
         </ThemeProvider>
       </body>

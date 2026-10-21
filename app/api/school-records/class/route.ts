@@ -4,9 +4,16 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+
+import { requireAnySection } from "@/lib/access/server";
 import { prisma } from "@/lib/prisma";
 
+
 export async function GET(req: NextRequest) {
+    const accessGuard = await requireAnySection(["workspace", "schoolRecords"]);
+    if (!accessGuard.ok) return accessGuard.response;
+
+
     const session = await getServerSession(authOptions);
     if (!session) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

@@ -1,4 +1,4 @@
-﻿// app/admin/violations/page.tsx
+// app/admin/violations/page.tsx
 "use client";
 
 import { useSession } from "next-auth/react";

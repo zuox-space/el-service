@@ -7,10 +7,17 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getStudentsGroupedByClass } from "@/lib/mysql_db";
 import { withDbMetrics, startDbMetrics } from "@/lib/dev-metrics";
+
+import { requireSection } from "@/lib/access/server";
 import { countSchoolDays, getAcademicYearStart, toLocalISODate } from "@/lib/date";
+
 
 // GET: Получить все классы со студентами из MySQL
 export async function GET() {
+    const accessGuard = await requireSection("classes");
+    if (!accessGuard.ok) return accessGuard.response;
+
+
   startDbMetrics();
   try {
     const session = await getServerSession(authOptions);
@@ -90,6 +97,10 @@ export async function GET() {
 
 // POST: Создать новый класс
 export async function POST(req: NextRequest) {
+    const accessGuard = await requireSection("classes");
+    if (!accessGuard.ok) return accessGuard.response;
+
+
   try {
     const session = await getServerSession(authOptions);
     if (!session) {

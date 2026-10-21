@@ -1,4 +1,4 @@
-﻿// lib/violations.ts
+// lib/violations.ts
 //
 // Справочник типов нарушений.
 //

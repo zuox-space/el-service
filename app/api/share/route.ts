@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
+
+import { requireSection } from "@/lib/access/server";
 import { getServerSession } from "next-auth";
+
 import { authOptions } from "@/lib/auth";
+
 import { prisma } from "@/lib/prisma";
+
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+
+    const accessGuard = await requireSection("workspace");
+    if (!accessGuard.ok) return accessGuard.response;
+
   console.log("=== GET /api/share ===");
   
   const session = await getServerSession(authOptions);
@@ -51,6 +60,10 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+
+    const accessGuard = await requireSection("workspace");
+    if (!accessGuard.ok) return accessGuard.response;
+
   console.log("\n=== POST /api/share START ===");
   
   const session = await getServerSession(authOptions);
@@ -158,6 +171,10 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+
+    const accessGuard = await requireSection("workspace");
+    if (!accessGuard.ok) return accessGuard.response;
+
   console.log("\n=== DELETE /api/share ===");
   
   const session = await getServerSession(authOptions);

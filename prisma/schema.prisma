@@ -14,10 +14,32 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Индивидуальная настройка доступов: false — доступы считаются по ролям,
+  // true — действует только то, что явно отмечено в SectionAccess.
+  accessOverride Boolean @default(false)
+
   // Обратные связи
-  ownedClasses  Class[]      @relation("Owner")
-  classShares   ClassShare[] // Классы, которыми поделились с пользователем
+  ownedClasses  Class[]         @relation("Owner")
+  classShares   ClassShare[]    // Классы, которыми поделились с пользователем
   userRoles     UserRole[]
+  sectionAccess SectionAccess[] // Доступы к разделам данных
+}
+
+/// Доступ сотрудника к разделу данных.
+/// Раздел — единица доступа (нарушения, портфолио, ВШУ, аналитика…). Перечень
+/// разделов живёт в коде (lib/access/registry.ts), поэтому новая функция
+/// добавляется одним объектом в реестре — без миграции схемы.
+model SectionAccess {
+  id         String   @id @default(cuid())
+  userId     String
+  section    String
+  allowed    Boolean  @default(true)
+  assignedBy String?
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, section])
 }
 
 model Role {

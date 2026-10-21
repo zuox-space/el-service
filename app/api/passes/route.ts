@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+
+import { requireAnySection } from "@/lib/access/server";
 import { prisma } from "@/lib/prisma";
+
 
 export const dynamic = 'force-dynamic';
 
 // GET: Получить пропуски
 export async function GET(req: NextRequest) {
+    const accessGuard = await requireAnySection(["workspace", "dashboard"]);
+    if (!accessGuard.ok) return accessGuard.response;
+
+
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json([]);
@@ -48,6 +55,10 @@ export async function GET(req: NextRequest) {
 
 // POST: Создать пропуск
 export async function POST(req: NextRequest) {
+    const accessGuard = await requireAnySection(["workspace", "dashboard"]);
+    if (!accessGuard.ok) return accessGuard.response;
+
+
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -80,6 +91,10 @@ export async function POST(req: NextRequest) {
 
 // PUT: Обновить пропуск (альтернатива PATCH)
 export async function PUT(req: NextRequest) {
+    const accessGuard = await requireAnySection(["workspace", "dashboard"]);
+    if (!accessGuard.ok) return accessGuard.response;
+
+
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -110,6 +125,10 @@ export async function PUT(req: NextRequest) {
 
 // DELETE: Удалить пропуск
 export async function DELETE(req: NextRequest) {
+    const accessGuard = await requireAnySection(["workspace", "dashboard"]);
+    if (!accessGuard.ok) return accessGuard.response;
+
+
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

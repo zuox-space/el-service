@@ -1,4 +1,4 @@
-﻿// app/admin/school-records/page.tsx
+// app/admin/school-records/page.tsx
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";

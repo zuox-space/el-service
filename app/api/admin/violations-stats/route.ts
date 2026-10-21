@@ -1,11 +1,14 @@
-﻿// app/api/admin/violations-stats/route.ts
+// app/api/admin/violations-stats/route.ts
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+import { requireSection } from "@/lib/access/server";
 import { getAcademicYearStart, getDayRange, parseLocalDate, toLocalISODate } from "@/lib/date";
+
 
 /**
  * Статистика нарушений за период.
@@ -20,6 +23,10 @@ import { getAcademicYearStart, getDayRange, parseLocalDate, toLocalISODate } fro
  * Период по умолчанию — с 1 сентября текущего учебного года по сегодня.
  */
 export async function GET(request: NextRequest) {
+    const accessGuard = await requireSection("violationsStats");
+    if (!accessGuard.ok) return accessGuard.response;
+
+
     try {
         const session = await getServerSession(authOptions);
         if (!session) {

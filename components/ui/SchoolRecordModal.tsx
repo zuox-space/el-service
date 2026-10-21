@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 // components/ui/SchoolRecordModal.tsx
 import { useEffect, useMemo, useState } from "react";

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 // components/ui/AttendanceModal.tsx
 import { useEffect, useMemo, useState } from "react";
