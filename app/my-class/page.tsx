@@ -748,7 +748,7 @@ export default function HomePage() {
                             variant="full"
                         />
                         <div className="flex shrink-0 items-center gap-2">
-                            <span className="text-xs text-fg-subtle">
+                            <span className="hidden text-xs text-fg-subtle sm:inline">
                                 {isClassTeacher ? "Классный руководитель" : "Преподаватель"}
                             </span>
                             <Link

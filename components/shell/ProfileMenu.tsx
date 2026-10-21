@@ -4,8 +4,9 @@
 import { useState } from "react";
 import { LogOut, Moon, Sun, UserRound } from "lucide-react";
 import { useTheme } from "@/components/theme/ThemeProvider";
-import { Button, Sheet } from "@/components/ui/kit";
+import { Badge, Button, Sheet } from "@/components/ui/kit";
 import { cn } from "@/lib/cn";
+import { roleLabel, roleTone } from "@/lib/roles";
 
 /**
  * Профиль = настройки.
@@ -17,12 +18,15 @@ import { cn } from "@/lib/cn";
 export function ProfileMenu({
     userName,
     userEmail,
+    roles = [],
     onLogout,
     variant = "compact",
     className,
 }: {
     userName?: string | null;
     userEmail?: string | null;
+    /** Роли показываем в настройках — на мобильном в шапку они не помещаются */
+    roles?: string[];
     onLogout: () => void;
     /** compact — только аватар (шапка), full — аватар + имя (главная) */
     variant?: "compact" | "full";
@@ -98,6 +102,20 @@ export function ProfileMenu({
                     </div>
 
 
+                    {roles.length > 0 && (
+                        <div>
+                            <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-fg-subtle">
+                                Роли
+                            </p>
+                            <div className="flex flex-wrap gap-1">
+                                {roles.map(role => (
+                                    <Badge key={role} tone={roleTone(role)}>
+                                        {roleLabel(role)}
+                                    </Badge>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                     {userEmail && <p className="truncate text-xs text-fg-subtle">{userEmail}</p>}
 
                     <Button fullWidth variant="danger" leftIcon={LogOut} onClick={onLogout}>

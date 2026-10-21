@@ -123,7 +123,7 @@ export default function PortalPage() {
                         onLogout={() => void handleLogout()}
                         variant="full"
                     />
-                    <div className="flex flex-wrap items-center justify-end gap-1.5">
+                    <div className="hidden flex-wrap items-center justify-end gap-1.5 sm:flex">
                         {roles.slice(0, 3).map(role => (
                             <Badge key={role} tone={roleTone(role)}>
                                 {roleLabel(role)}
