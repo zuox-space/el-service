@@ -294,7 +294,8 @@ html[data-theme="light"] {
   display: none;
 }
 
-/* Горизонтальная лента без скроллбара, но с плавным скроллом */
+/* Горизонтальная лента: на тач-устройствах скроллбар не нужен, на десктопе —
+   показываем тонкий, чтобы было видно, что контент прокручивается */
 .scroll-row {
   overflow-x: auto;
   overflow-y: hidden;
@@ -306,6 +307,20 @@ html[data-theme="light"] {
 }
 .scroll-row::-webkit-scrollbar {
   display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .scroll-row {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-strong) transparent;
+  }
+  .scroll-row::-webkit-scrollbar {
+    display: block;
+    height: 8px;
+  }
+  .scroll-row::-webkit-scrollbar-thumb {
+    border-width: 2px;
+  }
 }
 
 /* Прилипание карточек ленты к краю: удобно для табов и календаря */
@@ -428,3 +443,65 @@ input[type="date"]:invalid::-webkit-datetime-edit {
   }
 }
 
+
+/* ============================================================================
+   Скроллбары
+   Тонкие, скруглённые, одного цвета с границами — чтобы прокрутка не выглядела
+   системной «полосой» и не спорила с карточками. На тач-устройствах не
+   трогаем: там скроллбар появляется только во время прокрутки.
+   ============================================================================ */
+
+@media (hover: hover) and (pointer: fine) {
+  /* Firefox: толщина и цвет ползунка */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-strong) transparent;
+    scrollbar-color: color-mix(in srgb, var(--color-border-strong) 80%, transparent) transparent;
+  }
+
+  /* WebKit/Blink: полоса, ползунок, угол */
+  *::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--color-border-strong);
+    background-color: color-mix(in srgb, var(--color-border-strong) 75%, transparent);
+    border: 3px solid transparent;
+    border-radius: 9999px;
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-fg-subtle);
+    background-color: color-mix(in srgb, var(--color-fg-subtle) 85%, transparent);
+  }
+
+  *::-webkit-scrollbar-thumb:active {
+    background-color: var(--color-fg-muted);
+    background-color: color-mix(in srgb, var(--color-fg-muted) 90%, transparent);
+  }
+
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  /* Блоки с собственной прокруткой внутри карточек — чуть компактнее */
+  .scroll-panel {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-strong) transparent;
+  }
+
+  .scroll-panel::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scroll-panel::-webkit-scrollbar-thumb {
+    border-width: 2px;
+  }
+}
