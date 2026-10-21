@@ -41,3 +41,14 @@ yarn-error.log*
 next-env.d.ts
 
 certificates
+
+# Локальные моковые БД для разработки (см. devdb/README.md).
+# В репозитории остаются только скрипты и README; скачанные бинарники (~1 ГБ) и данные — нет.
+/devdb/*
+!/devdb/README.md
+
+# Генерируемые next-pwa артефакты: сборка перезаписывает их при каждом запуске,
+# поэтому в git они только создают шум. Файлы пересоздаются при `npm run build`.
+/public/sw.js
+/public/workbox-*.js
+/public/fallback-*.js

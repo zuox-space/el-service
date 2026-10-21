@@ -1,212 +1,165 @@
-"use client";
+﻿"use client";
 
-import { useState, useRef, useEffect } from "react";
-import { X, User, ChevronDown, Search, Loader2 } from "lucide-react";
+// components/ui/SelfExitModal.tsx
+import { useEffect, useMemo } from "react";
+import { useState } from "react";
+import { FormError, Input, Modal, ModalFooter, Select, Textarea, useSubmit } from "@/components/ui/kit";
+import { toLocalISODate } from "@/lib/date";
+
+/**
+ * SelfExitModal — самовыход ученика по заявлению (1–4 классы).
+ *
+ * Переведён на общий Modal (шторка на мобильном) и на поля UI Kit: шрифт 16px,
+ * высота 48px, нативный picker даты. Отправка ждёт ответ сервера, ошибка
+ * показывается в окне и не приводит к потере введённых данных.
+ */
+
+interface Student {
+    id: string | number;
+    name: string;
+}
 
 interface SelfExitModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSubmit: (data: any) => void;
-  studentsList: any[];
+    isOpen: boolean;
+    onClose: () => void;
+    /** Бросает исключение при ошибке */
+    onSubmit: (data: {
+        studentId: string | number;
+        studentName: string;
+        startDate: string;
+        endDate: string;
+        photoUrl: string;
+        reason: string;
+    }) => Promise<void>;
+    studentsList: Student[] | string | unknown;
+}
+
+function normalizeStudents(input: SelfExitModalProps["studentsList"]): Student[] {
+    if (!input) return [];
+    if (Array.isArray(input)) return input as Student[];
+    if (typeof input === "string") {
+        try {
+            const parsed = JSON.parse(input);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    }
+    return [];
 }
 
 export default function SelfExitModal({ isOpen, onClose, onSubmit, studentsList }: SelfExitModalProps) {
-  const [selectedStudent, setSelectedStudent] = useState<any>(null);
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [reason, setReason] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const dropdownRef = useRef<HTMLDivElement>(null);
+    const students = useMemo(() => normalizeStudents(studentsList), [studentsList]);
 
-  // Получаем сегодняшнюю дату в формате YYYY-MM-DD
-  const today = new Date().toISOString().split('T')[0];
+    const [studentId, setStudentId] = useState("");
+    const [startDate, setStartDate] = useState("");
+    const [endDate, setEndDate] = useState("");
+    const [reason, setReason] = useState("");
 
-  // Фильтрация учеников по поиску
-  const filteredStudents = studentsList.filter(student =>
-    student.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+    const today = toLocalISODate();
+    const { submitting, error, run } = useSubmit(() => {
+        reset();
+        onClose();
+    });
 
-  // Закрытие дропдауна при клике вне
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsDropdownOpen(false);
-      }
+    const reset = () => {
+        setStudentId("");
+        setStartDate("");
+        setEndDate("");
+        setReason("");
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
-  const handleSubmit = async () => {
-    if (!selectedStudent) {
-      alert("Выберите ученика");
-      return;
-    }
-    if (!startDate) {
-      alert("Укажите дату начала");
-      return;
-    }
-    if (!endDate) {
-      alert("Укажите дату окончания");
-      return;
-    }
+    useEffect(() => {
+        if (!isOpen) return;
+        const todayValue = toLocalISODate();
+        setStudentId("");
+        setStartDate(todayValue);
+        setEndDate(todayValue);
+        setReason("");
+    }, [isOpen]);
 
-    setIsLoading(true);
+    const selectedStudent = students.find(student => String(student.id) === studentId);
+    const datesInvalid = Boolean(startDate && endDate && endDate < startDate);
+    const canSubmit = Boolean(selectedStudent && startDate && endDate && !datesInvalid);
 
-    try {
-      // 🔥 ОТПРАВЛЯЕМ БЕЗ ФОТО - ПУСТАЯ СТРОКА
-      onSubmit({
-        studentId: selectedStudent.id,
-        studentName: selectedStudent.name,
-        startDate,
-        endDate,
-        photoUrl: "", // Пустая строка вместо фото
-        reason,
-      });
+    const handleSubmit = () => {
+        if (!selectedStudent || !canSubmit) return;
 
-      // Сброс формы
-      setSelectedStudent(null);
-      setStartDate("");
-      setEndDate("");
-      setReason("");
-      setIsLoading(false);
-      onClose();
-    } catch (error) {
-      console.error("Submit error:", error);
-      alert("Ошибка при сохранении");
-      setIsLoading(false);
-    }
-  };
+        void run(async () => {
+            await onSubmit({
+                studentId: selectedStudent.id,
+                studentName: selectedStudent.name,
+                startDate,
+                endDate,
+                // заявление принимается без фото: поле оставлено для совместимости с API
+                photoUrl: "",
+                reason: reason.trim(),
+            });
+        });
+    };
 
-  if (!isOpen) return null;
+    return (
+        <Modal
+            open={isOpen}
+            onClose={onClose}
+            title="Самовыход ученика"
+            description="Разрешение уходить домой самостоятельно"
+            size="md"
+            confirmOnClose
+            isDirty={Boolean(reason.trim() || studentId)}
+            footer={
+                <ModalFooter
+                    onCancel={onClose}
+                    onSubmit={handleSubmit}
+                    submitLabel="Сохранить"
+                    loading={submitting}
+                    disabled={!canSubmit}
+                />
+            }
+        >
+            <div className="space-y-4">
+                <FormError message={error} />
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-3">
-      <div className="w-full max-w-md bg-gradient-to-br from-[#1a2332] to-[#2b3858] rounded-xl shadow-2xl border border-white/20 overflow-hidden max-h-[90vh] overflow-y-auto">
-        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-3 sticky top-0">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <User size={18} className="text-white" />
-              <h3 className="text-lg font-bold text-white">Самовыход ученика</h3>
-            </div>
-            <button onClick={onClose} className="text-white/70 hover:text-white">
-              <X size={20} />
-            </button>
-          </div>
-        </div>
+                <Select
+                    label="Ученик"
+                    placeholder="Выберите ученика"
+                    value={studentId}
+                    onChange={setStudentId}
+                    options={students.map(student => ({
+                        value: String(student.id),
+                        label: student.name,
+                    }))}
+                />
 
-        <div className="p-4 space-y-4">
-          {/* Кастомный select для выбора ученика */}
-          <div>
-            <label className="block text-white text-sm mb-1">Ученик *</label>
-            <div className="relative" ref={dropdownRef}>
-              <button
-                type="button"
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="w-full flex items-center justify-between px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <span className={selectedStudent ? "text-white" : "text-gray-400"}>
-                  {selectedStudent ? selectedStudent.name : "Выберите ученика"}
-                </span>
-                <ChevronDown size={16} className={`transition-transform ${isDropdownOpen ? "rotate-180" : ""}`} />
-              </button>
-
-              {isDropdownOpen && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-[#1a2332] border border-white/20 rounded-lg shadow-lg z-10 max-h-60 overflow-hidden">
-                  <div className="p-2 border-b border-white/10">
-                    <div className="relative">
-                      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                      <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Поиск ученика..."
-                        className="w-full pl-9 pr-3 py-1.5 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                  </div>
-                  <div className="max-h-48 overflow-y-auto">
-                    {filteredStudents.length === 0 ? (
-                      <div className="px-3 py-2 text-sm text-gray-400 text-center">
-                        Ничего не найдено
-                      </div>
-                    ) : (
-                      filteredStudents.map((student) => (
-                        <button
-                          key={student.id}
-                          onClick={() => {
-                            setSelectedStudent(student);
-                            setIsDropdownOpen(false);
-                            setSearchQuery("");
-                          }}
-                          className="w-full text-left px-3 py-2 text-white hover:bg-white/10 transition-colors text-sm"
-                        >
-                          {student.name}
-                        </button>
-                      ))
-                    )}
-                  </div>
+                <div className="grid grid-cols-2 gap-3">
+                    <Input
+                        label="С"
+                        type="date"
+                        value={startDate}
+                        min={today}
+                        onChange={e => {
+                            setStartDate(e.target.value);
+                            if (endDate && e.target.value > endDate) setEndDate(e.target.value);
+                        }}
+                    />
+                    <Input
+                        label="По"
+                        type="date"
+                        value={endDate}
+                        min={startDate || today}
+                        error={datesInvalid ? "Дата окончания раньше начала" : undefined}
+                        onChange={e => setEndDate(e.target.value)}
+                    />
                 </div>
-              )}
-            </div>
-          </div>
 
-          {/* Период действия */}
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <label className="block text-white text-xs mb-1">С *</label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                min={today}
-                className="w-full px-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
+                <Textarea
+                    label="Причина"
+                    placeholder="Необязательно: например, по заявлению родителей"
+                    value={reason}
+                    onChange={e => setReason(e.target.value)}
+                    rows={2}
+                />
             </div>
-            <div className="flex-1">
-              <label className="block text-white text-xs mb-1">По *</label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                min={startDate || today}
-                className="w-full px-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-          </div>
-
-          {/* Причина (опционально) */}
-          <div>
-            <label className="block text-white text-sm mb-1">Причина</label>
-            <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Причина (необязательно)"
-              rows={2}
-              className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-            />
-          </div>
-        </div>
-
-        <div className="p-4 border-t border-white/10 bg-white/5">
-          <button
-            onClick={handleSubmit}
-            disabled={isLoading}
-            className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg font-medium disabled:opacity-50 transition-all flex items-center justify-center gap-2"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 size={18} className="animate-spin" />
-                Сохранение...
-              </>
-            ) : (
-              "Сохранить"
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+        </Modal>
+    );
 }

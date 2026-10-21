@@ -2,6 +2,45 @@
 import { Student } from '@/types';
 import mysql from 'mysql2/promise';
 
+// ============================================================================
+// Слой доступа к базе АИС (внешняя система школы со списком учеников).
+//
+// ⚠️ Правило: SQL-запрос по ученикам должен жить ТОЛЬКО здесь.
+// Раньше один и тот же запрос был скопирован в 9 файлах, и это привело к N+1:
+// страницы запрашивали учеников по одному классу в цикле (запрос на каждый класс).
+// ============================================================================
+
+/** Сколько запросов к MySQL выполнил этот модуль (для тестов и диагностики). */
+let mysqlQueryCounter = 0;
+
+/** Счётчик выполненных запросов — используется в тестах, чтобы N+1 не вернулся. */
+export function getMysqlQueryCount(): number {
+    return mysqlQueryCounter;
+}
+
+/** Сбросить счётчик (перед замером). */
+export function resetMysqlQueryCount(): void {
+    mysqlQueryCounter = 0;
+}
+
+// ---------------------------------------------------------------------------
+// Кэш справочника учеников.
+//
+// Почему кэш: список учеников меняется редко (по нему работает вся школа), но читается
+// на каждом открытии страниц админки и главной страницы учителя. TTL небольшой, чтобы
+// правки в АИС подхватывались быстро; устаревшие данные отдаются сразу и обновляются
+// в фоне (stale-while-revalidate), поэтому никто не ждёт устаревший кэш.
+// ---------------------------------------------------------------------------
+const STUDENT_CACHE_TTL_MS = 60_000;
+
+let studentsCache: { data: Student[]; fetchedAt: number } | null = null;
+let studentsCacheRefresh: Promise<Student[]> | null = null;
+
+/** Полностью сбросить кэш учеников (нужно после изменения данных в АИС или в тестах). */
+export function clearStudentsCache(): void {
+    studentsCache = null;
+    studentsCacheRefresh = null;
+}
 
 // Типы для конфигурации
 interface DBConfig {
@@ -38,9 +77,12 @@ export function getPool(): mysql.Pool {
             timeout: 10000,
         };
 
-        // Проверяем наличие обязательных параметров
-        if (!config.user || !config.password || !config.database) {
-            throw new Error('Missing database configuration. Check .env.local file');
+        // Проверяем наличие обязательных параметров.
+        // ⚠️ Пустой пароль — это допустимое значение (локальная база или пользователь без пароля).
+        // Раньше проверка `!config.password` считала его отсутствующей настройкой и валила
+        // весь доступ к списку учеников: ошибка глушилась, и интерфейс показывал «нет учеников».
+        if (!config.user || !config.database) {
+            throw new Error('Missing database configuration. Check .env.local file (DB_USER, DB_NAME)');
         }
 
         pool = mysql.createPool(config);
@@ -54,6 +96,7 @@ export async function query<T = any>(
     params: any[] = []
 ): Promise<T[]> {
     const pool = getPool();
+    mysqlQueryCounter++;
     try {
         const [rows] = await pool.execute(sql, params);
         return rows as T[];
@@ -61,6 +104,79 @@ export async function query<T = any>(
         console.error('Database query error:', error);
         throw error;
     }
+}
+
+// ---------------------------------------------------------------------------
+// Ученики: единственные точки выборки
+// ---------------------------------------------------------------------------
+
+/**
+ * Все ученики школы одним запросом.
+ * Именно эту функцию должны использовать все страницы — она кэшируется.
+ */
+export async function getAllStudents(options: { force?: boolean } = {}): Promise<Student[]> {
+    const now = Date.now();
+    const cached = studentsCache;
+    const isFresh = cached && now - cached.fetchedAt < STUDENT_CACHE_TTL_MS;
+
+    if (cached && isFresh && !options.force) {
+        return cached.data;
+    }
+
+    // Устаревшие данные отдаём сразу, а обновление уходит в фон: пользователь не ждёт
+    if (cached && !options.force) {
+        if (!studentsCacheRefresh) {
+            studentsCacheRefresh = fetchAllStudents()
+                .then(data => {
+                    studentsCache = { data, fetchedAt: Date.now() };
+                    return data;
+                })
+                .finally(() => {
+                    studentsCacheRefresh = null;
+                });
+        }
+        return cached.data;
+    }
+
+    const data = await fetchAllStudents();
+    studentsCache = { data, fetchedAt: Date.now() };
+    return data;
+}
+
+/** Непосредственная выборка всех учеников из базы АИС. */
+async function fetchAllStudents(): Promise<Student[]> {
+    const sql = `
+        SELECT 
+            aisId,
+            CONCAT(lastName, ' ', firstName) AS name,
+            className 
+        FROM students 
+        WHERE archive = 0
+        ORDER BY lastName, firstName
+    `;
+    return query<Student>(sql);
+}
+
+/**
+ * Ученики, сгруппированные по названию класса.
+ *
+ * Заменяет шаблон «запрос в цикле по каждому классу»: один запрос на всю школу,
+ * дальше группировка в памяти. Возвращает Map, готовую к `get(className) ?? []`.
+ */
+export async function getStudentsGroupedByClass(options: { force?: boolean } = {}): Promise<Map<string, Student[]>> {
+    const all = await getAllStudents(options);
+
+    const byClass = new Map<string, Student[]>();
+    for (const student of all) {
+        if (!student.className) continue;
+        const list = byClass.get(student.className);
+        if (list) {
+            list.push(student);
+        } else {
+            byClass.set(student.className, [student]);
+        }
+    }
+    return byClass;
 }
 
 // Получение всех студентов

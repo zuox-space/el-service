@@ -1,14 +1,30 @@
-// app/admin/classes-overview/page.tsx
+﻿// app/admin/classes-overview/page.tsx
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useState, useEffect, useMemo } from "react";
+import { useSession } from "next-auth/react";
+import { Download, RefreshCw } from "lucide-react";
 import {
-    ArrowLeft, School, User, Users, Shield, UserCheck,
-    Search, Loader2, TrendingUp, BarChart3, ArrowRight,
-    AlertCircle, Download, CheckCircle
-} from "lucide-react";
+    Button,
+    Card,
+    Chip,
+    DataTable,
+    EmptyState,
+    FormError,
+    PageHeader,
+    SearchInput,
+    Skeleton,
+    type Column,
+} from "@/components/ui/kit";
+import { safeCell } from "@/lib/date";
+
+/**
+ * Обзор классов: самовыходы и доверенности по параллелям 1–4.
+ *
+ * Переведено на DataTable (таблица на десктопе, карточки на мобильном).
+ * Нажатие на класс открывает его карточку со списком учеников.
+ */
 
 interface ClassStats {
     classId: string;
@@ -32,516 +48,275 @@ interface Totals {
     totalStudentsWithAuth: number;
 }
 
+const GRADES = [1, 2, 3, 4];
+
 export default function ClassesOverviewPage() {
     const { data: session, status } = useSession();
     const router = useRouter();
+
     const [mounted, setMounted] = useState(false);
-    const [isLoading, setIsLoading] = useState(true);
     const [classes, setClasses] = useState<ClassStats[]>([]);
     const [totals, setTotals] = useState<Totals | null>(null);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [selectedGrade, setSelectedGrade] = useState<number | "">("");
-    const [sortBy, setSortBy] = useState<"name" | "students" | "selfExits" | "auths">("name");
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    const [search, setSearch] = useState("");
+    const [grade, setGrade] = useState<number | null>(null);
 
     useEffect(() => {
         setMounted(true);
-        if (status === "unauthenticated") {
-            router.replace("/login");
-        }
+        if (status === "unauthenticated") router.replace("/login");
         if (status === "authenticated") {
             const roles = (session?.user?.roles as string[]) || [];
-            if (!roles.includes("ADMIN")) {
-                router.replace("/");
-            }
+            if (!roles.includes("ADMIN")) router.replace("/admin");
         }
     }, [session, status, router]);
 
-    useEffect(() => {
-        if (!session?.user?.roles?.includes("ADMIN")) return;
-
-        const fetchData = async () => {
-            try {
-                setIsLoading(true);
-                const response = await fetch("/api/admin/classes-stats");
-                const data = await response.json();
-
-                if (data.error) {
-                    console.error("Error:", data.error);
-                    return;
-                }
-
-                setClasses(data.classes || []);
-                setTotals(data.totals || null);
-            } catch (error) {
-                console.error("Error fetching classes stats:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchData();
-    }, [session]);
-    const exportToExcel = async () => {
-        if (filteredClasses.length === 0) {
-            alert("Нет данных для экспорта");
-            return;
-        }
-
-        // Показать индикатор загрузки
-        const originalTitle = document.title;
-        document.title = "⏳ Формируем Excel...";
+    const fetchData = useCallback(async () => {
+        setIsLoading(true);
+        setError(null);
 
         try {
-            // 🔥 Динамически импортируем библиотеку xlsx
-            const XLSX = await import("xlsx");
+            const response = await fetch("/api/admin/classes-stats");
+            if (!response.ok) throw new Error(`Сервер вернул ошибку ${response.status}`);
 
-            // ============================================
-            // 1. ЗАГРУЖАЕМ ДЕТАЛИ ПО КАЖДОМУ КЛАССУ
-            // ============================================
-            console.log(`📊 Загрузка данных по ${filteredClasses.length} классам...`);
+            const data = await response.json();
+            if (data.error) throw new Error(data.error);
 
-            const classesWithDetails = await Promise.all(
-                filteredClasses.map(async (cls) => {
-                    try {
-                        const response = await fetch(
-                            `/api/admin/classes-stats/${encodeURIComponent(cls.className)}`
-                        );
-                        const detail = await response.json();
-                        return {
-                            ...cls,
-                            students: detail.students || [],
-                        };
-                    } catch (error) {
-                        console.error(`❌ Ошибка загрузки ${cls.className}:`, error);
-                        return {
-                            ...cls,
-                            students: [],
-                        };
-                    }
-                })
-            );
-
-            console.log(`✅ Данные загружены`);
-
-            // ============================================
-            // 2. СОЗДАЁМ КНИГУ EXCEL
-            // ============================================
-            const wb = XLSX.utils.book_new();
-
-            // ============================================
-            // ЛИСТ 1: ОБЗОР
-            // ============================================
-            const summaryData: any[][] = [
-                ["#", "Класс", "Параллель", "Учеников", "Самовыходы (активных)", "Доверенности (активных)"],
-            ];
-
-            filteredClasses.forEach((cls, i) => {
-                summaryData.push([
-                    i + 1,
-                    cls.className,
-                    cls.grade || "",
-                    cls.totalStudents,
-                    cls.activeSelfExits,
-                    cls.activeAuthorizations,
-                ]);
-            });
-
-            // Итоговая строка
-            if (totals) {
-                summaryData.push([
-                    "",
-                    "",
-                    "ИТОГО:",
-                    totals.totalStudents,
-                    totals.totalActiveSelfExits,
-                    totals.totalActiveAuthorizations,
-                ]);
-            }
-
-            const wsOverview = XLSX.utils.aoa_to_sheet(summaryData);
-
-            // Ширины колонок
-            wsOverview["!cols"] = [
-                { wch: 5 },   // #
-                { wch: 12 },  // Класс
-                { wch: 12 },  // Параллель
-                { wch: 12 },  // Учеников
-                { wch: 22 },  // Самовыходы
-                { wch: 25 },  // Доверенности
-            ];
-
-            XLSX.utils.book_append_sheet(wb, wsOverview, "Обзор");
-
-            // ============================================
-            // ЛИСТЫ ПО КЛАССАМ
-            // ============================================
-            classesWithDetails.forEach((cls) => {
-                // Формируем данные листа
-                const classData: any[][] = [
-                    ["#", "ФИО", "Самовыход", "Доверенность"],
-                ];
-
-                if (cls.students.length === 0) {
-                    classData.push(["", "Нет данных об учениках", "", ""]);
-                } else {
-                    cls.students.forEach((s: any, i: number) => {
-                        classData.push([
-                            i + 1,
-                            s.name,
-                            s.hasActiveSelfExit ? "Да" : "Нет",
-                            s.hasActiveAuthorization ? "Да" : "Нет",
-                        ]);
-                    });
-                }
-
-                const wsClass = XLSX.utils.aoa_to_sheet(classData);
-
-                // Ширины колонок
-                wsClass["!cols"] = [
-                    { wch: 5 },   // #
-                    { wch: 40 },  // ФИО
-                    { wch: 15 },  // Самовыход
-                    { wch: 15 },  // Доверенность
-                ];
-
-                // 🔥 Имя листа — не больше 31 символа, без запрещённых знаков
-                const safeName = cls.className
-                    .replace(/[:\\\/\?\*\[\]]/g, "_")
-                    .substring(0, 31);
-
-                XLSX.utils.book_append_sheet(wb, wsClass, safeName);
-            });
-
-            // ============================================
-            // 3. СКАЧИВАЕМ ФАЙЛ
-            // ============================================
-            const fileName = `обзор_классов_с_деталями_${new Date().toISOString().split("T")[0]}.xlsx`;
-            XLSX.writeFile(wb, fileName);
-
-            console.log(`✅ Файл создан: ${fileName}`);
-
-            document.title = originalTitle;
-
-        } catch (error) {
-            console.error("❌ Ошибка экспорта:", error);
-            alert("Ошибка при создании файла Excel");
-            document.title = originalTitle;
+            setClasses(Array.isArray(data.classes) ? data.classes : []);
+            setTotals(data.totals ?? null);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Не удалось загрузить статистику");
+            setClasses([]);
+        } finally {
+            setIsLoading(false);
         }
-    };
-    // Фильтрация и сортировка
-    const filteredClasses = useMemo(() => {
-        let result = [...classes];
+    }, []);
 
-        if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase().trim();
-            result = result.filter(c => c.className.toLowerCase().includes(q));
+    useEffect(() => {
+        if (session?.user?.roles?.includes("ADMIN")) {
+            void fetchData();
         }
+    }, [session, fetchData]);
 
-        if (selectedGrade !== "") {
-            result = result.filter(c => c.grade === selectedGrade);
-        }
+    const rows = useMemo(() => {
+        const query = search.trim().toLowerCase();
 
-        result.sort((a, b) => {
-            switch (sortBy) {
-                case "students":
-                    return b.totalStudents - a.totalStudents;
-                case "selfExits":
-                    return b.activeSelfExits - a.activeSelfExits;
-                case "auths":
-                    return b.activeAuthorizations - a.activeAuthorizations;
-                case "name":
-                default:
-                    if (a.grade !== b.grade) return a.grade - b.grade;
-                    return a.letter.localeCompare(b.letter);
-            }
+        return classes.filter(cls => {
+            if (grade !== null && cls.grade !== grade) return false;
+            if (query && !cls.className.toLowerCase().includes(query)) return false;
+            return true;
+        });
+    }, [classes, search, grade]);
+
+    const columns: Column<ClassStats>[] = [
+        {
+            key: "className",
+            header: "Класс",
+            width: "110px",
+            render: cls => <span className="font-medium">{cls.className}</span>,
+        },
+        {
+            key: "totalStudents",
+            header: "Учеников",
+            align: "right",
+            width: "110px",
+            render: cls => <span className="tabular-nums">{cls.totalStudents}</span>,
+        },
+        {
+            key: "activeSelfExits",
+            header: "Самовыходы",
+            align: "right",
+            render: cls => (
+                <span className="tabular-nums">
+                    {cls.activeSelfExits}
+                    <span className="ml-1 text-xs text-fg-subtle">у {cls.studentsWithSelfExit} уч.</span>
+                </span>
+            ),
+        },
+        {
+            key: "activeAuthorizations",
+            header: "Доверенности",
+            align: "right",
+            render: cls => (
+                <span className="tabular-nums">
+                    {cls.activeAuthorizations}
+                    <span className="ml-1 text-xs text-fg-subtle">у {cls.studentsWithAuth} уч.</span>
+                </span>
+            ),
+        },
+    ];
+
+    const exportToExcel = () => {
+        let html = `<html><head><meta charset="UTF-8"><title>Обзор классов</title>
+            <style>body{font-family:Arial,sans-serif}h1{font-size:16px}table{border-collapse:collapse;width:100%}
+            th,td{border:1px solid #ddd;padding:6px;text-align:left}th{background:#f2f2f2}</style></head><body>
+            <h1>Самовыходы и доверенности по классам</h1>
+            <table><tr><th>Класс</th><th>Учеников</th><th>Самовыходы</th><th>Учеников с самовыходом</th>
+            <th>Доверенности</th><th>Учеников с доверенностью</th></tr>`;
+
+        rows.forEach(cls => {
+            html += `<tr><td>${safeCell(cls.className)}</td><td>${cls.totalStudents}</td>
+                <td>${cls.activeSelfExits}</td><td>${cls.studentsWithSelfExit}</td>
+                <td>${cls.activeAuthorizations}</td><td>${cls.studentsWithAuth}</td></tr>`;
         });
 
-        return result;
-    }, [classes, searchQuery, selectedGrade, sortBy]);
+        html += `</table></body></html>`;
 
-    // Уникальные параллели
-    const uniqueGrades = useMemo(() => {
-        return [...new Set(classes.map(c => c.grade))].filter(Boolean).sort((a, b) => a - b);
-    }, [classes]);
-
-    const handleClassClick = (className: string) => {
-        router.push(`/admin/classes-overview/${encodeURIComponent(className)}`);
+        const blob = new Blob([html], { type: "application/vnd.ms-excel" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "обзор_классов.xls";
+        link.click();
+        URL.revokeObjectURL(url);
     };
 
-    if (!mounted || status === "loading" || isLoading) {
+    if (!mounted || status === "loading") {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#1a2332] to-[#2b3858]">
-                <div className="bg-white/10 backdrop-blur-lg p-8 rounded-2xl text-center border border-white/20">
-                    <Loader2 size={32} className="animate-spin text-blue-400 mx-auto" />
-                    <p className="mt-4 text-gray-300">Загрузка классов...</p>
+            <div className="min-h-full bg-bg">
+                <PageHeader title="Обзор классов" onBack={() => router.push("/admin")} />
+                <div className="mx-auto w-full max-w-[1440px] space-y-3 px-4 py-4">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        {Array.from({ length: 4 }).map((_, index) => (
+                            <Skeleton key={index} height={64} radius="card" />
+                        ))}
+                    </div>
+                    <Skeleton height={200} radius="card" />
                 </div>
             </div>
         );
     }
 
-    if (!session || !session?.user?.roles?.includes("ADMIN")) {
-        return null;
-    }
+    if (!session || !session?.user?.roles?.includes("ADMIN")) return null;
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-[#1a2332] to-[#2b3858]">
-            {/* Шапка */}
-            <div className="bg-white/10 backdrop-blur-lg border-b border-white/20 sticky top-0 z-20">
-                <div className="px-3 py-3">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                            <button
-                                onClick={() => router.push("/admin")}
-                                className="w-8 h-8 flex items-center justify-center bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg transition-all flex-shrink-0"
-                            >
-                                <ArrowLeft size={18} />
-                            </button>
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center flex-shrink-0">
-                                <School size={16} className="text-white" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <p className="text-sm font-bold text-white truncate">Обзор классов</p>
-                                <p className="text-xs text-gray-400 hidden sm:block">
-                                    Самовыходы и доверенности
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* 🔥 Кнопка экспорта */}
-                        <button
-                            onClick={exportToExcel}
-                            disabled={filteredClasses.length === 0}
-                            className="flex items-center gap-1.5 px-3 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg transition-all text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed border border-green-500/30"
-                            title="Экспорт в Excel"
+        <div className="min-h-full bg-bg">
+            <PageHeader
+                title="Обзор классов"
+                subtitle="1–4 классы · самовыходы и доверенности"
+                onBack={() => router.push("/admin")}
+                actions={
+                    <>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            leftIcon={RefreshCw}
+                            onClick={() => void fetchData()}
+                            disabled={isLoading}
                         >
-                            <Download size={14} />
-                            <span className="hidden sm:inline">Экспорт</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
+                            Обновить
+                        </Button>
+                        <span className="hidden sm:inline-flex">
+                            <Button
+                            size="sm"
+                            variant="ghost"
+                            leftIcon={Download}
+                            onClick={exportToExcel}
+                            disabled={rows.length === 0}>
+                            Выгрузить
+                        </Button>
+                        </span>
+                    </>
+                }
+            />
 
-            <div className="p-3 max-w-7xl mx-auto space-y-3">
+            <main className="mx-auto w-full max-w-[1440px] space-y-3 px-4 py-4">
+                {error && <FormError message={error} />}
 
-                {/* 🔥 Общая статистика */}
-                {totals && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-                        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
-                            <div className="flex items-center gap-1.5 mb-1">
-                                <School size={12} className="text-purple-400" />
-                                <span className="text-[10px] text-gray-400">Классов</span>
-                            </div>
-                            <p className="text-2xl font-bold text-purple-400">{totals.totalClasses}</p>
-                        </div>
+                <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <StatTile label="Классов" value={totals?.totalClasses ?? 0} />
+                    <StatTile label="Учеников" value={totals?.totalStudents ?? 0} />
+                    <StatTile
+                        label="Активных самовыходов"
+                        value={totals?.totalActiveSelfExits ?? 0}
+                        hint={`у ${totals?.totalStudentsWithSelfExit ?? 0} учеников`}
+                    />
+                    <StatTile
+                        label="Активных доверенностей"
+                        value={totals?.totalActiveAuthorizations ?? 0}
+                        hint={`у ${totals?.totalStudentsWithAuth ?? 0} учеников`}
+                    />
+                </section>
 
-                        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
-                            <div className="flex items-center gap-1.5 mb-1">
-                                <Users size={12} className="text-blue-400" />
-                                <span className="text-[10px] text-gray-400">Учеников</span>
-                            </div>
-                            <p className="text-2xl font-bold text-blue-400">{totals.totalStudents}</p>
-                        </div>
-
-                        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-indigo-500/30">
-                            <div className="flex items-center gap-1.5 mb-1">
-                                <UserCheck size={12} className="text-indigo-400" />
-                                <span className="text-[10px] text-gray-400">Самовыходы</span>
-                            </div>
-                            <p className="text-2xl font-bold text-indigo-400">
-                                {totals.totalActiveSelfExits}
-                            </p>
-                        </div>
-
-                        {/* <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-indigo-500/30">
-                            <div className="flex items-center gap-1.5 mb-1">
-                                <User size={12} className="text-indigo-300" />
-                                <span className="text-[10px] text-gray-400">Детей с СВ</span>
-                            </div>
-                            <p className="text-2xl font-bold text-indigo-300">
-                                {totals.totalStudentsWithSelfExit}
-                            </p>
-                        </div> */}
-
-                        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-cyan-500/30">
-                            <div className="flex items-center gap-1.5 mb-1">
-                                <Shield size={12} className="text-cyan-400" />
-                                <span className="text-[10px] text-gray-400">Доверенности</span>
-                            </div>
-                            <p className="text-2xl font-bold text-cyan-400">
-                                {totals.totalActiveAuthorizations}
-                            </p>
-                        </div>
-
-                        {/* <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-cyan-500/30">
-                            <div className="flex items-center gap-1.5 mb-1">
-                                <User size={12} className="text-cyan-300" />
-                                <span className="text-[10px] text-gray-400">Детей с дов.</span>
-                            </div>
-                            <p className="text-2xl font-bold text-cyan-300">
-                                {totals.totalStudentsWithAuth}
-                            </p>
-                        </div> */}
-                    </div>
-                )}
-
-                {/* Фильтры */}
-                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20 space-y-3">
-                    <div className="relative">
-                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <input
-                            type="text"
-                            placeholder="Поиск класса..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-9 pr-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-400 text-sm focus:outline-none focus:border-cyan-500/50"
+                <Card padding="sm">
+                    <div className="grid gap-2 sm:grid-cols-2">
+                        <SearchInput
+                            value={search}
+                            onChange={setSearch}
+                            placeholder="Например, 3А"
+                            label="Поиск класса"
                         />
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                        {/* Выбор параллели */}
-                        <div className="flex flex-wrap gap-1 items-center">
-                            <span className="text-xs text-gray-400 mr-1">Параллель:</span>
-                            <button
-                                onClick={() => setSelectedGrade("")}
-                                className={`px-2 py-1 rounded-lg text-xs transition-all ${selectedGrade === ""
-                                    ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white"
-                                    : "bg-white/5 text-gray-400 hover:bg-white/10"
-                                    }`}
-                            >
-                                Все
-                            </button>
-                            {uniqueGrades.map(grade => (
-                                <button
-                                    key={grade}
-                                    onClick={() => setSelectedGrade(grade)}
-                                    className={`px-2 py-1 rounded-lg text-xs transition-all ${selectedGrade === grade
-                                        ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white"
-                                        : "bg-white/5 text-gray-400 hover:bg-white/10"
-                                        }`}
-                                >
-                                    {grade}
-                                </button>
-                            ))}
-                        </div>
-
-                        {/* Сортировка */}
-                        <div className="flex items-center gap-1 ml-auto">
-                            <span className="text-xs text-gray-400 mr-1">Сортировка:</span>
-                            {[
-                                { id: "name", label: "По названию" },
-                                { id: "students", label: "По ученикам" },
-                                { id: "selfExits", label: "По СВ" },
-                                { id: "auths", label: "По дов." },
-                            ].map(opt => (
-                                <button
-                                    key={opt.id}
-                                    onClick={() => setSortBy(opt.id as any)}
-                                    className={`px-2 py-1 rounded-lg text-[10px] transition-all ${sortBy === opt.id
-                                        ? "bg-white/20 text-white"
-                                        : "bg-white/5 text-gray-400 hover:bg-white/10"
-                                        }`}
-                                >
-                                    {opt.label}
-                                </button>
-                            ))}
+                        <div>
+                            <p className="mb-1.5 text-sm font-medium text-fg">Параллель</p>
+                            <div className="flex flex-wrap gap-1.5">
+                                <Chip selected={grade === null} onClick={() => setGrade(null)}>
+                                    Все
+                                </Chip>
+                                {GRADES.map(value => (
+                                    <Chip
+                                        key={value}
+                                        selected={grade === value}
+                                        onClick={() => setGrade(grade === value ? null : value)}
+                                    >
+                                        {value}
+                                    </Chip>
+                                ))}
+                            </div>
                         </div>
                     </div>
-                </div>
+                </Card>
 
-                {/* Список классов */}
-                {filteredClasses.length === 0 ? (
-                    <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 text-center border border-white/20">
-                        <School size={40} className="text-gray-500 mx-auto mb-2" />
-                        <p className="text-gray-400 text-sm">Классы не найдены</p>
-                    </div>
+                {!isLoading && rows.length === 0 ? (
+                    <EmptyState
+                        variant={search || grade !== null ? "no-results" : "empty"}
+                        title={search || grade !== null ? "Классы не найдены" : "Классов нет"}
+                        description={
+                            search || grade !== null
+                                ? "Измените запрос или выберите другую параллель"
+                                : "В системе пока нет классов для 1–4 параллелей"
+                        }
+                        action={
+                            search || grade !== null
+                                ? {
+                                    label: "Сбросить фильтры",
+                                    onClick: () => {
+                                        setSearch("");
+                                        setGrade(null);
+                                    },
+                                }
+                                : undefined
+                        }
+                    />
                 ) : (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-                        {filteredClasses.map((cls) => {
-                            const hasActivity = cls.activeSelfExits > 0 || cls.activeAuthorizations > 0;
-                            return (
-                                <button
-                                    key={cls.classId}
-                                    onClick={() => handleClassClick(cls.className)}
-                                    className={`w-full text-left bg-white/10 backdrop-blur-lg rounded-xl p-3 border transition-all hover:bg-white/20 ${hasActivity
-                                        ? "border-cyan-500/30 hover:border-cyan-500/50"
-                                        : "border-white/20 hover:border-white/40"
-                                        }`}
-                                >
-                                    <div className="flex items-start justify-between gap-3 mb-2">
-                                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center flex-shrink-0">
-                                                <School size={18} className="text-white" />
-                                            </div>
-                                            <div className="min-w-0">
-                                                <h3 className="text-white font-bold text-base truncate">
-                                                    {cls.className}
-                                                </h3>
-                                                <div className="flex items-center gap-1.5 text-[10px] text-gray-400 mt-0.5">
-                                                    <Users size={10} />
-                                                    <span>{cls.totalStudents} учеников</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <ArrowRight
-                                            size={16}
-                                            className="text-gray-400 flex-shrink-0 mt-1"
-                                        />
-                                    </div>
-
-                                    {/* Мини-статистика */}
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <div className={`rounded-lg p-2 ${cls.activeSelfExits > 0
-                                            ? "bg-indigo-500/20 border border-indigo-500/30"
-                                            : "bg-white/5 border border-white/10"
-                                            }`}>
-                                            <div className="flex items-center gap-1 mb-0.5">
-                                                <UserCheck size={10} className={
-                                                    cls.activeSelfExits > 0 ? "text-indigo-400" : "text-gray-500"
-                                                } />
-                                                <span className="text-[9px] text-gray-400">Самовыходы</span>
-                                            </div>
-                                            <div className="flex items-baseline gap-1">
-                                                <span className={`text-lg font-bold ${cls.activeSelfExits > 0 ? "text-indigo-400" : "text-gray-500"
-                                                    }`}>
-                                                    {cls.activeSelfExits}
-                                                </span>
-                                                {cls.studentsWithSelfExit > 0 && (
-                                                    <span className="text-[9px] text-gray-400">
-                                                        ({cls.studentsWithSelfExit} уч.)
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className={`rounded-lg p-2 ${cls.activeAuthorizations > 0
-                                            ? "bg-cyan-500/20 border border-cyan-500/30"
-                                            : "bg-white/5 border border-white/10"
-                                            }`}>
-                                            <div className="flex items-center gap-1 mb-0.5">
-                                                <Shield size={10} className={
-                                                    cls.activeAuthorizations > 0 ? "text-cyan-400" : "text-gray-500"
-                                                } />
-                                                <span className="text-[9px] text-gray-400">Доверенности</span>
-                                            </div>
-                                            <div className="flex items-baseline gap-1">
-                                                <span className={`text-lg font-bold ${cls.activeAuthorizations > 0 ? "text-cyan-400" : "text-gray-500"
-                                                    }`}>
-                                                    {cls.activeAuthorizations}
-                                                </span>
-                                                {cls.studentsWithAuth > 0 && (
-                                                    <span className="text-[9px] text-gray-400">
-                                                        ({cls.studentsWithAuth} уч.)
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </button>
-                            );
-                        })}
-                    </div>
+                    <DataTable
+                        columns={columns}
+                        rows={rows}
+                        rowKey={cls => cls.classId}
+                        loading={isLoading}
+                        onRowClick={cls => router.push(`/admin/classes-overview/${encodeURIComponent(cls.className)}`)}
+                        mobileTitle={cls => cls.className}
+                        mobileSubtitle={cls => `${cls.totalStudents} учеников`}
+                        mobileDetailKeys={["activeSelfExits", "activeAuthorizations"]}
+                        emptyTitle="Классов нет"
+                        caption="Самовыходы и доверенности по классам"
+                    />
                 )}
-            </div>
+
+                <p className="pb-4 text-xs text-fg-subtle">
+                    Нажмите на класс, чтобы увидеть учеников и их разрешения.
+                </p>
+            </main>
+        </div>
+    );
+}
+
+function StatTile({ label, value, hint }: { label: string; value: number; hint?: string }) {
+    return (
+        <div className="rounded-card border border-border bg-surface p-3">
+            <p className="text-xs text-fg-subtle">{label}</p>
+            <p className="mt-0.5 text-xl font-semibold tabular-nums text-fg">{value}</p>
+            {hint && <p className="text-[11px] text-fg-subtle">{hint}</p>}
         </div>
     );
 }

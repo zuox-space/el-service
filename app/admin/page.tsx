@@ -1,896 +1,470 @@
+﻿// app/admin/page.tsx
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
-import { DockIcon, LayoutGrid, ListOrdered } from "lucide-react";
-
+import { useSession } from "next-auth/react";
+import { CheckCircle, DoorOpen, RefreshCw, Undo2, UserCheck } from "lucide-react";
 import {
-  LogOut, DoorOpen, UserCheck, FileText, Clock, CalendarDays,
-  Filter, School, Search, Shield,
-  CheckCircle, Users, Undo2,
-  UserX, Menu, X as XClose, Home, Download, Eye,
-  Bot,
-  AlertTriangle,
-  ShieldAlert,
-  User
-} from "lucide-react";
+    Button,
+    Chip,
+    EmptyState,
+    FormError,
+    SearchInput,
+    Select,
+    Skeleton,
+    Tabs,
+    useToast,
+} from "@/components/ui/kit";
+import { useHeaderActions } from "@/components/shell/header-actions";
+import { formatDateRu } from "@/lib/date";
 
-interface Pass {
-  id: string;
-  studentName: string;
-  exitTime: string;
-  reason: string;
-  date: string;
-  type: "single" | "self-exit";
-  className?: string;
-  grade?: number;
-  startDate?: string;
-  endDate?: string;
-  used?: boolean;
-  usedAt?: string;
-  photoUrl?: string; // Добавляем поле для фото
+/** Ключ сохранения фильтров панели: переживают перезагрузку и переходы */
+const FILTERS_STORAGE_KEY = "el-dashboard-filters";
+
+/**
+ * Панель дежурного администратора: кто выходит прямо сейчас.
+ *
+ * Вкладки «Разовые · Самовыходы · Ушедшие» были потеряны при переходе на общий
+ * каркас (вместе со старой шапкой удалили и переключатель), поэтому раздел
+ * «Ушедшие» с возможностью отменить выход стал недоступен. Здесь он восстановлен
+ * на компоненте Tabs.
+ *
+ * Пропуска выводятся сеткой: на десктопе по три в ряд, на планшете по два,
+ * на телефоне в колонку. Цвет карточки говорит о состоянии: зелёный — ещё в школе
+ * (можно отметить выход), синий — уже ушёл (можно отменить), акцентный — самовыход.
+ */
+
+type TabId = "single" | "self-exit" | "departed";
+
+interface DashboardPass {
+    id: string;
+    studentName: string;
+    exitTime: string;
+    reason: string;
+    date: string;
+    className: string;
+    grade: number;
+    used: boolean;
+    usedAt: string | null;
+    type: "single" | "self-exit";
+    startDate?: string;
+    endDate?: string;
 }
 
-interface GradeGroup {
-  id: string;
-  name: string;
-  grades: number[];
+interface Stats {
+    totalPasses: number;
+    totalSelfExits: number;
+    totalDeparted: number;
 }
 
-export default function AdminDashboard() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"single" | "self-exit" | "departed">("single");
-  const [passes, setPasses] = useState<Pass[]>([]);
-  const [filteredPasses, setFilteredPasses] = useState<Pass[]>([]);
-  const [selfExits, setSelfExits] = useState<Pass[]>([]);
-  const [filteredSelfExits, setFilteredSelfExits] = useState<Pass[]>([]);
-  const [departedPasses, setDepartedPasses] = useState<Pass[]>([]);
-  const [filteredDeparted, setFilteredDeparted] = useState<Pass[]>([]);
-  const [selectedLetter, setSelectedLetter] = useState<string>("");
-  const [selectedGradeGroup, setSelectedGradeGroup] = useState<string>("");
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selfExitSearchQuery, setSelfExitSearchQuery] = useState("");
-  const [departedSearchQuery, setDepartedSearchQuery] = useState("");
-  const [mounted, setMounted] = useState(false);
-  const [isFiltersVisible, setIsFiltersVisible] = useState(true);
-  const [isSelfExitFiltersVisible, setIsSelfExitFiltersVisible] = useState(true);
-  const [isDepartedFiltersVisible, setIsDepartedFiltersVisible] = useState(true);
-  const [departedSelectedLetter, setDepartedSelectedLetter] = useState<string>("");
-  const [departedSelectedGradeGroup, setDepartedSelectedGradeGroup] = useState<string>("");
-  const [selfExitSelectedLetter, setSelfExitSelectedLetter] = useState<string>("");
-  const [selfExitSelectedGradeGroup, setSelfExitSelectedGradeGroup] = useState<string>("");
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
+const GRADE_GROUPS = [
+    { id: "1-3", label: "1–3 классы", grades: [1, 2, 3] },
+    { id: "4-6", label: "4–6 классы", grades: [4, 5, 6] },
+    { id: "7-9", label: "7–9 классы", grades: [7, 8, 9] },
+    { id: "10-11", label: "10–11 классы", grades: [10, 11] },
+];
 
-  // Группы классов
-  const gradeGroups: GradeGroup[] = [
-    { id: "1-3", name: "Начальная школа (1-3)", grades: [1, 2, 3] },
-    { id: "4-6", name: "Средняя школа (4-6)", grades: [4, 5, 6] },
-    { id: "7-9", name: "Старшая школа (7-9)", grades: [7, 8, 9] },
-    { id: "10-11", name: "Выпускные классы (10-11)", grades: [10, 11] },
-  ];
+// Ъ, Ы и Ь не могут начинать имя — в фильтре они только мешают
+const ALPHABET = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЭЮЯ".split("");
 
-  // Алфавит
-  const alphabet = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ".split("");
+export default function AdminDashboardPage() {
+    const { data: session, status } = useSession();
+    const router = useRouter();
+    const toast = useToast();
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+    const [mounted, setMounted] = useState(false);
+    const [tab, setTab] = useState<TabId>("single");
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [busyId, setBusyId] = useState<string | null>(null);
 
-  // Проверка прав доступа
-  useEffect(() => {
-    if (status === "loading") return;
+    const [passes, setPasses] = useState<DashboardPass[]>([]);
+    const [selfExits, setSelfExits] = useState<DashboardPass[]>([]);
+    const [departed, setDeparted] = useState<DashboardPass[]>([]);
+    const [stats, setStats] = useState<Stats | null>(null);
 
-    if (!session) {
-      router.replace("/login");
-      return;
-    }
+    // Фильтры общие для всех вкладок: переключение раздела не сбрасывает поиск
+    const [search, setSearch] = useState("");
+    const [gradeGroup, setGradeGroup] = useState("");
+    const [letter, setLetter] = useState("");
 
-    const roles = (session?.user?.roles as string[]) || [];
-    if (!roles.includes("ADMIN")) {
-      router.replace("/");
-      return;
-    }
-  }, [session, status, router]);
+    useEffect(() => {
+        setMounted(true);
+        if (status === "unauthenticated") router.replace("/login");
+        if (status === "authenticated") {
+            const roles = (session?.user?.roles as string[]) || [];
+            if (!roles.includes("ADMIN")) router.replace("/");
+        }
+    }, [session, status, router]);
 
-  // Загрузка данных - ОДИН ЗАПРОС
-  const fetchDashboardData = async () => {
-    try {
-      setIsLoading(true);
+    const fetchData = useCallback(async (nextTab: TabId) => {
+        setIsLoading(true);
+        setError(null);
 
-      const response = await fetch(`/api/admin/dashboard-data?tab=${activeTab}`);
-      const data = await response.json();
+        try {
+            const response = await fetch(`/api/admin/dashboard-data?tab=${nextTab}`);
+            if (!response.ok) throw new Error(`Сервер вернул ошибку ${response.status}`);
 
-      if (data.error) {
-        console.error("Error:", data.error);
-        return;
-      }
+            const data = await response.json();
+            if (data.error) throw new Error(data.error);
 
-      // Сохраняем все данные
-      setPasses(data.passes || []);
-      setFilteredPasses(data.passes || []);
+            if (nextTab === "single") setPasses(Array.isArray(data.passes) ? data.passes : []);
+            if (nextTab === "self-exit") setSelfExits(Array.isArray(data.selfExits) ? data.selfExits : []);
+            if (nextTab === "departed") setDeparted(Array.isArray(data.departed) ? data.departed : []);
 
-      setSelfExits(data.selfExits || []);
-      setFilteredSelfExits(data.selfExits || []);
+            if (data.stats) {
+                setStats({
+                    totalPasses: data.stats.totalPasses ?? 0,
+                    totalSelfExits: data.stats.totalSelfExits ?? 0,
+                    totalDeparted: data.stats.totalDeparted ?? 0,
+                });
+            }
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Не удалось загрузить данные панели");
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
-      setDepartedPasses(data.departed || []);
-      setFilteredDeparted(data.departed || []);
+    useEffect(() => {
+        if (session?.user?.roles?.includes("ADMIN")) {
+            void fetchData(tab);
+        }
+    }, [session, tab, fetchData]);
 
-    } catch (error) {
-      console.error("Error fetching dashboard data:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    // Фильтры (параллель и буква) сохраняются между визитами и действуют
+    // на все три вкладки: они живут в общем состоянии, а не в состоянии вкладки.
+    useEffect(() => {
+        if (!mounted) return;
 
-  // Загрузка данных при изменении вкладки
-  useEffect(() => {
-    if (session && session?.user?.roles?.includes("ADMIN")) {
-      fetchDashboardData();
-    }
-  }, [session, activeTab]);
+        try {
+            const raw = localStorage.getItem(FILTERS_STORAGE_KEY);
+            if (!raw) return;
 
-  // Фильтрация активных пропусков
-  useEffect(() => {
-    let filtered = passes;
+            const saved = JSON.parse(raw) as { gradeGroup?: string; letter?: string };
+            if (saved.gradeGroup) setGradeGroup(saved.gradeGroup);
+            if (saved.letter) setLetter(saved.letter);
+        } catch {
+            // повреждённое значение не должно ломать панель
+        }
+    }, [mounted]);
 
-    if (searchQuery) {
-      filtered = filtered.filter(pass =>
-        pass.studentName.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
+    useEffect(() => {
+        if (!mounted) return;
 
-    if (selectedLetter) {
-      filtered = filtered.filter(pass =>
-        pass.studentName.charAt(0).toUpperCase() === selectedLetter
-      );
-    }
+        try {
+            localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify({ gradeGroup, letter }));
+        } catch {
+            // приватный режим — не критично
+        }
+    }, [mounted, gradeGroup, letter]);
 
-    if (selectedGradeGroup) {
-      const group = gradeGroups.find(g => g.id === selectedGradeGroup);
-      if (group) {
-        filtered = filtered.filter(pass => group.grades.includes(pass.grade || 0));
-      }
-    }
-
-    setFilteredPasses(filtered);
-  }, [searchQuery, selectedLetter, selectedGradeGroup, passes]);
-
-  // Фильтрация самовыходов
-  useEffect(() => {
-    let filtered = selfExits;
-
-    if (selfExitSearchQuery) {
-      filtered = filtered.filter(pass =>
-        pass.studentName.toLowerCase().includes(selfExitSearchQuery.toLowerCase())
-      );
-    }
-
-    if (selfExitSelectedLetter) {
-      filtered = filtered.filter(pass =>
-        pass.studentName.charAt(0).toUpperCase() === selfExitSelectedLetter
-      );
-    }
-
-    if (selfExitSelectedGradeGroup) {
-      const group = gradeGroups.find(g => g.id === selfExitSelectedGradeGroup);
-      if (group) {
-        filtered = filtered.filter(pass => group.grades.includes(pass.grade || 0));
-      }
-    }
-
-    setFilteredSelfExits(filtered);
-  }, [selfExitSearchQuery, selfExitSelectedLetter, selfExitSelectedGradeGroup, selfExits]);
-
-  // Фильтрация ушедших
-  useEffect(() => {
-    let filtered = departedPasses;
-
-    if (departedSearchQuery) {
-      filtered = filtered.filter(pass =>
-        pass.studentName.toLowerCase().includes(departedSearchQuery.toLowerCase())
-      );
-    }
-
-    if (departedSelectedLetter) {
-      filtered = filtered.filter(pass =>
-        pass.studentName.charAt(0).toUpperCase() === departedSelectedLetter
-      );
-    }
-
-    if (departedSelectedGradeGroup) {
-      const group = gradeGroups.find(g => g.id === departedSelectedGradeGroup);
-      if (group) {
-        filtered = filtered.filter(pass => group.grades.includes(pass.grade || 0));
-      }
-    }
-
-    setFilteredDeparted(filtered);
-  }, [departedSearchQuery, departedSelectedLetter, departedSelectedGradeGroup, departedPasses]);
-
-  const markAsUsed = async (passId: string) => {
-    try {
-      const response = await fetch(`/api/passes?id=${passId}`, { method: "PUT" });
-      if (response.ok) {
-        await fetchDashboardData();
-      }
-    } catch (error) {
-      console.error("Error marking pass as used:", error);
-    }
-  };
-
-  const undoMarkAsUsed = async (passId: string) => {
-    try {
-      const response = await fetch(`/api/passes/${passId}/undo`, { method: "PUT" });
-      if (response.ok) {
-        await fetchDashboardData();
-      }
-    } catch (error) {
-      console.error("Error undoing mark:", error);
-    }
-  };
-
-  const handleLogout = async () => {
-    await fetch("/api/auth/signout", { method: "POST" });
-    router.push("/login");
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
-  };
-
-  // Функция для скачивания заявления
-  // const downloadPhoto = async (photoUrl: string, studentName: string) => {
-  //   try {
-  //     const response = await fetch(photoUrl);
-  //     const blob = await response.blob();
-  //     const url = URL.createObjectURL(blob);
-  //     const a = document.createElement("a");
-  //     a.href = url;
-  //     a.download = `заявление_${studentName}_${new Date().toISOString().split('T')[0]}.jpg`;
-  //     document.body.appendChild(a);
-  //     a.click();
-  //     document.body.removeChild(a);
-  //     URL.revokeObjectURL(url);
-  //   } catch (error) {
-  //     console.error("Error downloading photo:", error);
-  //     alert("Ошибка при скачивании файла");
-  //   }
-  // };
-
-  const menuItems = [
-    { id: "dashboard", name: "Пропуски", icon: <DoorOpen size={18} />, action: () => setActiveTab("single") },
-    { id: "self-exit", name: "Самовыход", icon: <UserCheck size={18} />, action: () => setActiveTab("self-exit") },
-    { id: "departed", name: "Ушедшие", icon: <Users size={18} />, action: () => setActiveTab("departed") },
-    { id: "classes", name: "Классы", icon: <School size={18} />, action: () => router.push("/admin/classes") },
-    { id: "users", name: "Персонал", icon: <Users size={18} />, action: () => router.push("/admin/users") },
-    { id: "absent", name: "Отсутствия", icon: <UserX size={18} />, action: () => router.push("/admin/absent") },
-    { id: "truants", name: "Прогульщики", icon: <UserX size={18} />, action: () => router.push("/admin/truants") },
-    { id: "violations", name: "Нарушения", icon: <AlertTriangle size={18} />, action: () => router.push("/admin/violations") },
-    { id: "students", name: "Ученики", icon: <Users size={18} />, action: () => router.push("/admin/students") },
-    { id: "schoolRecords", name: "ВШУ", icon: <ShieldAlert size={18} />, action: () => router.push("/admin/school-records") },
-    {
-      id: "classes-overview",
-      name: "1-4 СВ/Дов.",
-      icon: <LayoutGrid size={18} />,
-      action: () => router.push("/admin/classes-overview")
-    },
-    { id: "home", name: "На главную", icon: <Home size={18} />, action: () => router.push("/") },
-
-
-  ];
-
-  const renderSingleTab = () => (
-    <div className="space-y-2">
-      {filteredPasses.length === 0 ? (
-        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 text-center border border-white/20">
-          <FileText size={32} className="text-gray-500 mx-auto mb-2" />
-          <p className="text-gray-400">Нет разовых пропусков на сегодня</p>
-        </div>
-      ) : (
-        filteredPasses.map((pass) => (
-          <div key={pass.id} className="bg-green-500/10 backdrop-blur-lg rounded-xl p-3 border border-green-500/30 hover:bg-green-500/20 transition-all">
-            <div className="flex flex-col">
-              <div className="flex items-start justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <DoorOpen size={14} className="text-green-400" />
-                  <h4 className="font-semibold text-white text-sm truncate">{pass.studentName}</h4>
-                </div>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-gray-300">{pass.className}</span>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 mt-2">
-                <div className="flex items-center gap-1">
-                  <Clock size={10} className="text-blue-400" />
-                  <span className="text-xs text-blue-400">{pass.exitTime}</span>
-                </div>
-                <div className="flex items-center gap-1 min-w-0">
-                  <FileText size={10} className="text-gray-400" />
-                  <span className="text-xs text-gray-400 truncate">{pass.reason}</span>
-                </div>
-              </div>
-              <button onClick={() => markAsUsed(pass.id)} className="mt-2 w-full py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg text-sm transition-all flex items-center justify-center gap-1">
-                <CheckCircle size={12} />
-                Отметить выход
-              </button>
-            </div>
-          </div>
-        ))
-      )}
-    </div>
-  );
-
-  const renderSelfExitTab = () => (
-    <div className="space-y-2">
-      {/* Фильтры для самовыходов */}
-      <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
-        <div className="flex flex-col gap-3">
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              value={selfExitSearchQuery}
-              onChange={(e) => setSelfExitSearchQuery(e.target.value)}
-              placeholder="Поиск по ФИО..."
-              className="w-full pl-9 pr-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <button onClick={() => setIsSelfExitFiltersVisible(!isSelfExitFiltersVisible)} className="flex items-center justify-center gap-2 py-1.5 text-sm text-gray-400 hover:text-white transition-colors">
-            <Filter size={14} />
-            {isSelfExitFiltersVisible ? "Скрыть фильтры" : "Показать фильтры"}
-          </button>
-          {isSelfExitFiltersVisible && (
-            <div className="space-y-3 pt-2 border-t border-white/10">
-              <div className="flex flex-wrap items-center gap-2">
-                <School size={14} className="text-blue-400" />
-                <span className="text-sm text-gray-300">Параллель:</span>
-                <select
-                  value={selfExitSelectedGradeGroup}
-                  onChange={(e) => setSelfExitSelectedGradeGroup(e.target.value)}
-                  className="px-2 py-1 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="" className="bg-[#1a2332]">Все классы</option>
-                  {gradeGroups.map((group) => (
-                    <option key={group.id} value={group.id} className="bg-[#1a2332]">{group.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <Filter size={14} className="text-blue-400" />
-                  <span className="text-sm text-gray-300">Фильтр по первой букве:</span>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  <button
-                    onClick={() => setSelfExitSelectedLetter("")}
-                    className={`px-2 py-1 rounded-lg text-xs transition-all ${selfExitSelectedLetter === "" ? "bg-blue-500/30 text-blue-300" : "bg-white/10 text-gray-400 hover:bg-white/20"}`}
-                  >
-                    Все
-                  </button>
-                  {alphabet.map((letter) => (
-                    <button
-                      key={letter}
-                      onClick={() => setSelfExitSelectedLetter(letter)}
-                      className={`w-7 h-7 rounded-lg text-xs font-medium transition-all ${selfExitSelectedLetter === letter ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white" : "bg-white/10 text-gray-400 hover:bg-white/20"}`}
-                    >
-                      {letter}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Список самовыходов */}
-      {filteredSelfExits.length === 0 ? (
-        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 text-center border border-white/20">
-          <UserCheck size={32} className="text-gray-500 mx-auto mb-2" />
-          <p className="text-gray-400">Нет активных самовыходов</p>
-        </div>
-      ) : (
-        filteredSelfExits.map((pass) => (
-          <div key={pass.id} className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
-            <div className="flex items-start justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <UserCheck size={14} className="text-indigo-400" />
-                <h4 className="font-semibold text-white text-sm truncate">{pass.studentName}</h4>
-              </div>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-gray-300">{pass.className}</span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 mt-2">
-              <div className="flex items-center gap-1">
-                <CalendarDays size={10} className="text-green-400" />
-                <span className="text-xs text-green-400">
-                  {pass.startDate && pass.endDate ? `${formatDate(pass.startDate)} - ${formatDate(pass.endDate)}` : "Постоянно"}
-                </span>
-              </div>
-            </div>
-            <div className="text-xs text-gray-400 mt-1 truncate">{pass.reason}</div>
-
-            {/* Кнопки для скачивания заявления */}
-            {/* {pass.photoUrl && (
-              <div className="flex gap-2 mt-2">
-                <button
-                  onClick={() => downloadPhoto(pass.photoUrl!, pass.studentName)}
-                  className="flex-1 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg text-sm transition-all flex items-center justify-center gap-1"
-                >
-                  <Download size={14} />
-                  Скачать заявление
-                </button>
-                <button
-                  onClick={() => setPreviewImage(pass.photoUrl!)}
-                  className="py-1.5 px-3 bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg text-sm transition-all flex items-center justify-center gap-1"
-                >
-                  <Eye size={14} />
-                </button>
-              </div>
-            )} */}
-          </div>
-        ))
-      )}
-
-      {/* Модальное окно для предпросмотра фото */}
-      {previewImage && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-          onClick={() => setPreviewImage(null)}
-        >
-          <div
-            className="relative max-w-4xl w-full max-h-[90vh] bg-[#1a2332] rounded-xl overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setPreviewImage(null)}
-              className="absolute top-2 right-2 z-10 w-8 h-8 flex items-center justify-center bg-red-500/80 hover:bg-red-500 text-white rounded-lg transition-all"
+    // «Обновить» — в шапке каркаса, а не в теле страницы
+    useHeaderActions(
+        () => (
+            <Button
+                size="sm"
+                variant="ghost"
+                leftIcon={RefreshCw}
+                onClick={() => void fetchData(tab)}
+                disabled={isLoading}
+                aria-label="Обновить данные панели"
             >
-              <XClose size={18} />
-            </button>
-            <img
-              src={previewImage}
-              alt="Заявление"
-              className="w-full h-auto max-h-[90vh] object-contain"
-            />
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
-  const renderDepartedTab = () => (
-    <div className="space-y-2">
-      <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
-        <div className="flex flex-col gap-3">
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              value={departedSearchQuery}
-              onChange={(e) => setDepartedSearchQuery(e.target.value)}
-              placeholder="Поиск по ФИО..."
-              className="w-full pl-9 pr-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <button onClick={() => setIsDepartedFiltersVisible(!isDepartedFiltersVisible)} className="flex items-center justify-center gap-2 py-1.5 text-sm text-gray-400 hover:text-white transition-colors">
-            <Filter size={14} />
-            {isDepartedFiltersVisible ? "Скрыть фильтры" : "Показать фильтры"}
-          </button>
-          {isDepartedFiltersVisible && (
-            <div className="space-y-3 pt-2 border-t border-white/10">
-              <div className="flex flex-wrap items-center gap-2">
-                <School size={14} className="text-blue-400" />
-                <span className="text-sm text-gray-300">Параллель:</span>
-                <select
-                  value={departedSelectedGradeGroup}
-                  onChange={(e) => setDepartedSelectedGradeGroup(e.target.value)}
-                  className="px-2 py-1 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="" className="bg-[#1a2332]">Все классы</option>
-                  {gradeGroups.map((group) => (
-                    <option key={group.id} value={group.id} className="bg-[#1a2332]">{group.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <Filter size={14} className="text-blue-400" />
-                  <span className="text-sm text-gray-300">Фильтр по первой букве:</span>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  <button
-                    onClick={() => setDepartedSelectedLetter("")}
-                    className={`px-2 py-1 rounded-lg text-xs transition-all ${departedSelectedLetter === "" ? "bg-blue-500/30 text-blue-300" : "bg-white/10 text-gray-400 hover:bg-white/20"}`}
-                  >
-                    Все
-                  </button>
-                  {alphabet.map((letter) => (
-                    <button
-                      key={letter}
-                      onClick={() => setDepartedSelectedLetter(letter)}
-                      className={`w-7 h-7 rounded-lg text-xs font-medium transition-all ${departedSelectedLetter === letter ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white" : "bg-white/10 text-gray-400 hover:bg-white/20"}`}
-                    >
-                      {letter}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-      {filteredDeparted.length === 0 ? (
-        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 text-center border border-white/20">
-          <Users size={32} className="text-gray-500 mx-auto mb-2" />
-          <p className="text-gray-400">Сегодня никто не уходил</p>
-        </div>
-      ) : (
-        filteredDeparted.map((pass) => (
-          <div key={pass.id} className="bg-blue-500/10 backdrop-blur-lg rounded-xl p-3 border border-blue-500/30">
-            <div className="flex items-start justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <CheckCircle size={14} className="text-blue-400" />
-                <h4 className="font-semibold text-white text-sm truncate">{pass.studentName}</h4>
-              </div>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-gray-300">{pass.className}</span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 mt-2">
-              <div className="flex items-center gap-1">
-                <Clock size={10} className="text-green-400" />
-                <span className="text-xs text-green-400">Выход: {pass.exitTime}</span>
-              </div>
-              {pass.usedAt && (
-                <div className="flex items-center gap-1">
-                  <Clock size={10} className="text-blue-400" />
-                  <span className="text-xs text-blue-400">Отмечен: {new Date(pass.usedAt).toLocaleTimeString()}</span>
-                </div>
-              )}
-            </div>
-            <div className="text-xs text-gray-400 mt-1 truncate">Причина: {pass.reason}</div>
-            <button
-              onClick={() => undoMarkAsUsed(pass.id)}
-              className="mt-2 w-full py-1.5 bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 rounded-lg text-sm transition-all flex items-center justify-center gap-1"
-            >
-              <Undo2 size={12} />
-              Отменить выход
-            </button>
-          </div>
-        ))
-      )}
-    </div>
-  );
-
-  if (!mounted || status === "loading" || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#1a2332] to-[#2b3858]">
-        <div className="bg-white/10 backdrop-blur-lg p-8 rounded-2xl text-center border border-white/20">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-4 text-gray-300">Загрузка...</p>
-        </div>
-      </div>
+                <span className="hidden sm:inline">Обновить</span>
+            </Button>
+        ),
+        [fetchData, tab, isLoading],
     );
-  }
 
-  if (!session || !session?.user?.roles?.includes("ADMIN")) {
-    return null;
-  }
+    const markAsUsed = async (pass: DashboardPass) => {
+        setBusyId(pass.id);
+        try {
+            const response = await fetch(`/api/passes?id=${pass.id}`, { method: "PUT" });
+            if (!response.ok) throw new Error("Не удалось отметить выход");
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1a2332] to-[#2b3858] pb-16 lg:pb-0">
-      {/* Хедер */}
-      <div className="bg-white/10 backdrop-blur-lg border-b border-white/20 sticky top-0 z-50">
-        <div className="px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="lg:hidden w-8 h-8 flex items-center justify-center bg-white/10 rounded-lg hover:bg-white/20 transition-all"
-              >
-                {mobileMenuOpen ? <XClose size={18} className="text-white" /> : <Menu size={18} className="text-white" />}
-              </button>
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center">
-                <Shield size={16} className="text-white" />
-              </div>
-              <h1 className="text-base font-bold text-white">Админ панель</h1>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-300 hidden sm:block">{session.user?.name}</span>
-              <button onClick={handleLogout} className="w-8 h-8 flex items-center justify-center bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg transition-all">
-                <LogOut size={16} />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+            toast.show({ title: "Выход отмечен", description: pass.studentName, tone: "success" });
+            await fetchData(tab);
+        } catch (e) {
+            toast.show({ title: e instanceof Error ? e.message : "Ошибка", tone: "danger" });
+        } finally {
+            setBusyId(null);
+        }
+    };
 
-      {/* Мобильное меню */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden" onClick={() => setMobileMenuOpen(false)}>
-          <div className="absolute top-14 left-0 right-0 bg-[#1a2332] border-b border-white/20 p-2" onClick={(e) => e.stopPropagation()}>
-            <div className="grid grid-cols-4 gap-1 text-white">
-              {menuItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    item.action();
-                    setMobileMenuOpen(false);
-                  }}
-                  className="flex flex-col items-center gap-1 p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-all"
-                >
-                  {item.icon}
-                  <span className="text-[10px] text-gray-300">{item.name}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+    const undoMarkAsUsed = async (pass: DashboardPass) => {
+        setBusyId(pass.id);
+        try {
+            const response = await fetch(`/api/passes/${pass.id}/undo`, { method: "PUT" });
+            if (!response.ok) throw new Error("Не удалось отменить выход");
 
-      {/* Десктопное меню */}
-      <div className="hidden lg:block bg-white/5 border-b border-white/10">
-        <div className="max-w-[1800px] mx-auto px-4">
-          <div className="flex items-center justify-between h-14">
+            toast.show({
+                title: "Выход отменён",
+                description: `${pass.studentName} снова в школе`,
+                tone: "success",
+            });
+            await fetchData(tab);
+        } catch (e) {
+            toast.show({ title: e instanceof Error ? e.message : "Ошибка", tone: "danger" });
+        } finally {
+            setBusyId(null);
+        }
+    };
 
-            {/* 🔥 ЛЕВАЯ ЧАСТЬ: Логотип + Основные вкладки */}
-            <div className="flex items-center gap-6">
+    const current = tab === "single" ? passes : tab === "self-exit" ? selfExits : departed;
 
-              {/* Логотип / Название раздела
-              <div className="flex items-center gap-2 pr-4 border-r border-white/10">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
-                  <Shield size={16} className="text-white" />
+    const rows = useMemo(() => {
+        const query = search.trim().toLowerCase();
+        const grades = GRADE_GROUPS.find(group => group.id === gradeGroup)?.grades ?? [];
+
+        return current.filter(item => {
+            if (query && !item.studentName.toLowerCase().includes(query)) return false;
+            if (grades.length > 0 && !grades.includes(item.grade)) return false;
+            if (letter && item.studentName.charAt(0).toUpperCase() !== letter) return false;
+            return true;
+        });
+    }, [current, search, gradeGroup, letter]);
+
+    const filtersActive = Boolean(search || gradeGroup || letter);
+    const resetFilters = () => {
+        setSearch("");
+        setGradeGroup("");
+        setLetter("");
+    };
+
+    if (!mounted || status === "loading") {
+        return (
+            <div className="min-h-full bg-bg">
+                <div className="mx-auto w-full max-w-[1440px] space-y-3 px-4 py-4">
+                    <Skeleton height={48} radius="control" />
+                    <Skeleton height={72} radius="card" />
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {Array.from({ length: 6 }).map((_, index) => (
+                            <Skeleton key={index} height={150} radius="card" />
+                        ))}
+                    </div>
                 </div>
-                <span className="text-sm font-bold text-white whitespace-nowrap">
-                  Админ панель
-                </span>
-              </div> */}
-
-              {/* Группа: Рабочие вкладки (пропуска, самовыход, ушедшие) */}
-              <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1">
-                <button
-                  onClick={() => setActiveTab("single")}
-                  className={`relative px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${activeTab === "single"
-                    ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-md shadow-blue-500/20"
-                    : "text-gray-400 hover:text-white hover:bg-white/5"
-                    }`}
-                >
-                  <DoorOpen size={14} />
-                  Разовый
-                  {filteredPasses.length > 0 && (
-                    <span className={`ml-1 text-[10px] px-1.5 py-0.5 rounded-full ${activeTab === "single" ? "bg-white/20" : "bg-blue-500/20 text-blue-300"
-                      }`}>
-                      {filteredPasses.length}
-                    </span>
-                  )}
-                </button>
-
-                <button
-                  onClick={() => setActiveTab("self-exit")}
-                  className={`relative px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${activeTab === "self-exit"
-                    ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md shadow-indigo-500/20"
-                    : "text-gray-400 hover:text-white hover:bg-white/5"
-                    }`}
-                >
-                  <UserCheck size={14} />
-                  Самовыход
-                  {filteredSelfExits.length > 0 && (
-                    <span className={`ml-1 text-[10px] px-1.5 py-0.5 rounded-full ${activeTab === "self-exit" ? "bg-white/20" : "bg-indigo-500/20 text-indigo-300"
-                      }`}>
-                      {filteredSelfExits.length}
-                    </span>
-                  )}
-                </button>
-
-                <button
-                  onClick={() => setActiveTab("departed")}
-                  className={`relative px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${activeTab === "departed"
-                    ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-md shadow-green-500/20"
-                    : "text-gray-400 hover:text-white hover:bg-white/5"
-                    }`}
-                >
-                  <Users size={14} />
-                  Ушедшие
-                  {filteredDeparted.length > 0 && (
-                    <span className={`ml-1 text-[10px] px-1.5 py-0.5 rounded-full ${activeTab === "departed" ? "bg-white/20" : "bg-green-500/20 text-green-300"
-                      }`}>
-                      {filteredDeparted.length}
-                    </span>
-                  )}
-                </button>
-              </div>
             </div>
+        );
+    }
 
-            {/* 🔥 ПРАВАЯ ЧАСТЬ: Навигация по разделам */}
-            <div className="flex items-center gap-1">
+    if (!session || !session?.user?.roles?.includes("ADMIN")) return null;
 
-              {/* Группа: Ученики и данные */}
-              <div className="flex items-center gap-0.5">
-                <button
-                  onClick={() => router.push("/admin/students")}
-                  className="group px-3 py-1.5 rounded-md text-xs text-gray-400 hover:text-white hover:bg-cyan-500/10 transition-all flex items-center gap-1.5 relative"
-                  title="Профили учеников"
-                >
-                  <User size={14} className="group-hover:text-cyan-400 transition-colors" />
-                  <span className="hidden xl:inline">Ученики</span>
-                </button>
-
-                <button
-                  onClick={() => router.push("/admin/classes")}
-                  className="group px-3 py-1.5 rounded-md text-xs text-gray-400 hover:text-white hover:bg-purple-500/10 transition-all flex items-center gap-1.5 relative"
-                  title="Управление классами"
-                >
-                  <School size={14} className="group-hover:text-purple-400 transition-colors" />
-                  <span className="hidden xl:inline">Классы</span>
-                </button>
-
-                <button
-                  onClick={() => router.push("/admin/users")}
-                  className="group px-3 py-1.5 rounded-md text-xs text-gray-400 hover:text-white hover:bg-pink-500/10 transition-all flex items-center gap-1.5 relative"
-                  title="Персонал школы"
-                >
-                  <Users size={14} className="group-hover:text-pink-400 transition-colors" />
-                  <span className="hidden xl:inline">Персонал</span>
-                </button>
-              </div>
-
-              {/* Разделитель */}
-              <div className="w-px h-6 bg-white/10 mx-2" />
-
-              {/* Группа: Аналитика */}
-              <div className="flex items-center gap-0.5">
-                <button
-                  onClick={() => router.push("/admin/absent")}
-                  className="group px-3 py-1.5 rounded-md text-xs text-gray-400 hover:text-white hover:bg-amber-500/10 transition-all flex items-center gap-1.5 relative"
-                  title="Отсутствия"
-                >
-                  <UserX size={14} className="group-hover:text-amber-400 transition-colors" />
-                  <span className="hidden xl:inline">Отсутствия</span>
-                </button>
-                <button
-                  onClick={() => router.push("/admin/classes-overview")}
-                  className="group px-3 py-1.5 rounded-md text-xs text-gray-400 hover:text-white hover:bg-cyan-500/10 transition-all flex items-center gap-1.5 relative"
-                  title="Обзор классов 1-3 (самовыходы и доверенности)"
-                >
-                  <ListOrdered size={14} className="group-hover:text-cyan-400 transition-colors" />
-                  <span className="hidden xl:inline">1-4 СВ и Дов.</span>
-                </button>
-                <button
-                  onClick={() => router.push("/admin/truants")}
-                  className="group px-3 py-1.5 rounded-md text-xs text-gray-400 hover:text-white hover:bg-red-500/10 transition-all flex items-center gap-1.5 relative"
-                  title="Прогульщики"
-                >
-                  <UserX size={14} className="group-hover:text-red-400 transition-colors" />
-                  <span className="hidden xl:inline">Прогульщики</span>
-                </button>
-
-                <button
-                  onClick={() => router.push("/admin/violations")}
-                  className="group px-3 py-1.5 rounded-md text-xs text-gray-400 hover:text-white hover:bg-rose-500/10 transition-all flex items-center gap-1.5 relative"
-                  title="Нарушения"
-                >
-                  <AlertTriangle size={14} className="group-hover:text-rose-400 transition-colors" />
-                  <span className="hidden xl:inline">Нарушения</span>
-                </button>
-
-                <button
-                  onClick={() => router.push("/admin/school-records")}
-                  className="group px-3 py-1.5 rounded-md text-xs text-gray-400 hover:text-white hover:bg-orange-500/10 transition-all flex items-center gap-1.5 relative"
-                  title="Внутришкольный учёт"
-                >
-                  <ShieldAlert size={14} className="group-hover:text-orange-400 transition-colors" />
-                  <span className="hidden xl:inline">ВШУ</span>
-                </button>
-              </div>
-
-              {/* Разделитель */}
-              <div className="w-px h-6 bg-white/10 mx-2" />
-
-              {/* Кнопка "На главную" */}
-              <button
-                onClick={() => router.push("/")}
-                className="px-3 py-1.5 rounded-md text-xs text-gray-400 hover:text-white hover:bg-blue-500/10 transition-all flex items-center gap-1.5 border border-white/10 hover:border-blue-500/30"
-                title="На главную страницу"
-              >
-                <Home size={14} />
-                <span className="hidden xl:inline">На главную</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Основной контент */}
-      <div className="p-4">
-        <div className="max-w-7xl mx-auto space-y-4">
-          {/* Поиск и фильтры для разовых пропусков */}
-          {activeTab === "single" && (
-            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
-              <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Поиск по ФИО..."
-                  className="w-full pl-9 pr-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+    const emptyByTab = () => {
+        if (filtersActive) {
+            return (
+                <EmptyState
+                    variant="no-results"
+                    title="Никого не найдено"
+                    description="Измените поиск или сбросьте фильтры"
+                    action={{ label: "Сбросить фильтры", onClick: resetFilters }}
                 />
-              </div>
-              <button
-                onClick={() => setIsFiltersVisible(!isFiltersVisible)}
-                className="flex items-center justify-center gap-2 py-1.5 mt-2 text-sm text-gray-400 hover:text-white transition-colors w-full"
-              >
-                <Filter size={14} />
-                {isFiltersVisible ? "Скрыть фильтры" : "Показать фильтры"}
-              </button>
-              {isFiltersVisible && (
-                <div className="space-y-3 pt-2 border-t border-white/10 mt-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <School size={14} className="text-blue-400" />
-                    <span className="text-sm text-gray-300">Параллель:</span>
-                    <select
-                      value={selectedGradeGroup}
-                      onChange={(e) => setSelectedGradeGroup(e.target.value)}
-                      className="px-2 py-1 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="" className="bg-[#1a2332]">Все классы</option>
-                      {gradeGroups.map((group) => (
-                        <option key={group.id} value={group.id} className="bg-[#1a2332]">{group.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Filter size={14} className="text-blue-400" />
-                      <span className="text-sm text-gray-300">Фильтр по первой букве:</span>
+            );
+        }
+
+        if (tab === "departed") {
+            return (
+                <EmptyState
+                    icon={CheckCircle}
+                    title="Сегодня никто не уходил"
+                    description="Как только охранник отметит выход, ученик появится здесь"
+                />
+            );
+        }
+
+        if (tab === "self-exit") {
+            return (
+                <EmptyState
+                    icon={UserCheck}
+                    title="Нет активных самовыходов"
+                    description="Самовыход оформляется на главной странице учителя"
+                />
+            );
+        }
+
+        return (
+            <EmptyState
+                icon={DoorOpen}
+                title="Нет разовых пропусков на сегодня"
+                description="Пропуск создаёт классный руководитель на главной странице"
+            />
+        );
+    };
+
+    return (
+        <div className="min-h-full bg-bg pb-20 md:pb-6">
+            <main className="mx-auto w-full max-w-[1440px] space-y-3 px-4 py-4">
+                {/* Переключатель разделов — восстановлен */}
+                <Tabs
+                    value={tab}
+                    onChange={id => setTab(id as TabId)}
+                    ariaLabel="Разделы панели"
+                    size="sm"
+                    items={[
+                        { id: "single", label: "Разовые", count: stats?.totalPasses },
+                        { id: "self-exit", label: "Самовыходы", count: stats?.totalSelfExits },
+                        { id: "departed", label: "Ушедшие", count: stats?.totalDeparted },
+                    ]}
+                />
+
+                {error && <FormError message={error} />}
+
+                {/* Фильтры: два поля в ряд, алфавит — отдельной строкой на всю ширину */}
+                <div className="grid gap-2 sm:grid-cols-2">
+                    <SearchInput
+                        value={search}
+                        onChange={setSearch}
+                        placeholder="Фамилия ученика"
+                        label="Поиск"
+                    />
+                    <Select
+                        label="Параллель"
+                        placeholder="Все классы"
+                        value={gradeGroup}
+                        onChange={setGradeGroup}
+                        options={GRADE_GROUPS.map(group => ({ value: group.id, label: group.label }))}
+                    />
+                </div>
+
+                <div>
+                    <div className="mb-1.5 flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium text-fg">Первая буква фамилии</p>
+                        {letter && (
+                            <button
+                                type="button"
+                                onClick={() => setLetter("")}
+                                className="text-xs text-fg-muted hover:text-fg"
+                            >
+                                Сбросить
+                            </button>
+                        )}
                     </div>
                     <div className="flex flex-wrap gap-1">
-                      <button
-                        onClick={() => setSelectedLetter("")}
-                        className={`px-2 py-1 rounded-lg text-xs transition-all ${selectedLetter === "" ? "bg-blue-500/30 text-blue-300" : "bg-white/10 text-gray-400 hover:bg-white/20"}`}
-                      >
-                        Все
-                      </button>
-                      {alphabet.map((letter) => (
-                        <button
-                          key={letter}
-                          onClick={() => setSelectedLetter(letter)}
-                          className={`w-7 h-7 rounded-lg text-xs font-medium transition-all ${selectedLetter === letter ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white" : "bg-white/10 text-gray-400 hover:bg-white/20"}`}
-                        >
-                          {letter}
-                        </button>
-                      ))}
+                        <Chip selected={letter === ""} onClick={() => setLetter("")}>
+                            Все
+                        </Chip>
+                        {ALPHABET.map(symbol => (
+                            <Chip
+                                key={symbol}
+                                selected={letter === symbol}
+                                onClick={() => setLetter(letter === symbol ? "" : symbol)}
+                                className="min-w-8 justify-center"
+                            >
+                                {symbol}
+                            </Chip>
+                        ))}
                     </div>
-                  </div>
                 </div>
-              )}
-            </div>
-          )}
 
-          {/* Статистика */}
-          <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-400">
-                {activeTab === "departed" ? "Ушедших сегодня:" :
-                  activeTab === "self-exit" ? "Активных самовыходов:" :
-                    "Всего пропусков:"}
-              </span>
-              <span className="text-white font-bold">
-                {activeTab === "departed" ? filteredDeparted.length :
-                  activeTab === "self-exit" ? filteredSelfExits.length :
-                    filteredPasses.length}
-              </span>
-            </div>
-          </div>
+                <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+                    <p className="text-xs text-fg-subtle">
+                        {isLoading
+                            ? "Загрузка…"
+                            : `${tab === "departed" ? "Ушли" : tab === "self-exit" ? "Самовыходов" : "Пропусков"}: ${rows.length}`}
+                    </p>
+                    {filtersActive && (
+                        <Chip onClick={resetFilters} onRemove={resetFilters} className="text-danger">
+                            Сбросить фильтры
+                        </Chip>
+                    )}
+                </div>
 
-          {/* Контент */}
-          {activeTab === "single" && renderSingleTab()}
-          {activeTab === "self-exit" && renderSelfExitTab()}
-          {activeTab === "departed" && renderDepartedTab()}
+                {isLoading && current.length === 0 ? (
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {Array.from({ length: 6 }).map((_, index) => (
+                            <Skeleton key={index} height={160} radius="card" />
+                        ))}
+                    </div>
+                ) : rows.length === 0 ? (
+                    emptyByTab()
+                ) : (
+                    <ul role="list" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {rows.map(pass => {
+                            const isDeparted = tab === "departed";
+                            const isSelfExit = tab === "self-exit";
+                            const Icon = isDeparted ? CheckCircle : isSelfExit ? UserCheck : DoorOpen;
+                            const iconTone = isDeparted ? "text-info" : isSelfExit ? "text-warning" : "text-success";
+
+                            // Для тех, кто ещё в школе, статус не нужен — это и так очевидно по кнопке
+                            const statusText = isDeparted
+                                ? pass.usedAt
+                                    ? `ушёл в ${new Date(pass.usedAt).toLocaleTimeString("ru-RU", {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                    })}`
+                                    : "выход отмечен"
+                                : null;
+
+                            return (
+                                <li
+                                    key={pass.id}
+                                    className="flex flex-col rounded-card border border-border bg-surface p-4 shadow-card transition-colors hover:border-border-strong"
+                                >
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="flex min-w-0 items-center gap-2.5">
+                                            <span
+                                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-surface-2"
+                                                aria-hidden
+                                            >
+                                                <Icon size={17} strokeWidth={1.75} className={iconTone} />
+                                            </span>
+                                            <div className="min-w-0">
+                                                <p className="truncate text-sm font-medium text-fg">
+                                                    {pass.studentName}
+                                                </p>
+                                                <p className="text-xs text-fg-subtle">{pass.className}</p>
+                                            </div>
+                                        </div>
+
+                                        {isSelfExit ? (
+                                            <p className="shrink-0 text-right text-xs text-fg-muted">
+                                                {pass.startDate && pass.endDate
+                                                    ? `${formatDateRu(pass.startDate)} — ${formatDateRu(pass.endDate)}`
+                                                    : "Постоянно"}
+                                            </p>
+                                        ) : (
+                                            <p className="shrink-0 text-xl font-semibold leading-none tabular-nums text-fg">
+                                                {pass.exitTime}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    <p className="mt-3 line-clamp-2 text-xs text-fg-muted">
+                                        {pass.reason}
+                                    </p>
+
+                                    <div className="mt-auto flex items-center justify-between gap-2 pt-3">
+                                        <span className="text-[11px] text-fg-subtle">{statusText}</span>
+
+                                        {!isSelfExit &&
+                                            (isDeparted ? (
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    leftIcon={Undo2}
+                                                    loading={busyId === pass.id}
+                                                    onClick={() => void undoMarkAsUsed(pass)}
+                                                >
+                                                    Отменить
+                                                </Button>
+                                            ) : (
+                                                <Button
+                                                    size="sm"
+                                                    variant="primary"
+                                                    leftIcon={CheckCircle}
+                                                    loading={busyId === pass.id}
+                                                    onClick={() => void markAsUsed(pass)}
+                                                >
+                                                    Отметить
+                                                </Button>
+                                            ))}
+                                    </div>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                )}
+            </main>
         </div>
-
-      </div>
-    </div>
-  );
+    );
 }

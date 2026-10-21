@@ -1,12 +1,23 @@
-// app/api/violations/route.ts
+﻿// app/api/violations/route.ts
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getDayRange, parseLocalDate } from "@/lib/date";
 
-// GET: Получить нарушения с фильтрами
+const MAX_PAGE_SIZE = 100;
+const DEFAULT_PAGE_SIZE = 25;
+
+/** Безопасный разбор целого числа из query-строки. */
+function parseIntParam(value: string | null, fallback: number, min: number, max: number): number {
+    const parsed = Number.parseInt(value ?? '', 10);
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.min(Math.max(parsed, min), max);
+}
+
+// GET: Получить нарушения с фильтрами, пагинацией и статистикой
 export async function GET(req: NextRequest) {
     const session = await getServerSession(authOptions);
     if (!session) {
@@ -15,42 +26,137 @@ export async function GET(req: NextRequest) {
 
     try {
         const { searchParams } = new URL(req.url);
-        const date = searchParams.get("date");           // конкретная дата YYYY-MM-DD
-        const startDate = searchParams.get("startDate"); // начало периода
-        const endDate = searchParams.get("endDate");     // конец периода
-        const className = searchParams.get("className"); // фильтр по классу
-        const violationType = searchParams.get("type");  // фильтр по типу
-        const studentId = searchParams.get("studentId"); // для одного ученика
-        const teacherId = searchParams.get("teacherId"); // для учителя
-        const limit = parseInt(searchParams.get("limit") || "100");
+        const date = searchParams.get("date");            // конкретный день YYYY-MM-DD
+        const startDate = searchParams.get("startDate");  // начало периода YYYY-MM-DD
+        const endDate = searchParams.get("endDate");      // конец периода YYYY-MM-DD
+        const className = searchParams.get("className");  // фильтр по классу
+        const gradeGroup = searchParams.get("gradeGroup"); // 1-3 | 4-6 | 7-11 (корпус)
+        const violationType = searchParams.get("type");   // фильтр по типу нарушения
+        const studentId = searchParams.get("studentId");  // для одного ученика
+        const teacherId = searchParams.get("teacherId");  // для учителя
+        const search = (searchParams.get("search") || "").trim(); // поиск по ученику/учителю/комментарию
+
+        const page = parseIntParam(searchParams.get("page"), 1, 1, 100000);
+        const pageSize = parseIntParam(searchParams.get("pageSize"), DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE);
+
+        const sortByParam = searchParams.get("sortBy") || "date";
+        const sortBy = (["date", "studentName", "className", "violationType"] as const)
+            .includes(sortByParam as any) ? sortByParam : "date";
+        const sortDir = searchParams.get("sortDir") === "asc" ? "asc" : "desc";
+
+        // Если запрошена только страница без статистики (например, вкладка учителя за день)
+        const withStats = searchParams.get("stats") !== "false";
 
         const where: any = {};
 
-        // Фильтр по конкретной дате
+        // Фильтр по конкретной дате (границы суток — локальные, а не UTC)
         if (date) {
-            const dayStart = new Date(date + 'T00:00:00.000Z');
-            const dayEnd = new Date(date + 'T23:59:59.999Z');
-            where.date = { gte: dayStart, lte: dayEnd };
+            const { start, end } = getDayRange(date);
+            where.date = { gte: start, lte: end };
         }
         // Или по периоду
         else if (startDate || endDate) {
             where.date = {};
-            if (startDate) where.date.gte = new Date(startDate + 'T00:00:00.000Z');
-            if (endDate) where.date.lte = new Date(endDate + 'T23:59:59.999Z');
+            if (startDate) where.date.gte = parseLocalDate(startDate);
+            if (endDate) where.date.lte = getDayRange(endDate).end;
         }
 
         if (className) where.className = className;
+
+        // Фильтр по корпусу: у нарушения нет поля «параллель», поэтому берём классы
+        // нужных параллелей и фильтруем по их названиям.
+        if (gradeGroup && !className) {
+            const grades =
+                gradeGroup === "1-3" ? [1, 2, 3]
+                    : gradeGroup === "4-6" ? [4, 5, 6]
+                        : gradeGroup === "7-11" ? [7, 8, 9, 10, 11]
+                            : [];
+
+            if (grades.length > 0) {
+                const classesInGroup = await prisma.class.findMany({
+                    where: { grade: { in: grades } },
+                    select: { name: true },
+                });
+                where.className = { in: classesInGroup.map(cls => cls.name) };
+            }
+        }
         if (violationType) where.violationType = violationType;
         if (studentId) where.studentId = String(studentId);
         if (teacherId) where.teacherId = teacherId;
 
-        const violations = await prisma.violation.findMany({
-            where,
-            orderBy: { date: "desc" },
-            take: limit,
+        // 🔥 Поиск на сервере: по ученику, учителю и комментарию.
+        // Это замена клиентской фильтрации, из-за которой статистика считалась по обрезанному списку.
+        if (search) {
+            where.OR = [
+                { studentName: { contains: search, mode: "insensitive" } },
+                { teacherName: { contains: search, mode: "insensitive" } },
+                { comment: { contains: search, mode: "insensitive" } },
+            ];
+        }
+
+        const orderBy: any = [{ [sortBy]: sortDir }, { id: "asc" }];
+
+        // Считаем общее количество и статистику по ВСЕМ подходящим записям,
+        // а не по текущей странице. Иначе «Всего нарушений» показывало размер страницы (было 100).
+        const [violations, total, byTypeRaw, byClassRaw, uniqueStudents] = await Promise.all([
+            prisma.violation.findMany({
+                where,
+                orderBy,
+                skip: (page - 1) * pageSize,
+                take: pageSize,
+            }),
+            prisma.violation.count({ where }),
+            withStats
+                ? prisma.violation.groupBy({
+                    by: ["violationType"],
+                    where,
+                    _count: { _all: true },
+                })
+                : Promise.resolve([]),
+            withStats
+                ? prisma.violation.groupBy({
+                    by: ["className"],
+                    where,
+                    _count: { _all: true },
+                })
+                : Promise.resolve([]),
+            withStats
+                ? prisma.violation.findMany({
+                    where,
+                    distinct: ["studentId"],
+                    select: { studentId: true },
+                })
+                : Promise.resolve([]),
+        ]);
+
+        const byType: Record<string, number> = {};
+        byTypeRaw.forEach((row: any) => {
+            byType[row.violationType] = row._count?._all ?? 0;
         });
 
-        return NextResponse.json(violations);
+        const byClass: Record<string, number> = {};
+        byClassRaw.forEach((row: any) => {
+            if (!row.className) return;
+            byClass[row.className] = row._count?._all ?? 0;
+        });
+
+        const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+        return NextResponse.json({
+            violations,
+            total,
+            page,
+            pageSize,
+            totalPages,
+            hasMore: page * pageSize < total,
+            stats: {
+                total,
+                byType,
+                byClass,
+                uniqueStudents: uniqueStudents.length,
+                uniqueClasses: Object.keys(byClass).length,
+            },
+        });
     } catch (error) {
         console.error("Error fetching violations:", error);
         return NextResponse.json({ error: "Failed to fetch violations" }, { status: 500 });

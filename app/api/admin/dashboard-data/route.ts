@@ -1,4 +1,4 @@
-// app/api/admin/dashboard-data/route.ts
+﻿// app/api/admin/dashboard-data/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -151,7 +151,7 @@ export async function GET(req: NextRequest) {
                 id: exit.id,
                 studentName: studentName,
                 exitTime: "самовыход",
-                reason: exit.reason || "По заявлению",
+                reason: exit.reason || "По заявлению родителей",
                 date: exit.startDate,
                 startDate: exit.startDate,
                 endDate: exit.endDate,

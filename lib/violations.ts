@@ -1,11 +1,33 @@
-// lib/violations.ts
+﻿// lib/violations.ts
+//
+// Справочник типов нарушений.
+//
+// Иконки — Lucide (20px, strokeWidth 1.75), а не эмодзи: эмодзи выглядят по-разному
+// на iOS/Android/Windows, не масштабируются с текстом и ломают единый стиль.
+import {
+    AlertTriangle,
+    Ban,
+    Cigarette,
+    Clock,
+    FileText,
+    Hammer,
+    Shirt,
+    Smartphone,
+    type LucideIcon,
+} from "lucide-react";
+
 export interface ViolationType {
     id: string;
     label: string;
     shortLabel: string;
-    icon: string;
+    /** Иконка типа нарушения */
+    Icon: LucideIcon;
+    /** Цвет иконки — семантический статус */
     color: string;
+    /** Мягкая подложка под иконку */
     bgColor: string;
+    /** Цвет для диаграмм (CSS-переменная темы) */
+    chartColor: string;
 }
 
 export const VIOLATION_TYPES: ViolationType[] = [
@@ -13,65 +35,73 @@ export const VIOLATION_TYPES: ViolationType[] = [
         id: "uniform",
         label: "Нарушение формы одежды",
         shortLabel: "Форма",
-        icon: "👔",
-        color: "text-amber-400",
-        bgColor: "bg-amber-500/20"
+        Icon: Shirt,
+        color: "text-warning",
+        bgColor: "bg-warning-soft",
+        chartColor: "var(--color-chart-2)",
     },
     {
         id: "late",
         label: "Опоздание",
         shortLabel: "Опоздание",
-        icon: "⏰",
-        color: "text-orange-400",
-        bgColor: "bg-orange-500/20"
+        Icon: Clock,
+        color: "text-warning",
+        bgColor: "bg-warning-soft",
+        chartColor: "var(--color-chart-1)",
     },
     {
         id: "property",
         label: "Порча имущества",
         shortLabel: "Имущество",
-        icon: "🔨",
-        color: "text-red-400",
-        bgColor: "bg-red-500/20"
+        Icon: Hammer,
+        color: "text-danger",
+        bgColor: "bg-danger-soft",
+        chartColor: "var(--color-chart-7)",
     },
     {
         id: "phone",
         label: "Использование телефона",
         shortLabel: "Телефон",
-        icon: "📱",
-        color: "text-blue-400",
-        bgColor: "bg-blue-500/20"
+        Icon: Smartphone,
+        color: "text-info",
+        bgColor: "bg-info-soft",
+        chartColor: "var(--color-chart-6)",
     },
     {
         id: "behavior",
         label: "Нарушение поведения",
         shortLabel: "Поведение",
-        icon: "⚠️",
-        color: "text-yellow-400",
-        bgColor: "bg-yellow-500/20"
+        Icon: AlertTriangle,
+        color: "text-warning",
+        bgColor: "bg-warning-soft",
+        chartColor: "var(--color-chart-5)",
     },
     {
         id: "disrespect",
         label: "Неуважение к персоналу",
         shortLabel: "Неуважение",
-        icon: "🚫",
-        color: "text-rose-400",
-        bgColor: "bg-rose-500/20"
+        Icon: Ban,
+        color: "text-danger",
+        bgColor: "bg-danger-soft",
+        chartColor: "var(--color-chart-8)",
     },
     {
         id: "smoking",
         label: "Курение",
         shortLabel: "Курение",
-        icon: "🚭",
-        color: "text-gray-400",
-        bgColor: "bg-gray-500/20"
+        Icon: Cigarette,
+        color: "text-fg-muted",
+        bgColor: "bg-surface-2",
+        chartColor: "var(--color-chart-3)",
     },
     {
         id: "other",
         label: "Другое нарушение",
         shortLabel: "Другое",
-        icon: "📋",
-        color: "text-slate-400",
-        bgColor: "bg-slate-500/20"
+        Icon: FileText,
+        color: "text-fg-muted",
+        bgColor: "bg-surface-2",
+        chartColor: "var(--color-chart-4)",
     },
 ];
 

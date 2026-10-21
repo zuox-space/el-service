@@ -1,9 +1,19 @@
-// components/ui/ViolationsList.tsx
 "use client";
 
-import { useState, useEffect } from "react";
-import { AlertTriangle, Clock, User, Trash2, Loader2, Calendar } from "lucide-react";
+// components/ui/ViolationsList.tsx
+import { Trash2 } from "lucide-react";
 import { getViolationType } from "@/lib/violations";
+import { formatDateTimeMoscow } from "@/lib/date";
+import { EmptyState, List, ListItem } from "@/components/ui/kit";
+
+/**
+ * ViolationsList — список нарушений.
+ *
+ * Собран из ListItem: одинаковая плотность, нажатие и доступность с остальными
+ * списками приложения. Иконка типа — Lucide в семантическом цвете (раньше были эмодзи),
+ * дата показывается в московском времени, поэтому не «съезжает» у сотрудников
+ * из других часовых поясов.
+ */
 
 interface Violation {
     id: string;
@@ -35,92 +45,62 @@ export default function ViolationsList({
 }: ViolationsListProps) {
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center py-8 text-gray-400">
-                <Loader2 size={20} className="animate-spin mr-2" />
-                <span className="text-sm">Загрузка...</span>
-            </div>
+            <List>
+                {Array.from({ length: 3 }).map((_, index) => (
+                    <li key={index}>
+                        <ListItem loading title="" />
+                    </li>
+                ))}
+            </List>
         );
     }
 
     if (violations.length === 0) {
-        return (
-            <div className="bg-white/5 backdrop-blur-lg rounded-xl p-6 text-center border border-white/10">
-                <AlertTriangle size={28} className="text-gray-600 mx-auto mb-2" />
-                <p className="text-gray-400 text-sm">{emptyMessage}</p>
-            </div>
-        );
+        return <EmptyState title={emptyMessage} compact />;
     }
 
     return (
-        <div className="space-y-2">
-            {violations.map((violation) => {
+        <List>
+            {violations.map(violation => {
                 const type = getViolationType(violation.violationType);
+                const Icon = type.Icon;
+
+                const metaParts = [formatDateTimeMoscow(violation.date)];
+                if (showClassName && violation.className) metaParts.push(violation.className);
+                if (showTeacher && violation.teacherName) metaParts.push(violation.teacherName);
+
                 return (
-                    <div
-                        key={violation.id}
-                        className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20"
-                    >
-                        <div className="flex items-start gap-3">
-                            <div className={`w-8 h-8 rounded-lg ${type.bgColor} flex items-center justify-center flex-shrink-0`}>
-                                <span className="text-base">{type.icon}</span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-start justify-between gap-2">
-                                    <div className="flex-1 min-w-0">
-                                        <h4 className="text-white text-sm font-medium truncate">
-                                            {violation.studentName}
-                                        </h4>
-                                        {showClassName && violation.className && (
-                                            <span className="text-[10px] text-rose-300 bg-rose-500/20 px-1.5 py-0.5 rounded">
-                                                {violation.className}
-                                            </span>
-                                        )}
-                                    </div>
-                                    <span className={`text-xs ${type.color} font-medium flex-shrink-0`}>
-                                        {type.shortLabel}
-                                    </span>
-                                </div>
-
-                                {violation.comment && (
-                                    <p className="text-xs text-gray-300 mt-1 line-clamp-2">
-                                        {violation.comment}
-                                    </p>
-                                )}
-
-                                <div className="flex flex-wrap items-center gap-2 mt-2 text-[10px] text-gray-500">
-                                    <div className="flex items-center gap-1">
-                                        <Clock size={9} />
-                                        <span>
-                                            {new Date(violation.date).toLocaleString('ru-RU', {
-                                                day: 'numeric',
-                                                month: 'short',
-                                                hour: '2-digit',
-                                                minute: '2-digit'
-                                            })}
-                                        </span>
-                                    </div>
-                                    {showTeacher && violation.teacherName && (
-                                        <div className="flex items-center gap-1">
-                                            <User size={9} />
-                                            <span>{violation.teacherName}</span>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {onDelete && (
-                                <button
-                                    onClick={() => onDelete(violation.id)}
-                                    className="text-red-400 hover:text-red-300 p-1.5 rounded hover:bg-red-500/10 transition-all flex-shrink-0"
-                                    title="Удалить"
+                    <li key={violation.id}>
+                        <ListItem
+                            leading={
+                                <span
+                                    className={`flex h-9 w-9 items-center justify-center rounded-control ${type.bgColor}`}
+                                    aria-hidden
                                 >
-                                    <Trash2 size={14} />
-                                </button>
-                            )}
-                        </div>
-                    </div>
+                                    <Icon size={18} strokeWidth={1.75} className={type.color} />
+                                </span>
+                            }
+                            title={violation.studentName}
+                            subtitle={
+                                // Без flex-wrap и с min-w-0: длинный комментарий не выталкивал
+                                // кнопку удаления за пределы строки на телефоне
+                                <span className="flex min-w-0 items-center gap-1.5">
+                                    <span className={`shrink-0 ${type.color}`}>{type.shortLabel}</span>
+                                    {violation.comment && (
+                                        <span className="min-w-0 truncate text-fg-muted">· {violation.comment}</span>
+                                    )}
+                                </span>
+                            }
+                            meta={metaParts.join(" · ")}
+                            trailing={onDelete ? "action" : "none"}
+                            actionIcon={Trash2}
+                            actionTone="danger"
+                            actionLabel={`Удалить нарушение: ${violation.studentName}, ${type.shortLabel}`}
+                            onActionClick={() => onDelete?.(violation.id)}
+                        />
+                    </li>
                 );
             })}
-        </div>
+        </List>
     );
 }

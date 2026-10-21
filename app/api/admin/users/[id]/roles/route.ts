@@ -87,12 +87,12 @@ export async function DELETE(
   }
 
   try {
-    await prisma.userRole.delete({
+    // deleteMany вместо delete: повторное снятие уже снятой роли не должно
+    // падать с 500 — интерфейс переключает чекбоксы и может отправить запрос дважды
+    await prisma.userRole.deleteMany({
       where: {
-        userId_roleId: {
-          userId: params.id,
-          roleId
-        }
+        userId: params.id,
+        roleId
       }
     });
 

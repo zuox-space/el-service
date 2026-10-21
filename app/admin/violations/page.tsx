@@ -1,16 +1,16 @@
-// app/admin/violations/page.tsx
+﻿// app/admin/violations/page.tsx
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
-import { useState, useEffect, useMemo } from "react";
-import {
-    ArrowLeft, AlertTriangle, Search, Filter, Calendar,
-    Download, Loader2, X, ChevronDown, ChevronUp,
-    TrendingUp, User, FileText, BarChart3
-} from "lucide-react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useState, useEffect, useLayoutEffect, useMemo, useCallback, Suspense } from "react";
+import { BarChart3, ChartPie, ChevronLeft, ChevronRight, Download, Filter } from "lucide-react";
 import ViolationsList from "@/components/ui/ViolationsList";
 import { VIOLATION_TYPES, getViolationType } from "@/lib/violations";
+import { toLocalISODate, formatDateTimeMoscow, safeCell } from "@/lib/date";
+import { Button, Card, Chip, Input, Modal, ModalFooter, PageHeader, SearchInput, Select, Skeleton, useToast } from "@/components/ui/kit";
+
+const PAGE_SIZE = 25;
 
 interface Violation {
     id: string;
@@ -23,38 +23,98 @@ interface Violation {
     date: string;
 }
 
+interface ViolationStats {
+    total: number;
+    byType: Record<string, number>;
+    byClass: Record<string, number>;
+    uniqueStudents: number;
+    uniqueClasses: number;
+}
+
+const EMPTY_STATS: ViolationStats = {
+    total: 0,
+    byType: {},
+    byClass: {},
+    uniqueStudents: 0,
+    uniqueClasses: 0,
+};
+
+/** Дата нарушения в московском времени — школа работает по нему, независимо от того, откуда открыт браузер. */
+const formatViolationDate = formatDateTimeMoscow;
+
+function getDefaultRange(): { start: string; end: string } {
+    const today = new Date();
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    return { start: toLocalISODate(weekAgo), end: toLocalISODate(today) };
+}
+
 export default function AdminViolationsPage() {
+    return (
+        <Suspense fallback={<ViolationsPageFallback />}>
+            <ViolationsContent />
+        </Suspense>
+    );
+}
+
+function ViolationsPageFallback() {
+    return (
+        <div className="min-h-full bg-bg">
+            <div className="mx-auto w-full max-w-[1440px] space-y-3 px-4 py-4">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {Array.from({ length: 4 }).map((_, index) => (
+                        <Skeleton key={index} height={64} radius="card" />
+                    ))}
+                </div>
+                <Skeleton height={120} radius="card" />
+                <Skeleton height={200} radius="card" />
+            </div>
+        </div>
+    );
+}
+
+// useSearchParams требует границы Suspense: без неё страница не собирается статически
+function ViolationsContent() {
     const { data: session, status } = useSession();
     const router = useRouter();
-    const [violations, setViolations] = useState<Violation[]>([]);
-    const [filteredViolations, setFilteredViolations] = useState<Violation[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const searchParams = useSearchParams();
+    const pathname = usePathname();
+    const toast = useToast();
+
     const [mounted, setMounted] = useState(false);
-    const [showFilters, setShowFilters] = useState(false);
+    // На телефоне по умолчанию виден только поиск: фильтры раскрываются кнопкой
+    const [filtersOpen, setFiltersOpen] = useState(false);
 
-    // Фильтры
-    const [startDate, setStartDate] = useState(() => {
-        const d = new Date();
-        d.setDate(d.getDate() - 7);
-        return d.toISOString().split('T')[0];
-    });
-    const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
-    const [selectedType, setSelectedType] = useState("");
-    const [selectedClass, setSelectedClass] = useState("");
-    const [searchQuery, setSearchQuery] = useState("");
-
-    // Статистика
-    const [stats, setStats] = useState({
-        total: 0,
-        byType: {} as Record<string, number>,
-        byClass: {} as Record<string, number>,
-        uniqueStudents: 0,
-        uniqueClasses: 0,
+    // 🔥 Фильтры живут в URL: их можно переслать коллегой одной ссылкой,
+    // и они не теряются при перезагрузке страницы или возврате «назад» на телефоне.
+    const [startDate, setStartDate] = useState(() => searchParams.get('startDate') || getDefaultRange().start);
+    const [endDate, setEndDate] = useState(() => searchParams.get('endDate') || getDefaultRange().end);
+    const [selectedType, setSelectedType] = useState(() => searchParams.get('type') || "");
+    const [selectedClass, setSelectedClass] = useState(() => searchParams.get('className') || "");
+    const [gradeGroup, setGradeGroup] = useState(() => searchParams.get('gradeGroup') || "");
+    const [searchInput, setSearchInput] = useState(() => searchParams.get('search') || "");
+    const [searchQuery, setSearchQuery] = useState(() => searchParams.get('search') || "");
+    const [page, setPage] = useState(() => {
+        const p = Number.parseInt(searchParams.get('page') || '1', 10);
+        return Number.isFinite(p) && p > 0 ? p : 1;
     });
 
-    // Проверка прав
-    useEffect(() => {
+    const [violations, setViolations] = useState<Violation[]>([]);
+    const [stats, setStats] = useState<ViolationStats>(EMPTY_STATS);
+    const [total, setTotal] = useState(0);
+    const [totalPages, setTotalPages] = useState(1);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    // Список классов для фильтра: получаем один раз по всему периоду,
+    // иначе после фильтрации в выпадающем списке остаётся только выбранный класс.
+    const [classOptions, setClassOptions] = useState<string[]>([]);
+
+    useLayoutEffect(() => {
         setMounted(true);
+    }, []);
+
+    // Проверка прав (интерфейсная; серверную проверку делает API)
+    useEffect(() => {
         if (status === "unauthenticated") {
             router.replace("/login");
             return;
@@ -62,104 +122,171 @@ export default function AdminViolationsPage() {
         if (status === "authenticated") {
             const roles = (session?.user?.roles as string[]) || [];
             if (!roles.includes("ADMIN")) {
-                router.replace("/");
+                router.replace("/admin");
             }
         }
     }, [session, status, router]);
 
-    // Загрузка нарушений
-    const fetchViolations = async () => {
+    const isAdmin = status === "authenticated" && (((session?.user?.roles as string[]) || []).includes("ADMIN"));
+
+    // Ввод в поиске не должен дёргать сервер на каждую букву
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setSearchQuery(searchInput.trim());
+            setPage(1);
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [searchInput]);
+
+    // Синхронизация фильтров с URL
+    useEffect(() => {
+        if (!mounted) return;
+        const params = new URLSearchParams();
+        params.set('startDate', startDate);
+        params.set('endDate', endDate);
+        if (selectedType) params.set('type', selectedType);
+        if (selectedClass) params.set('className', selectedClass);
+        if (gradeGroup) params.set('gradeGroup', gradeGroup);
+        if (searchQuery) params.set('search', searchQuery);
+        if (page > 1) params.set('page', String(page));
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    }, [mounted, startDate, endDate, selectedType, selectedClass, gradeGroup, searchQuery, page, pathname, router]);
+
+    const fetchViolations = useCallback(async () => {
         try {
             setIsLoading(true);
+            setError(null);
+
             const params = new URLSearchParams({
                 startDate,
                 endDate,
+                page: String(page),
+                pageSize: String(PAGE_SIZE),
             });
+            if (selectedType) params.set('type', selectedType);
+            if (selectedClass) params.set('className', selectedClass);
+            if (gradeGroup) params.set('gradeGroup', gradeGroup);
+            if (searchQuery) params.set('search', searchQuery);
 
-            const response = await fetch(`/api/violations?${params}`);
+            const response = await fetch(`/api/violations?${params.toString()}`);
+            if (!response.ok) {
+                throw new Error(`Сервер вернул ошибку ${response.status}`);
+            }
+
             const data = await response.json();
 
-            setViolations(Array.isArray(data) ? data : []);
-            setFilteredViolations(Array.isArray(data) ? data : []);
+            // Защита от неожиданного формата ответа (иначе был белый экран)
+            const rows: Violation[] = Array.isArray(data) ? data : (Array.isArray(data?.violations) ? data.violations : []);
+            setViolations(rows);
 
-            // Подсчет статистики
-            const byType: Record<string, number> = {};
-            const byClass: Record<string, number> = {};
-            const students = new Set<string>();
-
-            (data as Violation[]).forEach(v => {
-                byType[v.violationType] = (byType[v.violationType] || 0) + 1;
-                if (v.className) {
-                    byClass[v.className] = (byClass[v.className] || 0) + 1;
-                }
-                students.add(v.studentId);
-            });
-
-            setStats({
-                total: data.length,
-                byType,
-                byClass,
-                uniqueStudents: students.size,
-                uniqueClasses: Object.keys(byClass).length,
-            });
-
-        } catch (error) {
-            console.error("Error fetching violations:", error);
+            if (data && Array.isArray(data.violations)) {
+                setTotal(typeof data.total === 'number' ? data.total : rows.length);
+                setTotalPages(typeof data.totalPages === 'number' ? data.totalPages : 1);
+                setStats({
+                    total: data.stats?.total ?? 0,
+                    byType: data.stats?.byType ?? {},
+                    byClass: data.stats?.byClass ?? {},
+                    uniqueStudents: data.stats?.uniqueStudents ?? 0,
+                    uniqueClasses: data.stats?.uniqueClasses ?? 0,
+                });
+            } else {
+                // Старый формат ответа (массив) — считаем сами
+                setTotal(rows.length);
+                setTotalPages(1);
+                setStats({
+                    total: rows.length,
+                    byType: rows.reduce((acc: Record<string, number>, v) => {
+                        acc[v.violationType] = (acc[v.violationType] || 0) + 1;
+                        return acc;
+                    }, {}),
+                    byClass: rows.reduce((acc: Record<string, number>, v) => {
+                        if (v.className) acc[v.className] = (acc[v.className] || 0) + 1;
+                        return acc;
+                    }, {}),
+                    uniqueStudents: new Set(rows.map(v => v.studentId)).size,
+                    uniqueClasses: new Set(rows.map(v => v.className).filter(Boolean)).size,
+                });
+            }
+        } catch (e) {
+            console.error("Error fetching violations:", e);
+            setError(e instanceof Error ? e.message : "Не удалось загрузить нарушения");
             setViolations([]);
-            setFilteredViolations([]);
+            setTotal(0);
+            setTotalPages(1);
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [startDate, endDate, page, selectedType, selectedClass, gradeGroup, searchQuery]);
 
     useEffect(() => {
-        if (session?.user?.roles?.includes("ADMIN")) {
+        if (isAdmin) {
             fetchViolations();
         }
-    }, [session, startDate, endDate]);
+    }, [isAdmin, fetchViolations]);
 
-    // Фильтрация
+    // Список классов для фильтра — по всему периоду, без текущих фильтров
     useEffect(() => {
-        let result = [...violations];
+        if (!isAdmin) return;
+        let cancelled = false;
 
-        if (searchQuery.trim()) {
-            const query = searchQuery.toLowerCase();
-            result = result.filter(v =>
-                v.studentName.toLowerCase().includes(query) ||
-                v.teacherName?.toLowerCase().includes(query) ||
-                v.comment?.toLowerCase().includes(query)
-            );
-        }
+        const loadClassOptions = async () => {
+            try {
+                const params = new URLSearchParams({ startDate, endDate, stats: 'true' });
+                const response = await fetch(`/api/violations?${params.toString()}`);
+                if (!response.ok) return;
+                const data = await response.json();
+                if (cancelled) return;
+                const byClass = data?.stats?.byClass ?? {};
+                setClassOptions(Object.keys(byClass).sort((a, b) => a.localeCompare(b, 'ru')));
+            } catch {
+                // список классов не критичен для работы страницы
+            }
+        };
 
-        if (selectedType) {
-            result = result.filter(v => v.violationType === selectedType);
-        }
+        loadClassOptions();
+        return () => { cancelled = true; };
+    }, [isAdmin, startDate, endDate]);
 
-        if (selectedClass) {
-            result = result.filter(v => v.className === selectedClass);
-        }
+    const [pendingDelete, setPendingDelete] = useState<{ id: string; studentName: string } | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
-        setFilteredViolations(result);
-    }, [violations, searchQuery, selectedType, selectedClass]);
+    /** Удаление спрашиваем в своём окне: confirm() блокирует интерфейс и выглядит как системный сбой. */
+    const handleDelete = (id: string) => {
+        const row = violations.find(item => item.id === id);
+        setPendingDelete({ id, studentName: row?.studentName ?? "это нарушение" });
+    };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm("Удалить это нарушение?")) return;
+    const confirmDelete = async () => {
+        if (!pendingDelete) return;
+
+        const { id, studentName } = pendingDelete;
+        setPendingDelete(null);
+        setIsDeleting(true);
 
         try {
-            const response = await fetch(`/api/violations?id=${id}`, {
-                method: "DELETE"
-            });
+            const response = await fetch(`/api/violations?id=${id}`, { method: "DELETE" });
+            if (!response.ok) {
+                toast.show({ title: "Не удалось удалить нарушение", tone: "danger" });
+                return;
+            }
 
-            if (response.ok) {
-                setViolations(prev => prev.filter(v => v.id !== id));
-                alert("Нарушение удалено");
+            toast.show({ title: "Нарушение удалено", description: studentName, tone: "success" });
+
+            // Если удалили последнюю запись на странице — уходим на предыдущую
+            if (violations.length === 1 && page > 1) {
+                setPage(page - 1);
+            } else {
+                fetchViolations();
             }
         } catch (error) {
             console.error("Error deleting violation:", error);
-            alert("Ошибка при удалении");
+            toast.show({ title: "Ошибка при удалении", tone: "danger" });
+        } finally {
+            setIsDeleting(false);
         }
     };
 
+    // Экспорт текущей страницы (в списке может быть и выборка по фильтрам)
     const exportToExcel = () => {
         let html = `
       <html>
@@ -175,10 +302,10 @@ export default function AdminViolationsPage() {
         </style>
       </head>
       <body>
-        <h1>⚠️ Нарушения</h1>
-        <p>Период: ${new Date(startDate).toLocaleDateString('ru-RU')} - ${new Date(endDate).toLocaleDateString('ru-RU')}</p>
-        <p>Всего: ${filteredViolations.length}</p>
-        
+        <h1>Нарушения</h1>
+        <p>Период: ${safeCell(startDate)} — ${safeCell(endDate)}</p>
+        <p>Всего по фильтру: ${total}. Выгружено строк: ${violations.length} (страница ${page} из ${totalPages}).</p>
+
         <table>
           <tr>
             <th>#</th>
@@ -191,17 +318,17 @@ export default function AdminViolationsPage() {
           </tr>
     `;
 
-        filteredViolations.forEach((v, i) => {
+        violations.forEach((v, i) => {
             const type = getViolationType(v.violationType);
             html += `
         <tr>
-          <td>${i + 1}</td>
-          <td>${new Date(v.date).toLocaleString('ru-RU')}</td>
-          <td>${v.studentName}</td>
-          <td>${v.className}</td>
-          <td>${type.label}</td>
-          <td>${v.comment || ''}</td>
-          <td>${v.teacherName}</td>
+          <td>${(page - 1) * PAGE_SIZE + i + 1}</td>
+          <td>${safeCell(formatViolationDate(v.date))}</td>
+          <td>${safeCell(v.studentName)}</td>
+          <td>${safeCell(v.className)}</td>
+          <td>${safeCell(type.label)}</td>
+          <td>${safeCell(v.comment || '')}</td>
+          <td>${safeCell(v.teacherName)}</td>
         </tr>
       `;
         });
@@ -212,207 +339,234 @@ export default function AdminViolationsPage() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `нарушения_${startDate}_${endDate}.xls`;
+        a.download = `нарушения_${startDate}_${endDate}_стр${page}.xls`;
         a.click();
         URL.revokeObjectURL(url);
     };
 
-    const uniqueClasses = useMemo(() => {
-        return [...new Set(violations.map(v => v.className).filter(Boolean))].sort();
-    }, [violations]);
+    const applyRange = (start: string, end: string) => {
+        setStartDate(start);
+        setEndDate(end);
+        setPage(1);
+    };
 
-    if (!mounted || status === "loading" || isLoading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#1a2332] to-[#2b3858]">
-                <div className="bg-white/10 backdrop-blur-lg p-8 rounded-2xl text-center border border-white/20">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500 mx-auto"></div>
-                    <p className="mt-4 text-gray-300">Загрузка...</p>
-                </div>
-            </div>
-        );
+    const quickRanges = useMemo(() => ([
+        { label: "Сегодня", get: () => { const d = toLocalISODate(); return { start: d, end: d }; } },
+        {
+            label: "7 дней", get: () => {
+                const d = new Date(); d.setDate(d.getDate() - 7);
+                return { start: toLocalISODate(d), end: toLocalISODate() };
+            }
+        },
+        {
+            label: "30 дней", get: () => {
+                const d = new Date(); d.setDate(d.getDate() - 30);
+                return { start: toLocalISODate(d), end: toLocalISODate() };
+            }
+        },
+        {
+            label: "С начала года", get: () => {
+                const d = new Date(new Date().getFullYear(), 0, 1);
+                return { start: toLocalISODate(d), end: toLocalISODate() };
+            }
+        },
+    ]), []);
+
+    const hasActiveFilters = Boolean(selectedType || selectedClass || gradeGroup || searchQuery);
+    const rangeInvalid = startDate > endDate;
+    const firstShown = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+    const lastShown = Math.min(page * PAGE_SIZE, total);
+
+    const resetFilters = () => {
+        setGradeGroup("");
+        const { start, end } = getDefaultRange();
+        setStartDate(start);
+        setEndDate(end);
+        setSelectedType("");
+        setSelectedClass("");
+        setSearchInput("");
+        setPage(1);
+    };
+
+    if (!mounted || status === "loading") {
+        return <ViolationsPageFallback />;
     }
 
-    if (!session || !session?.user?.roles?.includes("ADMIN")) {
+    if (!isAdmin) {
         return null;
     }
 
+// Хвост страницы нарушений (JSX) — подставляется скриптом вместо старой разметки.
     return (
-        <div className="min-h-screen bg-gradient-to-br from-[#1a2332] to-[#2b3858]">
-            {/* Шапка */}
-            <div className="bg-white/10 backdrop-blur-lg border-b border-white/20 sticky top-0 z-20">
-                <div className="px-3 py-3">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => router.push("/admin")}
-                                className="w-8 h-8 flex items-center justify-center bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg transition-all"
-                            >
-                                <ArrowLeft size={18} />
-                            </button>
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-rose-500 to-orange-600 flex items-center justify-center">
-                                <AlertTriangle size={16} className="text-white" />
-                            </div>
-                            <div>
-                                <p className="text-sm font-bold text-white">Нарушения</p>
-                                <p className="text-xs text-gray-400">Все нарушения</p>
-                            </div>
-                        </div>
-                        <button
-                            onClick={exportToExcel}
-                            className="w-8 h-8 flex items-center justify-center bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg transition-all"
+        <div className="min-h-full bg-bg">
+            <PageHeader
+                title="Нарушения"
+                subtitle={`${stats.uniqueClasses} классов · ${stats.uniqueStudents} учеников за период`}
+                onBack={() => router.push("/admin")}
+                actions={
+                    <>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            leftIcon={ChartPie}
+                            onClick={() => router.push("/admin/violations/stats")}
                         >
-                            <Download size={16} />
-                        </button>
-                    </div>
-                </div>
-            </div>
+                            <span className="hidden sm:inline">Статистика</span>
+                        </Button>
+                        <span className="hidden sm:inline-flex">
+                            <Button
+                            variant="ghost"
+                            size="sm"
+                            leftIcon={Download}
+                            onClick={exportToExcel}
+                            disabled={violations.length === 0}>
+                            Выгрузить
+                        </Button>
+                        </span>
+                    </>
+                }
+            />
 
-            <div className="p-3 max-w-7xl mx-auto">
-                {/* Статистика */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-                    <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
-                        <p className="text-[10px] text-gray-400">Всего нарушений</p>
-                        <p className="text-xl font-bold text-rose-400">{stats.total}</p>
+            <main className="mx-auto w-full max-w-[1440px] space-y-3 px-4 py-4">
+                {rangeInvalid && (
+                    <div className="rounded-control border border-warning/40 bg-warning-soft px-3 py-2 text-sm text-fg">
+                        Дата начала позже даты окончания — период будет пустым.
                     </div>
-                    <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
-                        <p className="text-[10px] text-gray-400">Учеников</p>
-                        <p className="text-xl font-bold text-amber-400">{stats.uniqueStudents}</p>
-                    </div>
-                    <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
-                        <p className="text-[10px] text-gray-400">Классов</p>
-                        <p className="text-xl font-bold text-blue-400">{stats.uniqueClasses}</p>
-                    </div>
-                    <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
-                        <p className="text-[10px] text-gray-400">Показано</p>
-                        <p className="text-xl font-bold text-green-400">{filteredViolations.length}</p>
-                    </div>
-                </div>
+                )}
 
-                {/* Фильтры */}
-                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20 mb-3">
-                    <button
-                        onClick={() => setShowFilters(!showFilters)}
-                        className="w-full flex items-center justify-between text-gray-300 hover:text-white transition-colors sm:hidden"
-                    >
-                        <div className="flex items-center gap-2">
-                            <Filter size={16} />
-                            <span className="text-sm font-medium">Фильтры</span>
-                        </div>
-                        {showFilters ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                    </button>
+                {/* Статистика считается на сервере по ВСЕМ нарушениям периода, а не по странице */}
+                <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <StatTile label="Всего за период" value={stats.total} />
+                    <StatTile label="Учеников" value={stats.uniqueStudents} />
+                    <StatTile label="Классов" value={stats.uniqueClasses} />
+                    <StatTile label="Страниц" value={total === 0 ? 0 : totalPages} />
+                </section>
 
-                    <div className={`${showFilters ? "block" : "hidden sm:block"} mt-2 sm:mt-0 space-y-3`}>
-                        {/* Поиск */}
-                        <div className="relative">
-                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                            <input
-                                type="text"
-                                placeholder="Поиск по ученику, учителю, комментарию..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-9 pr-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-400 text-sm focus:outline-none focus:border-rose-500/50"
-                            />
-                        </div>
-
-                        {/* Даты и фильтры */}
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                            <div className="relative">
-                                <Calendar size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
-                                <input
-                                    type="date"
-                                    value={startDate}
-                                    onChange={(e) => setStartDate(e.target.value)}
-                                    className="w-full pl-8 pr-2 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-rose-500/50"
+                {/* Фильтры: поиск всегда на виду, остальное — по кнопке.
+                    Скрыты по умолчанию и на мобильном, и на десктопе. */}
+                <Card padding="sm">
+                    <div className="space-y-3">
+                        <div className="flex items-end gap-2">
+                            <div className="min-w-0 flex-1">
+                                <SearchInput
+                                    value={searchInput}
+                                    onChange={setSearchInput}
+                                    placeholder="Ученик, учитель или комментарий"
+                                    label="Поиск"
                                 />
                             </div>
-                            <div className="relative">
-                                <Calendar size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
-                                <input
-                                    type="date"
-                                    value={endDate}
-                                    onChange={(e) => setEndDate(e.target.value)}
-                                    className="w-full pl-8 pr-2 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-rose-500/50"
-                                />
+                            <Button
+                                variant={filtersOpen ? "secondary" : "ghost"}
+                                size="sm"
+                                leftIcon={Filter}
+                                onClick={() => setFiltersOpen(open => !open)}
+                                aria-expanded={filtersOpen}
+                                aria-label={filtersOpen ? "Скрыть фильтры" : "Показать фильтры"}
+                                className="mb-0.5 shrink-0"
+                            >
+                                <span className="hidden sm:inline">{filtersOpen ? "Скрыть" : "Фильтры"}</span>
+                                {hasActiveFilters && (
+                                    <span className="rounded-full bg-accent-soft px-1.5 text-[10px] text-accent-text">
+                                        !
+                                    </span>
+                                )}
+                            </Button>
+                        </div>
+
+                        {filtersOpen && (
+                            <div className="space-y-3 border-t border-border pt-3">
+                                <div className="grid grid-cols-2 gap-2">
+                                    <Input
+                                        type="date"
+                                        aria-label="Начало периода"
+                                        value={startDate}
+                                        max={endDate}
+                                        onChange={event => {
+                                            setStartDate(event.target.value);
+                                            setPage(1);
+                                        }}
+                                    />
+                                    <Input
+                                        type="date"
+                                        aria-label="Конец периода"
+                                        value={endDate}
+                                        min={startDate}
+                                        onChange={event => {
+                                            setEndDate(event.target.value);
+                                            setPage(1);
+                                        }}
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                    <Select
+                                        aria-label="Корпус"
+                                        placeholder="Все корпуса"
+                                        value={gradeGroup}
+                                        onChange={value => {
+                                            setGradeGroup(value);
+                                            setSelectedClass("");
+                                            setPage(1);
+                                        }}
+                                        options={[
+                                            { value: "1-3", label: "1–3 классы" },
+                                            { value: "4-6", label: "4–6 классы" },
+                                            { value: "7-11", label: "7–11 классы" },
+                                        ]}
+                                    />
+                                    <Select
+                                        aria-label="Класс"
+                                        placeholder="Все классы"
+                                        value={selectedClass}
+                                        onChange={value => {
+                                            setSelectedClass(value);
+                                            setPage(1);
+                                        }}
+                                        options={classOptions.map(cls => ({ value: cls, label: cls }))}
+                                    />
+                                    <Select
+                                        aria-label="Тип нарушения"
+                                        placeholder="Все типы"
+                                        value={selectedType}
+                                        onChange={value => {
+                                            setSelectedType(value);
+                                            setPage(1);
+                                        }}
+                                        options={VIOLATION_TYPES.map(type => ({ value: type.id, label: type.shortLabel }))}
+                                    />
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    {quickRanges.map(range => (
+                                        <Chip
+                                            key={range.label}
+                                            onClick={() => {
+                                                const next = range.get();
+                                                applyRange(next.start, next.end);
+                                            }}
+                                        >
+                                            {range.label}
+                                        </Chip>
+                                    ))}
+                                    {hasActiveFilters && (
+                                        <Chip onRemove={resetFilters} onClick={resetFilters} className="text-danger">
+                                            Сбросить фильтры
+                                        </Chip>
+                                    )}
+                                </div>
                             </div>
-                            <select
-                                value={selectedClass}
-                                onChange={(e) => setSelectedClass(e.target.value)}
-                                className="px-2 py-2 bg-[#1a2332] border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
-                            >
-                                <option value="">Все классы</option>
-                                {uniqueClasses.map(cls => (
-                                    <option key={cls} value={cls}>{cls}</option>
-                                ))}
-                            </select>
-                            <select
-                                value={selectedType}
-                                onChange={(e) => setSelectedType(e.target.value)}
-                                className="px-2 py-2 bg-[#1a2332] border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
-                            >
-                                <option value="">Все типы</option>
-                                {VIOLATION_TYPES.map(type => (
-                                    <option key={type.id} value={type.id}>
-                                        {type.icon} {type.shortLabel}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        {/* Быстрые фильтры по дате */}
-                        <div className="flex flex-wrap gap-2">
-                            <button
-                                onClick={() => {
-                                    const today = new Date().toISOString().split('T')[0];
-                                    setStartDate(today);
-                                    setEndDate(today);
-                                }}
-                                className="px-2 py-1 bg-white/5 hover:bg-white/10 text-xs text-gray-300 rounded-lg border border-white/10"
-                            >
-                                Сегодня
-                            </button>
-                            <button
-                                onClick={() => {
-                                    const d = new Date();
-                                    d.setDate(d.getDate() - 7);
-                                    setStartDate(d.toISOString().split('T')[0]);
-                                    setEndDate(new Date().toISOString().split('T')[0]);
-                                }}
-                                className="px-2 py-1 bg-white/5 hover:bg-white/10 text-xs text-gray-300 rounded-lg border border-white/10"
-                            >
-                                7 дней
-                            </button>
-                            <button
-                                onClick={() => {
-                                    const d = new Date();
-                                    d.setDate(d.getDate() - 30);
-                                    setStartDate(d.toISOString().split('T')[0]);
-                                    setEndDate(new Date().toISOString().split('T')[0]);
-                                }}
-                                className="px-2 py-1 bg-white/5 hover:bg-white/10 text-xs text-gray-300 rounded-lg border border-white/10"
-                            >
-                                30 дней
-                            </button>
-                            <button
-                                onClick={() => {
-                                    const d = new Date();
-                                    d.setMonth(0, 1);
-                                    setStartDate(d.toISOString().split('T')[0]);
-                                    setEndDate(new Date().toISOString().split('T')[0]);
-                                }}
-                                className="px-2 py-1 bg-white/5 hover:bg-white/10 text-xs text-gray-300 rounded-lg border border-white/10"
-                            >
-                                С начала года
-                            </button>
-                        </div>
+                        )}
                     </div>
-                </div>
+                </Card>
 
-                {/* Топ нарушений */}
+                {/* Разбивка по типам: цифры за период, клик — фильтр */}
                 {Object.keys(stats.byType).length > 0 && (
-                    <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20 mb-3">
-                        <div className="flex items-center gap-2 mb-2">
-                            <BarChart3 size={14} className="text-rose-400" />
-                            <span className="text-xs font-medium text-gray-300">По типам нарушений</span>
+                    <Card padding="sm">
+                        <div className="mb-2 flex items-center gap-2">
+                            <BarChart3 size={14} strokeWidth={1.75} className="text-fg-subtle" aria-hidden />
+                            <span className="text-xs font-medium uppercase tracking-wide text-fg-subtle">
+                                По типам за период
+                            </span>
                         </div>
                         <div className="flex flex-wrap gap-1.5">
                             {Object.entries(stats.byType)
@@ -420,32 +574,113 @@ export default function AdminViolationsPage() {
                                 .map(([typeId, count]) => {
                                     const type = getViolationType(typeId);
                                     return (
-                                        <button
+                                        <Chip
                                             key={typeId}
-                                            onClick={() => setSelectedType(selectedType === typeId ? "" : typeId)}
-                                            className={`px-2 py-1 rounded-lg text-xs transition-all ${selectedType === typeId
-                                                    ? "bg-rose-500/30 text-rose-200 border border-rose-500/50"
-                                                    : `${type.bgColor} ${type.color} hover:opacity-80`
-                                                }`}
+                                            icon={type.Icon}
+                                            count={count}
+                                            selected={selectedType === typeId}
+                                            onClick={() => {
+                                                setSelectedType(selectedType === typeId ? "" : typeId);
+                                                setPage(1);
+                                            }}
                                         >
-                                            {type.icon} {type.shortLabel}: <span className="font-bold">{count}</span>
-                                        </button>
+                                            {type.shortLabel}
+                                        </Chip>
                                     );
                                 })}
                         </div>
+                    </Card>
+                )}
+
+                {/* Итоговая строка: честно показываем, что видно, а что всего */}
+                <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+                    <p className="text-xs text-fg-subtle">
+                        {total === 0 ? "Ничего не найдено" : `Показано ${firstShown}–${lastShown} из ${total}`}
+                    </p>
+                    {isLoading && violations.length > 0 && <p className="text-xs text-fg-subtle">Обновление…</p>}
+                </div>
+
+                {error && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-control border border-danger/40 bg-danger-soft px-3 py-2">
+                        <p className="text-sm text-fg">Не удалось загрузить нарушения: {error}</p>
+                        <Button size="sm" variant="danger" onClick={fetchViolations}>
+                            Повторить
+                        </Button>
                     </div>
                 )}
 
-                {/* Список нарушений */}
                 <ViolationsList
-                    violations={filteredViolations}
-                    isLoading={isLoading}
+                    violations={violations}
+                    isLoading={isLoading && violations.length === 0}
                     onDelete={handleDelete}
                     showClassName={true}
                     showTeacher={true}
-                    emptyMessage="Нарушений за выбранный период нет"
+                    emptyMessage={
+                        error
+                            ? "Данные не загружены"
+                            : hasActiveFilters || startDate || endDate
+                                ? "Нарушений за выбранный период и фильтры нет"
+                                : "Нарушений нет"
+                    }
                 />
-            </div>
+
+                {totalPages > 1 && (
+                    <div className="flex items-center justify-center gap-2 pb-6">
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            disabled={page <= 1 || isLoading}
+                            onClick={() => setPage(previous => Math.max(1, previous - 1))}
+                            leftIcon={ChevronLeft}
+                        >
+                            Назад
+                        </Button>
+                        <span className="px-2 text-sm tabular-nums text-fg-muted">
+                            {page} / {totalPages}
+                        </span>
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            disabled={page >= totalPages || isLoading}
+                            onClick={() => setPage(previous => Math.min(totalPages, previous + 1))}
+                            rightIcon={ChevronRight}
+                        >
+                            Вперёд
+                        </Button>
+                    </div>
+                )}
+            </main>
+
+            {/* Подтверждение удаления нарушения */}
+            <Modal
+                open={Boolean(pendingDelete)}
+                onClose={() => setPendingDelete(null)}
+                title="Удалить нарушение?"
+                description={pendingDelete?.studentName}
+                size="sm"
+                footer={
+                    <ModalFooter
+                        onCancel={() => setPendingDelete(null)}
+                        onSubmit={confirmDelete}
+                        submitLabel="Удалить"
+                        loading={isDeleting}
+                        tone="danger"
+                    />
+                }
+            >
+                <p className="text-sm text-fg-muted">
+                    Запись исчезнет из статистики и из портфолио ученика. Действие необратимо.
+                </p>
+            </Modal>
+        </div>
+    );
+}
+
+function StatTile({ label, value }: { label: string; value: number }) {
+    return (
+        <div className="rounded-card border border-border bg-surface p-3">
+            <p className="text-xs text-fg-subtle">{label}</p>
+            <p className="mt-0.5 text-xl font-semibold tabular-nums text-fg">{value}</p>
         </div>
     );
 }

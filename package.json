@@ -10,7 +10,16 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "devdb": "node scripts/devdb.mjs",
+    "devdb:bootstrap": "node scripts/devdb.mjs bootstrap",
+    "devdb:init": "node scripts/devdb.mjs init",
+    "devdb:start": "node scripts/devdb.mjs start",
+    "devdb:stop": "node scripts/devdb.mjs stop",
+    "devdb:status": "node scripts/devdb.mjs status",
+    "devdb:env": "node scripts/devdb.mjs env",
+    "devdb:seed": "node scripts/devdb-seed.mjs",
+    "devdb:test": "node scripts/devdb-test.mjs"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

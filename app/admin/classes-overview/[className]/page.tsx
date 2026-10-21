@@ -1,537 +1,400 @@
-// app/admin/classes-overview/[className]/page.tsx
+﻿// app/admin/classes-overview/[className]/page.tsx
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { useState, useEffect, useMemo } from "react";
+import { useSession } from "next-auth/react";
+import { Download, RefreshCw } from "lucide-react";
 import {
-    ArrowLeft, School, User, Users, Shield, UserCheck,
-    Search, Loader2, CheckCircle, XCircle, Calendar,
-    Phone, AlertCircle, Download, Clock, Eye
-} from "lucide-react";
+    Badge,
+    Button,
+    Card,
+    DataTable,
+    EmptyState,
+    FormError,
+    List,
+    ListItem,
+    Modal,
+    PageHeader,
+    SearchInput,
+    Skeleton,
+    Tabs,
+    type Column,
+} from "@/components/ui/kit";
+import { formatDateRu, safeCell } from "@/lib/date";
+
+/**
+ * Карточка класса: у кого есть самовыход и доверенности.
+ *
+ * Переведено на DataTable + модалку деталей: нажатие на ученика показывает период
+ * самовыхода и список доверенных лиц с телефонами. Раньше это разворачивалось
+ * внутри строки, и на мобильном список съезжал.
+ */
+
+interface Authorization {
+    id: string;
+    trustedName: string;
+    relation: string;
+    phone: string | null;
+    comment: string | null;
+    isActive: boolean;
+}
+
+interface SelfExit {
+    id: string;
+    startDate: string;
+    endDate: string;
+    reason: string | null;
+}
 
 interface StudentRow {
     aisId: string;
     name: string;
     className: string;
     hasActiveSelfExit: boolean;
-    activeSelfExit: any;
+    activeSelfExit: SelfExit | null;
     selfExitsCount: number;
     hasActiveAuthorization: boolean;
     authorizationsCount: number;
-    authorizations: any[];
+    authorizations: Authorization[];
     totalAuthorizationsCount: number;
 }
+
+type FilterId = "all" | "selfExit" | "auth" | "none";
 
 export default function ClassDetailsPage() {
     const { data: session, status } = useSession();
     const router = useRouter();
     const params = useParams();
-    const rawClassName = params?.className as string;
 
-    // Безопасно декодируем (если уже декодировано — не сломает)
-    const className = (() => {
+    const rawClassName = params?.className as string;
+    const className = useMemo(() => {
+        if (!rawClassName) return "";
         try {
-            // Проверяем, есть ли в строке %XX
-            if (rawClassName && /%[0-9A-Fa-f]{2}/.test(rawClassName)) {
-                return decodeURIComponent(rawClassName);
-            }
-            return rawClassName;
-        } catch (e) {
-            console.error('Error decoding className:', e);
+            return /%[0-9A-Fa-f]{2}/.test(rawClassName) ? decodeURIComponent(rawClassName) : rawClassName;
+        } catch {
             return rawClassName;
         }
-    })();
+    }, [rawClassName]);
 
     const [mounted, setMounted] = useState(false);
+    const [students, setStudents] = useState<StudentRow[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [data, setData] = useState<any>(null);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [filter, setFilter] = useState<"all" | "selfExit" | "auth" | "none">("all");
-    const [expandedStudent, setExpandedStudent] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
+
+    const [search, setSearch] = useState("");
+    const [filter, setFilter] = useState<FilterId>("all");
+    const [detail, setDetail] = useState<StudentRow | null>(null);
 
     useEffect(() => {
         setMounted(true);
-        if (status === "unauthenticated") {
-            router.replace("/login");
-        }
+        if (status === "unauthenticated") router.replace("/login");
         if (status === "authenticated") {
             const roles = (session?.user?.roles as string[]) || [];
-            if (!roles.includes("ADMIN")) {
-                router.replace("/");
-            }
+            if (!roles.includes("ADMIN")) router.replace("/admin");
         }
     }, [session, status, router]);
 
+    const fetchData = useCallback(async () => {
+        if (!className) return;
+
+        setIsLoading(true);
+        setError(null);
+
+        try {
+            const response = await fetch(`/api/admin/classes-stats/${encodeURIComponent(className)}`);
+            if (!response.ok) throw new Error(`Сервер вернул ошибку ${response.status}`);
+
+            const data = await response.json();
+            if (data.error) throw new Error(data.error);
+
+            setStudents(Array.isArray(data.students) ? data.students : []);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Не удалось загрузить класс");
+            setStudents([]);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [className]);
+
     useEffect(() => {
-        if (!className || !session?.user?.roles?.includes("ADMIN")) return;
-
-        const fetchData = async () => {
-            try {
-                setIsLoading(true);
-                const response = await fetch(
-                    `/api/admin/classes-stats/${encodeURIComponent(className)}`
-                );
-                const result = await response.json();
-
-                if (result.error) {
-                    console.error("Error:", result.error);
-                    setData(null);
-                    return;
-                }
-
-                setData(result);
-            } catch (error) {
-                console.error("Error fetching class details:", error);
-                setData(null);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchData();
-    }, [className, session]);
-
-    // Фильтрация
-    const filteredStudents = useMemo(() => {
-        if (!data?.students) return [];
-
-        let result = [...data.students];
-
-        if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase().trim();
-            result = result.filter((s: StudentRow) =>
-                s.name.toLowerCase().includes(q)
-            );
+        if (session?.user?.roles?.includes("ADMIN")) {
+            void fetchData();
         }
+    }, [session, fetchData]);
 
-        if (filter === "selfExit") {
-            result = result.filter((s: StudentRow) => s.hasActiveSelfExit);
-        } else if (filter === "auth") {
-            result = result.filter((s: StudentRow) => s.hasActiveAuthorization);
-        } else if (filter === "none") {
-            result = result.filter((s: StudentRow) =>
-                !s.hasActiveSelfExit && !s.hasActiveAuthorization
-            );
-        }
+    const rows = useMemo(() => {
+        const query = search.trim().toLowerCase();
 
-        return result;
-    }, [data, searchQuery, filter]);
-
-    const formatDate = (dateStr: string | null) => {
-        if (!dateStr) return "—";
-        return new Date(dateStr).toLocaleDateString('ru-RU', {
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric',
+        return students.filter(student => {
+            if (query && !student.name.toLowerCase().includes(query)) return false;
+            if (filter === "selfExit" && !student.hasActiveSelfExit) return false;
+            if (filter === "auth" && !student.hasActiveAuthorization) return false;
+            if (filter === "none" && (student.hasActiveSelfExit || student.hasActiveAuthorization)) return false;
+            return true;
         });
-    };
+    }, [students, search, filter]);
+
+    const counts = useMemo(
+        () => ({
+            all: students.length,
+            selfExit: students.filter(student => student.hasActiveSelfExit).length,
+            auth: students.filter(student => student.hasActiveAuthorization).length,
+            none: students.filter(student => !student.hasActiveSelfExit && !student.hasActiveAuthorization).length,
+        }),
+        [students],
+    );
+
+    const columns: Column<StudentRow>[] = [
+        { key: "name", header: "Ученик" },
+        {
+            key: "selfExit",
+            header: "Самовыход",
+            width: "160px",
+            render: student =>
+                student.hasActiveSelfExit && student.activeSelfExit ? (
+                    <Badge tone="info">
+                        до {formatDateRu(student.activeSelfExit.endDate, { day: "numeric", month: "short" })}
+                    </Badge>
+                ) : (
+                    <span className="text-xs text-fg-subtle">—</span>
+                ),
+        },
+        {
+            key: "auth",
+            header: "Доверенность",
+            width: "170px",
+            render: student =>
+                student.hasActiveAuthorization ? (
+                    <Badge tone="accent">
+                        {student.authorizationsCount > 0
+                            ? `${student.authorizationsCount} чел.`
+                            : "есть"}
+                    </Badge>
+                ) : (
+                    <span className="text-xs text-fg-subtle">—</span>
+                ),
+        },
+    ];
 
     const exportToExcel = () => {
-        if (!data) return;
+        let html = `<html><head><meta charset="UTF-8"><title>${safeCell(className)}</title>
+            <style>body{font-family:Arial,sans-serif}h1{font-size:16px}table{border-collapse:collapse;width:100%}
+            th,td{border:1px solid #ddd;padding:6px;text-align:left}th{background:#f2f2f2}</style></head><body>
+            <h1>Класс ${safeCell(className)}</h1>
+            <table><tr><th>Ученик</th><th>Самовыход</th><th>Доверенные лица</th></tr>`;
 
-        let html = `
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>${className} — Разрешения</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; }
-          h1 { color: #333; }
-          table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-          th { background-color: #f2f2f2; font-weight: bold; }
-        </style>
-      </head>
-      <body>
-        <h1>Класс ${className}</h1>
-        <p>Всего учеников: ${data.stats.totalStudents}</p>
-        <p>Самовыходы: ${data.stats.activeSelfExits}</p>
-        <p>Доверенности: ${data.stats.activeAuthorizations}</p>
-        
-        <table>
-          <tr>
-            <th>#</th>
-            <th>Ученик</th>
-            <th>Самовыход</th>
-            <th>Доверенности</th>
-          </tr>
-    `;
+        rows.forEach(student => {
+            const selfExit = student.activeSelfExit
+                ? `${formatDateRu(student.activeSelfExit.startDate)} — ${formatDateRu(student.activeSelfExit.endDate)}`
+                : "—";
+            const auths =
+                student.authorizations
+                    ?.map(auth => `${auth.trustedName} (${auth.relation})${auth.phone ? `, ${auth.phone}` : ""}`)
+                    .join("; ") || "—";
 
-        filteredStudents.forEach((s: StudentRow, i: number) => {
-            html += `
-        <tr>
-          <td>${i + 1}</td>
-          <td>${s.name}</td>
-          <td>${s.hasActiveSelfExit ? 'Да (' + formatDate(s.activeSelfExit?.startDate) + ' — ' + formatDate(s.activeSelfExit?.endDate) + ')' : 'Нет'}</td>
-          <td>${s.hasActiveAuthorization ? s.authorizations.map((a: any) => a.trustedName).join(', ') : 'Нет'}</td>
-        </tr>
-      `;
+            html += `<tr><td>${safeCell(student.name)}</td><td>${safeCell(selfExit)}</td>
+                <td>${safeCell(auths)}</td></tr>`;
         });
 
         html += `</table></body></html>`;
 
         const blob = new Blob([html], { type: "application/vnd.ms-excel" });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `класс_${className}_${new Date().toISOString().split('T')[0]}.xls`;
-        a.click();
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `класс_${className}.xls`;
+        link.click();
         URL.revokeObjectURL(url);
     };
 
-    if (!mounted || status === "loading" || isLoading) {
+    if (!mounted || status === "loading") {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#1a2332] to-[#2b3858]">
-                <div className="bg-white/10 backdrop-blur-lg p-8 rounded-2xl text-center border border-white/20">
-                    <Loader2 size={32} className="animate-spin text-cyan-400 mx-auto" />
-                    <p className="mt-4 text-gray-300">Загрузка...</p>
-                </div>
-            </div>
-        );
-    }
-
-    if (!session || !session?.user?.roles?.includes("ADMIN")) {
-        return null;
-    }
-
-    if (!data) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#1a2332] to-[#2b3858] p-4">
-                <div className="bg-white/10 backdrop-blur-lg p-8 rounded-2xl text-center border border-white/20 max-w-md">
-                    <AlertCircle size={48} className="text-red-400 mx-auto mb-4" />
-                    <h2 className="text-xl font-bold text-white mb-2">Класс не найден</h2>
-                    <button
-                        onClick={() => router.push("/admin/classes-overview")}
-                        className="mt-4 px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg text-sm transition-all"
-                    >
-                        Вернуться к списку
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
-    const { class: classData, stats } = data;
-
-    return (
-        <div className="min-h-screen bg-gradient-to-br from-[#1a2332] to-[#2b3858]">
-            {/* Шапка */}
-            <div className="bg-white/10 backdrop-blur-lg border-b border-white/20 sticky top-0 z-20">
-                <div className="px-3 py-3">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                            <button
-                                onClick={() => router.push("/admin/classes-overview")}
-                                className="w-8 h-8 flex items-center justify-center bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg transition-all flex-shrink-0"
-                            >
-                                <ArrowLeft size={18} />
-                            </button>
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center flex-shrink-0">
-                                <School size={16} className="text-white" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <p className="text-sm font-bold text-white truncate">
-                                    Класс {classData.name}
-                                </p>
-                                <p className="text-xs text-gray-400 hidden sm:block truncate">
-                                    {classData.owner?.name || "Классный руководитель не назначен"}
-                                </p>
-                            </div>
-                        </div>
-                        <button
-                            onClick={exportToExcel}
-                            className="w-8 h-8 flex items-center justify-center bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg transition-all flex-shrink-0"
-                            title="Экспорт в Excel"
-                        >
-                            <Download size={16} />
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <div className="p-3 max-w-7xl mx-auto space-y-3">
-
-                {/* 🔥 Статистика класса */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20">
-                        <div className="flex items-center gap-1.5 mb-1">
-                            <Users size={12} className="text-blue-400" />
-                            <span className="text-[10px] text-gray-400">Всего</span>
-                        </div>
-                        <p className="text-2xl font-bold text-blue-400">{stats.totalStudents}</p>
-                        <p className="text-[10px] text-gray-500">учеников</p>
-                    </div>
-
-                    <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-indigo-500/30">
-                        <div className="flex items-center gap-1.5 mb-1">
-                            <UserCheck size={12} className="text-indigo-400" />
-                            <span className="text-[10px] text-gray-400">Самовыходы</span>
-                        </div>
-                        <p className="text-2xl font-bold text-indigo-400">{stats.activeSelfExits}</p>
-                        <p className="text-[10px] text-gray-500">
-                            {stats.studentsWithSelfExit} учеников
-                        </p>
-                    </div>
-
-                    <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-cyan-500/30">
-                        <div className="flex items-center gap-1.5 mb-1">
-                            <Shield size={12} className="text-cyan-400" />
-                            <span className="text-[10px] text-gray-400">Доверенности</span>
-                        </div>
-                        <p className="text-2xl font-bold text-cyan-400">{stats.activeAuthorizations}</p>
-                        <p className="text-[10px] text-gray-500">
-                            {stats.studentsWithAuth} учеников
-                        </p>
-                    </div>
-
-
-                </div>
-
-                {/* Фильтры */}
-                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20 space-y-3">
-                    <div className="relative">
-                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <input
-                            type="text"
-                            placeholder="Поиск ученика..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-9 pr-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-400 text-sm focus:outline-none focus:border-cyan-500/50"
-                        />
-                    </div>
-
-                    <div className="flex flex-wrap gap-1">
-                        {[
-                            { id: "all", label: "Все", count: stats.totalStudents, color: "blue" },
-                            { id: "selfExit", label: "Самовыход", count: stats.studentsWithSelfExit, color: "indigo" },
-                            { id: "auth", label: "Доверенность", count: stats.studentsWithAuth, color: "cyan" },
-                        ].map((f: any) => (
-                            <button
-                                key={f.id}
-                                onClick={() => setFilter(f.id)}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filter === f.id
-                                    ? `bg-${f.color}-500/30 text-${f.color}-300 border border-${f.color}-500/50`
-                                    : "bg-white/5 text-gray-400 hover:bg-white/10 border border-transparent"
-                                    }`}
-                                style={
-                                    filter === f.id
-                                        ? { backgroundColor: `${f.color === 'blue' ? '#3b82f6' : f.color === 'indigo' ? '#6366f1' : f.color === 'cyan' ? '#06b6d4' : '#22c55e'}33` }
-                                        : {}
-                                }
-                            >
-                                {f.label}
-                                <span className="text-[10px] opacity-70">({f.count})</span>
-                            </button>
+            <div className="min-h-full bg-bg">
+                <PageHeader title={className || "Класс"} onBack={() => router.push("/admin/classes-overview")} />
+                <div className="mx-auto w-full max-w-[1440px] space-y-3 px-4 py-4">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        {Array.from({ length: 4 }).map((_, index) => (
+                            <Skeleton key={index} height={64} radius="card" />
                         ))}
                     </div>
-                </div>
-
-                {/* 🔥 Таблица учеников */}
-                <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead className="bg-white/5">
-                                <tr>
-                                    <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider">
-                                        #
-                                    </th>
-                                    <th className="px-3 py-2 text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider">
-                                        ФИО
-                                    </th>
-                                    <th className="px-3 py-2 text-center text-[10px] font-medium text-gray-400 uppercase tracking-wider">
-                                        Самовыход
-                                    </th>
-                                    <th className="px-3 py-2 text-center text-[10px] font-medium text-gray-400 uppercase tracking-wider">
-                                        Доверенности
-                                    </th>
-
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-white/10">
-                                {filteredStudents.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={5} className="px-3 py-8 text-center text-gray-400">
-                                            <User size={32} className="mx-auto mb-2 opacity-50" />
-                                            <p className="text-sm">Ученики не найдены</p>
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    filteredStudents.map((s: StudentRow, idx: number) => {
-                                        const isExpanded = expandedStudent === s.aisId;
-                                        const hasAnyPermission = s.hasActiveSelfExit || s.hasActiveAuthorization;
-
-                                        return (
-                                            <>
-                                                <tr
-                                                    key={s.aisId}
-                                                    className="hover:bg-white/5 transition-colors cursor-pointer"
-                                                    onClick={() =>
-                                                        setExpandedStudent(isExpanded ? null : s.aisId)
-                                                    }
-                                                >
-                                                    <td className="px-3 py-2 text-xs text-gray-400">
-                                                        {idx + 1}
-                                                    </td>
-                                                    <td className="px-3 py-2 text-xs text-white font-medium">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
-                                                                {s.name.charAt(0).toUpperCase()}
-                                                            </div>
-                                                            <span className="truncate">{s.name}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-3 py-2 text-center">
-                                                        {s.hasActiveSelfExit ? (
-                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
-                                                                <CheckCircle size={9} />
-                                                                Да
-                                                            </span>
-                                                        ) : s.selfExitsCount > 0 ? (
-                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-gray-500/20 text-gray-400">
-                                                                {s.selfExitsCount} в архиве
-                                                            </span>
-                                                        ) : (
-                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-white/5 text-gray-500">
-                                                                <XCircle size={9} />
-                                                                Нет
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-3 py-2 text-center">
-                                                        {s.hasActiveAuthorization ? (
-                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-                                                                <CheckCircle size={9} />
-                                                                {s.authorizationsCount}
-                                                            </span>
-                                                        ) : s.totalAuthorizationsCount > 0 ? (
-                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-gray-500/20 text-gray-400">
-                                                                {s.totalAuthorizationsCount} в архиве
-                                                            </span>
-                                                        ) : (
-                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-white/5 text-gray-500">
-                                                                <XCircle size={9} />
-                                                                Нет
-                                                            </span>
-                                                        )}
-                                                    </td>
-
-                                                </tr>
-                                                {isExpanded && (
-                                                    <tr key={`${s.aisId}-details`}>
-                                                        <td colSpan={5} className="px-3 py-3 bg-white/5">
-                                                            <div className="space-y-3">
-                                                                {/* Самовыход */}
-                                                                {s.hasActiveSelfExit && s.activeSelfExit && (
-                                                                    <div className="bg-indigo-500/10 rounded-lg p-3 border border-indigo-500/30">
-                                                                        <div className="flex items-center gap-2 mb-2">
-                                                                            <UserCheck size={12} className="text-indigo-400" />
-                                                                            <span className="text-xs font-semibold text-indigo-400">
-                                                                                Активный самовыход
-                                                                            </span>
-                                                                        </div>
-                                                                        <div className="grid grid-cols-2 gap-2 text-[10px]">
-                                                                            <div>
-                                                                                <p className="text-gray-500">С</p>
-                                                                                <p className="text-white">
-                                                                                    {formatDate(s.activeSelfExit.startDate)}
-                                                                                </p>
-                                                                            </div>
-                                                                            <div>
-                                                                                <p className="text-gray-500">По</p>
-                                                                                <p className="text-white">
-                                                                                    {formatDate(s.activeSelfExit.endDate)}
-                                                                                </p>
-                                                                            </div>
-                                                                        </div>
-                                                                        {s.activeSelfExit.reason && (
-                                                                            <div className="mt-2 text-[10px]">
-                                                                                <p className="text-gray-500">Причина</p>
-                                                                                <p className="text-white">
-                                                                                    {s.activeSelfExit.reason}
-                                                                                </p>
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                )}
-
-                                                                {/* Доверенности */}
-                                                                {s.hasActiveAuthorization && s.authorizations.length > 0 && (
-                                                                    <div className="space-y-2">
-                                                                        <div className="flex items-center gap-2">
-                                                                            <Shield size={12} className="text-cyan-400" />
-                                                                            <span className="text-xs font-semibold text-cyan-400">
-                                                                                Доверенности ({s.authorizations.length})
-                                                                            </span>
-                                                                        </div>
-                                                                        {s.authorizations.map((auth: any) => (
-                                                                            <div
-                                                                                key={auth.id}
-                                                                                className="bg-cyan-500/10 rounded-lg p-3 border border-cyan-500/30"
-                                                                            >
-                                                                                <div className="flex items-start justify-between gap-2 mb-2">
-                                                                                    <div className="flex-1 min-w-0">
-                                                                                        <p className="text-white font-medium text-xs truncate">
-                                                                                            {auth.trustedName}
-                                                                                        </p>
-                                                                                        <p className="text-[10px] text-cyan-300">
-                                                                                            {auth.relation}
-                                                                                        </p>
-                                                                                    </div>
-                                                                                </div>
-                                                                                <div className="grid grid-cols-2 gap-2 text-[10px]">
-                                                                                    {auth.phone && (
-                                                                                        <div>
-                                                                                            <p className="text-gray-500 flex items-center gap-1">
-                                                                                                <Phone size={9} /> Телефон
-                                                                                            </p>
-                                                                                            <p className="text-white">{auth.phone}</p>
-                                                                                        </div>
-                                                                                    )}
-                                                                                    <div>
-                                                                                        <p className="text-gray-500 flex items-center gap-1">
-                                                                                            <Calendar size={9} /> Добавлено
-                                                                                        </p>
-                                                                                        <p className="text-white">
-                                                                                            {formatDate(auth.createdAt)}
-                                                                                        </p>
-                                                                                    </div>
-                                                                                </div>
-                                                                                {auth.comment && (
-                                                                                    <div className="mt-2 text-[10px]">
-                                                                                        <p className="text-gray-500">Комментарий</p>
-                                                                                        <p className="text-gray-300">{auth.comment}</p>
-                                                                                    </div>
-                                                                                )}
-                                                                                <p className="text-[9px] text-gray-500 mt-2">
-                                                                                    Добавил: {auth.teacherName}
-                                                                                </p>
-                                                                            </div>
-                                                                        ))}
-                                                                    </div>
-                                                                )}
-
-                                                                {/* Если ничего нет */}
-                                                                {!s.hasActiveSelfExit && !s.hasActiveAuthorization && (
-                                                                    <div className="text-center py-3">
-                                                                        <p className="text-xs text-gray-400">
-                                                                            Нет активных разрешений
-                                                                        </p>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                )}
-                                            </>
-                                        );
-                                    })
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                    <Skeleton height={220} radius="card" />
                 </div>
             </div>
+        );
+    }
+
+    if (!session || !session?.user?.roles?.includes("ADMIN")) return null;
+
+    return (
+        <div className="min-h-full bg-bg">
+            <PageHeader
+                title={className || "Класс"}
+                subtitle={`${counts.all} учеников · самовыходы и доверенности`}
+                onBack={() => router.push("/admin/classes-overview")}
+                actions={
+                    <>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            leftIcon={RefreshCw}
+                            onClick={() => void fetchData()}
+                            disabled={isLoading}
+                        >
+                            Обновить
+                        </Button>
+                        <span className="hidden sm:inline-flex">
+                            <Button
+                            size="sm"
+                            variant="ghost"
+                            leftIcon={Download}
+                            onClick={exportToExcel}
+                            disabled={rows.length === 0}>
+                            Выгрузить
+                        </Button>
+                        </span>
+                    </>
+                }
+            />
+
+            <main className="mx-auto w-full max-w-[1440px] space-y-3 px-4 py-4">
+                {error && <FormError message={error} />}
+
+                <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <StatTile label="Учеников" value={counts.all} />
+                    <StatTile label="С самовыходом" value={counts.selfExit} />
+                    <StatTile label="С доверенностью" value={counts.auth} />
+                    <StatTile label="Без разрешений" value={counts.none} />
+                </section>
+
+                <Card padding="sm">
+                    <SearchInput
+                        value={search}
+                        onChange={setSearch}
+                        placeholder="Фамилия ученика"
+                        label="Поиск"
+                    />
+                </Card>
+
+                <Tabs
+                    value={filter}
+                    onChange={id => setFilter(id as FilterId)}
+                    ariaLabel="Фильтр по разрешениям"
+                    items={[
+                        { id: "all", label: "Все", count: counts.all },
+                        { id: "selfExit", label: "Самовыход", count: counts.selfExit },
+                        { id: "auth", label: "Доверенность", count: counts.auth },
+                        { id: "none", label: "Без разрешений", count: counts.none },
+                    ]}
+                />
+
+                {!isLoading && rows.length === 0 ? (
+                    <EmptyState
+                        variant={search || filter !== "all" ? "no-results" : "empty"}
+                        title={search || filter !== "all" ? "Ученики не найдены" : "В классе нет учеников"}
+                        description={
+                            search || filter !== "all"
+                                ? "Измените запрос или выберите другой фильтр"
+                                : "Список класса пуст — проверьте, что класс есть в базе АИС"
+                        }
+                        action={
+                            search || filter !== "all"
+                                ? {
+                                    label: "Сбросить фильтры",
+                                    onClick: () => {
+                                        setSearch("");
+                                        setFilter("all");
+                                    },
+                                }
+                                : undefined
+                        }
+                    />
+                ) : (
+                    <DataTable
+                        columns={columns}
+                        rows={rows}
+                        rowKey={student => student.aisId}
+                        loading={isLoading}
+                        onRowClick={student => setDetail(student)}
+                        mobileTitle={student => student.name}
+                        mobileSubtitle={student =>
+                            student.hasActiveSelfExit
+                                ? "самовыход активен"
+                                : student.hasActiveAuthorization
+                                    ? "есть доверенность"
+                                    : "разрешений нет"
+                        }
+                        emptyTitle="Ученики не найдены"
+                        caption={`Ученики класса ${className}`}
+                    />
+                )}
+
+                <p className="pb-4 text-xs text-fg-subtle">
+                    Нажмите на ученика, чтобы увидеть период самовыхода и доверенных лиц.
+                </p>
+            </main>
+
+            <Modal
+                open={Boolean(detail)}
+                onClose={() => setDetail(null)}
+                title={detail?.name ?? "Ученик"}
+                description={detail ? `${detail.className} · ${detail.selfExitsCount} самовыходов за всё время` : undefined}
+                size="md"
+            >
+                {detail && (
+                    <div className="space-y-4">
+                        <div>
+                            <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-fg-subtle">
+                                Самовыход
+                            </p>
+                            {detail.activeSelfExit ? (
+                                <div className="rounded-control border border-info/30 bg-info-soft px-3 py-2">
+                                    <p className="text-sm font-medium text-fg">
+                                        {formatDateRu(detail.activeSelfExit.startDate)} —{" "}
+                                        {formatDateRu(detail.activeSelfExit.endDate)}
+                                    </p>
+                                    {detail.activeSelfExit.reason && (
+                                        <p className="mt-0.5 text-xs text-fg-muted">{detail.activeSelfExit.reason}</p>
+                                    )}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-fg-muted">Активного самовыхода нет</p>
+                            )}
+                        </div>
+
+                        <div>
+                            <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-fg-subtle">
+                                Доверенные лица
+                            </p>
+                            {detail.authorizations && detail.authorizations.length > 0 ? (
+                                <List>
+                                    {detail.authorizations.map(auth => (
+                                        <li key={auth.id}>
+                                            <ListItem
+                                                title={auth.trustedName}
+                                                subtitle={auth.relation}
+                                                meta={auth.phone ?? undefined}
+                                                density="compact"
+                                            />
+                                        </li>
+                                    ))}
+                                </List>
+                            ) : (
+                                <p className="text-sm text-fg-muted">Доверенностей нет</p>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </Modal>
+        </div>
+    );
+}
+
+function StatTile({ label, value }: { label: string; value: number }) {
+    return (
+        <div className="rounded-card border border-border bg-surface p-3">
+            <p className="text-xs text-fg-subtle">{label}</p>
+            <p className="mt-0.5 text-xl font-semibold tabular-nums text-fg">{value}</p>
         </div>
     );
 }

@@ -1,492 +1,583 @@
+// app/admin/users/page.tsx
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useState, useEffect, JSX } from "react";
+import { useSession } from "next-auth/react";
+import { Copy, Plus, RefreshCw, ShieldCheck, UserPlus } from "lucide-react";
 import {
-  LogOut, ArrowLeft, Users, UserPlus, Shield, Trash2, Save,
-  X, Plus, Search, AlertCircle, UserCheck, CheckCircle,
-  Edit2, MoreVertical, ChevronDown, Filter, Crown, BookOpen, School,
-  Menu, ChevronUp, ChevronRight, GraduationCap
-} from "lucide-react";
+    Badge,
+    Button,
+    Card,
+    Checkbox,
+    Chip,
+    DataTable,
+    EmptyState,
+    FormError,
+    Input,
+    PageHeader,
+    SearchInput,
+    Sheet,
+    Skeleton,
+    useToast,
+    type Column,
+} from "@/components/ui/kit";
+import { formatDateRu } from "@/lib/date";
 
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  role: string;
-  createdAt: string;
-  userRoles?: { role: { id: string; name: string; description: string } }[];
+/**
+ * Сотрудники и роли.
+ *
+ * Что изменилось по UX:
+ *  • вместо модалки по центру — панель справа (на телефоне шторка снизу):
+ *    список сотрудников остаётся видимым, длинный список ролей не «прыгает»;
+ *  • роли переключаются чекбоксами в один клик, с описанием «что даёт роль»
+ *    и числом сотрудников — не нужно открывать отдельное окно на каждую роль;
+ *  • нового сотрудника можно сразу завести с несколькими ролями;
+ *  • фильтр по ролям и по «без роли» — видно, у кого доступ забыли выдать.
+ */
+
+interface RoleInfo {
+    id: string;
+    name: string;
+    description?: string | null;
 }
 
-interface Role {
-  id: string;
-  name: string;
-  description: string;
+interface StaffUser {
+    id: string;
+    email: string;
+    name: string;
+    createdAt: string;
+    userRoles?: Array<{ role: RoleInfo }>;
 }
 
-const roleColors: Record<string, { bg: string; text: string; border: string; icon: JSX.Element; label: string }> = {
-  ADMIN: {
-    bg: "bg-purple-500/20",
-    text: "text-purple-300",
-    border: "border-purple-500/30",
-    icon: <Crown size={14} className="text-purple-400" />,
-    label: "Администратор"
-  },
-  METHODIST: {
-    bg: "bg-indigo-500/20",
-    text: "text-indigo-300",
-    border: "border-indigo-500/30",
-    icon: <GraduationCap size={14} className="text-indigo-400" />,
-    label: "Методист"
-  },
-  HEAD_TEACHER: {
-    bg: "bg-blue-500/20",
-    text: "text-blue-300",
-    border: "border-blue-500/30",
-    icon: <BookOpen size={14} className="text-blue-400" />,
-    label: "Завуч"
-  },
-  CLASS_TEACHER: {
-    bg: "bg-green-500/20",
-    text: "text-green-300",
-    border: "border-green-500/30",
-    icon: <School size={14} className="text-green-400" />,
-    label: "Классный руководитель"
-  },
-  TEACHER: {
-    bg: "bg-gray-500/20",
-    text: "text-gray-300",
-    border: "border-gray-500/30",
-    icon: <UserCheck size={14} className="text-gray-400" />,
-    label: "Учитель"
-  }
+const ROLE_META: Record<string, { label: string; tone: "accent" | "info" | "warning" | "success" | "neutral" }> = {
+    ADMIN: { label: "Администратор", tone: "accent" },
+    METHODIST: { label: "Методист", tone: "info" },
+    HEAD_TEACHER: { label: "Завуч", tone: "warning" },
+    CLASS_TEACHER: { label: "Классный руководитель", tone: "success" },
+    TEACHER: { label: "Учитель", tone: "neutral" },
+    SECURITY: { label: "Охранник", tone: "info" },
 };
 
+const roleLabel = (name: string) => ROLE_META[name]?.label ?? name;
+const roleTone = (name: string) => ROLE_META[name]?.tone ?? "neutral";
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export default function AdminUsersPage() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
-  const [users, setUsers] = useState<User[]>([]);
-  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [expandedUser, setExpandedUser] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const [formData, setFormData] = useState({
-    email: "",
-    name: "",
-    role: "TEACHER"
-  });
+    const { data: session, status } = useSession();
+    const router = useRouter();
+    const toast = useToast();
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+    const [mounted, setMounted] = useState(false);
+    const [users, setUsers] = useState<StaffUser[]>([]);
+    const [roles, setRoles] = useState<RoleInfo[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-  // Проверка прав доступа
-  useEffect(() => {
-    if (status === "loading") return;
+    const [search, setSearch] = useState("");
+    const [roleFilter, setRoleFilter] = useState<string>("all");
 
-    if (!session) {
-      router.replace("/login");
-      return;
-    }
+    // панель редактирования: id, а не объект — после обновления списка данные свежие
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [busyRoleId, setBusyRoleId] = useState<string | null>(null);
 
-    const roles = (session?.user?.roles as string[]) || [];
-    if (!roles.includes("ADMIN")) {
-      router.replace("/");
-      return;
-    }
-  }, [session, status, router]);
+    const [isCreateOpen, setIsCreateOpen] = useState(false);
+    const [createForm, setCreateForm] = useState({ name: "", email: "" });
+    const [createRoles, setCreateRoles] = useState<string[]>([]);
+    const [isCreating, setIsCreating] = useState(false);
+    const [createError, setCreateError] = useState<string | null>(null);
 
-  // Загрузка пользователей и ролей
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [usersRes, rolesRes] = await Promise.all([
-          fetch("/api/admin/users"),
-          fetch("/api/admin/roles")
-        ]);
+    useEffect(() => {
+        setMounted(true);
+        if (status === "unauthenticated") router.replace("/login");
+        if (status === "authenticated") {
+            const userRoles = (session?.user?.roles as string[]) || [];
+            if (!userRoles.includes("ADMIN")) router.replace("/admin");
+        }
+    }, [session, status, router]);
 
-        const usersData = await usersRes.json();
-        const rolesData = await rolesRes.json();
+    const fetchData = useCallback(async () => {
+        setIsLoading(true);
+        setError(null);
 
-        setUsers(usersData);
-        setFilteredUsers(usersData);
-        setRoles(rolesData);
-      } catch (error) {
-        console.error("Error fetching data:", error);
-      } finally {
-        setIsLoading(false);
-      }
+        try {
+            const [usersResponse, rolesResponse] = await Promise.all([
+                fetch("/api/admin/users"),
+                fetch("/api/admin/roles"),
+            ]);
+
+            if (!usersResponse.ok) throw new Error(`Не удалось получить сотрудников (${usersResponse.status})`);
+
+            const usersData = await usersResponse.json();
+            const list: StaffUser[] = Array.isArray(usersData) ? usersData : [];
+            list.sort((a, b) => a.name.localeCompare(b.name, "ru"));
+            setUsers(list);
+
+            if (rolesResponse.ok) {
+                const rolesData = await rolesResponse.json();
+                setRoles(Array.isArray(rolesData) ? rolesData : []);
+            }
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Не удалось загрузить сотрудников");
+            setUsers([]);
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (session?.user?.roles?.includes("ADMIN")) {
+            void fetchData();
+        }
+    }, [session, fetchData]);
+
+    const rolesOf = (user: StaffUser) => (user.userRoles ?? []).map(item => item.role);
+
+    const adminCount = useMemo(
+        () => users.filter(user => rolesOf(user).some(role => role.name === "ADMIN")).length,
+        [users],
+    );
+
+    const roleCounts = useMemo(() => {
+        const counts: Record<string, number> = {};
+        for (const user of users) {
+            for (const role of rolesOf(user)) counts[role.name] = (counts[role.name] ?? 0) + 1;
+        }
+        return counts;
+    }, [users]);
+
+    const withoutRoleCount = useMemo(() => users.filter(user => rolesOf(user).length === 0).length, [users]);
+
+    const rows = useMemo(() => {
+        const query = search.trim().toLowerCase();
+
+        return users.filter(user => {
+            if (query) {
+                const matches =
+                    user.name.toLowerCase().includes(query) ||
+                    user.email.toLowerCase().includes(query) ||
+                    rolesOf(user).some(role => roleLabel(role.name).toLowerCase().includes(query));
+                if (!matches) return false;
+            }
+
+            if (roleFilter === "none") return rolesOf(user).length === 0;
+            if (roleFilter !== "all") return rolesOf(user).some(role => role.name === roleFilter);
+
+            return true;
+        });
+    }, [users, search, roleFilter]);
+
+    const editingUser = editingId ? users.find(user => user.id === editingId) ?? null : null;
+
+    const copyEmail = async (email: string) => {
+        try {
+            await navigator.clipboard.writeText(email);
+            toast.show({ title: "Email скопирован", description: email, tone: "success" });
+        } catch {
+            toast.show({ title: "Браузер не разрешил копирование", tone: "danger" });
+        }
     };
 
-    if (session && session?.user?.roles?.includes("ADMIN")) {
-      fetchData();
+    const toggleRole = async (user: StaffUser, role: RoleInfo, checked: boolean) => {
+        if (!checked && role.name === "ADMIN" && adminCount <= 1) {
+            toast.show({
+                title: "Нельзя снять последнюю роль администратора",
+                description: "Сначала назначьте администратором другого сотрудника",
+                tone: "danger",
+            });
+            return;
+        }
+
+        setBusyRoleId(role.id);
+        try {
+            const response = checked
+                ? await fetch(`/api/admin/users/${user.id}/roles`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ roleId: role.id }),
+                })
+                : await fetch(`/api/admin/users/${user.id}/roles?roleId=${role.id}`, { method: "DELETE" });
+
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.error || "Не удалось изменить роль");
+            }
+
+            await fetchData();
+            toast.show({
+                title: checked ? "Роль выдана" : "Роль снята",
+                description: `${roleLabel(role.name)} · ${user.name}`,
+                tone: "success",
+            });
+        } catch (e) {
+            toast.show({
+                title: e instanceof Error ? e.message : "Не удалось изменить роль",
+                tone: "danger",
+            });
+        } finally {
+            setBusyRoleId(null);
+        }
+    };
+
+    const createUser = async () => {
+        setCreateError(null);
+
+        const name = createForm.name.trim();
+        const email = createForm.email.trim();
+
+        if (name.length < 3) {
+            setCreateError("Укажите имя и фамилию — минимум 3 символа");
+            return;
+        }
+        if (!EMAIL_PATTERN.test(email)) {
+            setCreateError("Проверьте email: он должен совпадать с почтой в Яндексе");
+            return;
+        }
+        if (createRoles.length === 0) {
+            setCreateError("Выберите хотя бы одну роль");
+            return;
+        }
+
+        setIsCreating(true);
+        try {
+            const selected = roles.filter(role => createRoles.includes(role.id));
+            const [first, ...rest] = selected;
+
+            const response = await fetch("/api/admin/users", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name, email, role: first?.name }),
+            });
+
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.error || "Не удалось добавить сотрудника");
+            }
+
+            const created = (await response.json()) as StaffUser | null;
+
+            // Дополнительные роли назначаем вторым шагом: API создания принимает одну
+            if (created?.id) {
+                for (const role of rest) {
+                    await fetch(`/api/admin/users/${created.id}/roles`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ roleId: role.id }),
+                    });
+                }
+            }
+
+            await fetchData();
+            toast.show({
+                title: "Сотрудник добавлен",
+                description: `${name} · ${selected.map(role => roleLabel(role.name)).join(", ")}`,
+                tone: "success",
+            });
+
+            setIsCreateOpen(false);
+            setCreateForm({ name: "", email: "" });
+            setCreateRoles([]);
+        } catch (e) {
+            setCreateError(e instanceof Error ? e.message : "Не удалось добавить сотрудника");
+        } finally {
+            setIsCreating(false);
+        }
+    };
+
+    const columns: Column<StaffUser>[] = [
+        {
+            key: "name",
+            header: "Сотрудник",
+            render: user => (
+                <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-fg">{user.name}</p>
+                    <p className="truncate text-xs text-fg-subtle">{user.email}</p>
+                </div>
+            ),
+        },
+        {
+            key: "roles",
+            header: "Роли",
+            render: user => {
+                const userRoles = rolesOf(user);
+
+                return userRoles.length === 0 ? (
+                    <Badge tone="danger">без роли</Badge>
+                ) : (
+                    <div className="flex flex-wrap gap-1">
+                        {userRoles.map(role => (
+                            <Badge key={role.id} tone={roleTone(role.name)}>
+                                {roleLabel(role.name)}
+                            </Badge>
+                        ))}
+                    </div>
+                );
+            },
+        },
+        {
+            key: "createdAt",
+            header: "Добавлен",
+            width: "130px",
+            render: user => <span className="text-xs text-fg-subtle">{formatDateRu(user.createdAt)}</span>,
+        },
+    ];
+
+    if (!mounted || status === "loading") {
+        return (
+            <div className="min-h-full bg-bg">
+                <PageHeader title="Сотрудники" onBack={() => router.push("/admin")} />
+                <div className="mx-auto w-full max-w-[1440px] space-y-3 px-4 py-4">
+                    <Skeleton height={48} radius="control" />
+                    <Skeleton height={260} radius="card" />
+                </div>
+            </div>
+        );
     }
-  }, [session]);
 
-  // Фильтрация
-  useEffect(() => {
-    if (searchQuery) {
-      setFilteredUsers(users.filter(user =>
-        user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchQuery.toLowerCase())
-      ));
-    } else {
-      setFilteredUsers(users);
-    }
-  }, [searchQuery, users]);
+    if (!session || !session?.user?.roles?.includes("ADMIN")) return null;
 
-  const toggleExpand = (userId: string) => {
-    setExpandedUser(expandedUser === userId ? null : userId);
-  };
-
-  // Добавление пользователя
-  const handleAddUser = async () => {
-    if (!formData.email || !formData.name) {
-      alert("Заполните все поля");
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const response = await fetch("/api/admin/users", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData)
-      });
-
-      if (response.ok) {
-        alert("Пользователь добавлен");
-        setShowAddModal(false);
-        setFormData({ email: "", name: "", role: "TEACHER" });
-
-        const usersRes = await fetch("/api/admin/users");
-        const usersData = await usersRes.json();
-        setUsers(usersData);
-        setFilteredUsers(usersData);
-      } else {
-        const error = await response.json();
-        alert(error.error || "Ошибка при добавлении");
-      }
-    } catch (error) {
-      console.error("Error adding user:", error);
-      alert("Ошибка при добавлении");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Обновление ролей пользователя
-  const handleAssignRole = async (userId: string, roleId: string) => {
-    try {
-      const response = await fetch(`/api/admin/users/${userId}/roles`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roleId })
-      });
-
-      if (response.ok) {
-        const usersRes = await fetch("/api/admin/users");
-        const usersData = await usersRes.json();
-        setUsers(usersData);
-        setFilteredUsers(usersData);
-      } else {
-        const error = await response.json();
-        alert(error.error || "Ошибка при назначении роли");
-      }
-    } catch (error) {
-      console.error("Error assigning role:", error);
-      alert("Ошибка при назначении роли");
-    }
-  };
-
-  // Удаление роли у пользователя
-  const handleRemoveRole = async (userId: string, roleId: string, roleName: string) => {
-    const label = roleColors[roleName]?.label || roleName;
-    if (!confirm(`Удалить роль "${label}" у пользователя?`)) return;
-
-    try {
-      const response = await fetch(`/api/admin/users/${userId}/roles?roleId=${roleId}`, {
-        method: "DELETE"
-      });
-
-      if (response.ok) {
-        const usersRes = await fetch("/api/admin/users");
-        const usersData = await usersRes.json();
-        setUsers(usersData);
-        setFilteredUsers(usersData);
-      } else {
-        alert("Ошибка при удалении роли");
-      }
-    } catch (error) {
-      console.error("Error removing role:", error);
-      alert("Ошибка при удалении роли");
-    }
-  };
-
-  const handleLogout = async () => {
-    await fetch("/api/auth/signout", { method: "POST" });
-    router.push("/login");
-  };
-
-  if (!mounted || status === "loading" || isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#1a2332] to-[#2b3858]">
-        <div className="bg-white/10 backdrop-blur-lg p-6 rounded-2xl text-center border border-white/20">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-3 text-gray-300 text-sm">Загрузка...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!session || !session?.user?.roles?.includes("ADMIN")) {
-    return null;
-  }
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1a2332] to-[#2b3858]">
-      {/* Шапка */}
-      <div className="bg-white/10 backdrop-blur-lg border-b border-white/20 sticky top-0 z-20">
-        <div className="px-3 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => router.push("/admin")}
-                className="w-8 h-8 flex items-center justify-center bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg transition-all"
-              >
-                <ArrowLeft size={18} />
-              </button>
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center">
-                <Users size={16} className="text-white" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-white">Персонал</p>
-                <p className="text-xs text-gray-400">Управление сотрудниками</p>
-              </div>
-            </div>
-            <div className="flex gap-1">
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="w-8 h-8 flex items-center justify-center bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg transition-all"
-              >
-                <UserPlus size={16} />
-              </button>
-              <button
-                onClick={handleLogout}
-                className="w-8 h-8 flex items-center justify-center bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg transition-all"
-              >
-                <LogOut size={16} />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="p-3 max-w-full">
-        {/* Поиск */}
-        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20 mb-3">
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Поиск по имени или email..."
-              className="w-full pl-9 pr-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        <div className="min-h-full bg-bg">
+            <PageHeader
+                title="Сотрудники"
+                subtitle={`${users.length} человек · администраторов: ${adminCount}`}
+                onBack={() => router.push("/admin")}
+                actions={
+                    <>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            leftIcon={RefreshCw}
+                            onClick={() => void fetchData()}
+                            disabled={isLoading}
+                        >
+                            <span className="hidden sm:inline">Обновить</span>
+                        </Button>
+                        <Button size="sm" variant="primary" leftIcon={Plus} onClick={() => setIsCreateOpen(true)}>
+                            Добавить
+                        </Button>
+                    </>
+                }
             />
-          </div>
-        </div>
 
-        {/* Статистика */}
-        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20 mb-3">
-          <div className="flex justify-between items-center">
-            <span className="text-xs text-gray-400">Всего сотрудников:</span>
-            <span className="text-white font-bold text-lg">{filteredUsers.length}</span>
-          </div>
-        </div>
+            <main className="mx-auto w-full max-w-[1440px] space-y-3 px-4 py-4">
+                {error && <FormError message={error} />}
 
-        {/* Список сотрудников */}
-        <div className="space-y-2">
-          {filteredUsers.map((user) => {
-            const userRoles = user.userRoles?.map(ur => ur.role) || [];
-            const isExpanded = expandedUser === user.id;
+                <Card padding="sm">
+                    <SearchInput
+                        value={search}
+                        onChange={setSearch}
+                        placeholder="Имя, email или роль"
+                        label="Поиск"
+                    />
 
-            return (
-              <div key={user.id} className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 overflow-hidden">
-                {/* Основная карточка */}
-                <div className="p-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
-                      <Users size={15} className="text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-white text-sm truncate">{user.name}</p>
-                      <p className="text-xs text-gray-400 truncate">{user.email}</p>
-                    </div>
-                    <button
-                      onClick={() => toggleExpand(user.id)}
-                      className="w-8 h-8 flex items-center justify-center bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-lg transition-all flex-shrink-0"
-                    >
-                      {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Раскрывающийся блок с ролями */}
-                {isExpanded && (
-                  <div className="px-3 pb-3 pt-2 border-t border-white/10">
-                    {/* Текущие роли */}
-                    <div className="mb-3">
-                      <div className="text-xs text-gray-400 mb-2">Текущие роли:</div>
-                      <div className="flex flex-wrap gap-2">
-                        {userRoles.length > 0 ? (
-                          userRoles.map((role) => {
-                            const colors = roleColors[role.name] || roleColors.TEACHER;
-                            return (
-                              <div
-                                key={role.id}
-                                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs ${colors.bg} ${colors.text} border ${colors.border}`}
-                              >
-                                {colors.icon}
-                                <span>{colors.label}</span>
-                                <button
-                                  onClick={() => handleRemoveRole(user.id, role.id, role.name)}
-                                  className="ml-0.5 hover:text-red-400 transition-colors"
+                    <div className="mt-3">
+                        <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-fg-subtle">
+                            Фильтр по роли
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                            <Chip selected={roleFilter === "all"} onClick={() => setRoleFilter("all")} count={users.length}>
+                                Все
+                            </Chip>
+                            {roles.map(role => (
+                                <Chip
+                                    key={role.id}
+                                    selected={roleFilter === role.name}
+                                    onClick={() => setRoleFilter(roleFilter === role.name ? "all" : role.name)}
+                                    count={roleCounts[role.name] ?? 0}
                                 >
-                                  <X size={12} />
-                                </button>
-                              </div>
-                            );
-                          })
-                        ) : (
-                          <span className="text-xs text-gray-500">Роли не назначены</span>
-                        )}
-                      </div>
+                                    {roleLabel(role.name)}
+                                </Chip>
+                            ))}
+                            <Chip
+                                selected={roleFilter === "none"}
+                                onClick={() => setRoleFilter(roleFilter === "none" ? "all" : "none")}
+                                count={withoutRoleCount}
+                                className={withoutRoleCount > 0 ? "text-danger" : undefined}
+                            >
+                                Без роли
+                            </Chip>
+                        </div>
                     </div>
+                </Card>
 
-                    {/* Добавление ролей */}
-                    <div>
-                      <div className="text-xs text-gray-400 mb-2">Добавить роль:</div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {roles
-                          .filter(role => !userRoles.some(ur => ur.id === role.id))
-                          .map((role) => {
-                            const colors = roleColors[role.name] || roleColors.TEACHER;
-                            return (
-                              <button
-                                key={role.id}
-                                onClick={() => handleAssignRole(user.id, role.id)}
-                                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs transition-all ${colors.bg} ${colors.text} border ${colors.border} hover:brightness-125`}
-                              >
-                                <Plus size={12} />
-                                {colors.label}
-                              </button>
-                            );
-                          })}
-                        {roles.filter(role => !userRoles.some(ur => ur.id === role.id)).length === 0 && (
-                          <span className="text-xs text-gray-500">Все роли назначены</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                {!isLoading && rows.length === 0 ? (
+                    <EmptyState
+                        variant={search || roleFilter !== "all" ? "no-results" : "empty"}
+                        title={search || roleFilter !== "all" ? "Сотрудники не найдены" : "Сотрудников нет"}
+                        description={
+                            search || roleFilter !== "all"
+                                ? "Измените запрос или снимите фильтр по роли"
+                                : "Добавьте первого сотрудника — доступ появится после входа через Яндекс"
+                        }
+                        action={
+                            search || roleFilter !== "all"
+                                ? {
+                                    label: "Сбросить фильтры",
+                                    onClick: () => {
+                                        setSearch("");
+                                        setRoleFilter("all");
+                                    },
+                                }
+                                : { label: "Добавить сотрудника", onClick: () => setIsCreateOpen(true) }
+                        }
+                    />
+                ) : (
+                    <DataTable
+                        columns={columns}
+                        rows={rows}
+                        rowKey={user => user.id}
+                        loading={isLoading}
+                        onRowClick={user => setEditingId(user.id)}
+                        mobileTitle={user => user.name}
+                        mobileSubtitle={user =>
+                            rolesOf(user).length === 0
+                                ? "без роли — доступ закрыт"
+                                : rolesOf(user).map(role => roleLabel(role.name)).join(" · ")
+                        }
+                        emptyTitle="Сотрудники не найдены"
+                        caption="Сотрудники и их роли"
+                    />
                 )}
-              </div>
-            );
-          })}
 
-          {filteredUsers.length === 0 && (
-            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 text-center border border-white/20">
-              <Users size={40} className="text-gray-500 mx-auto mb-2" />
-              <p className="text-gray-400 text-sm">Нет сотрудников</p>
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="mt-3 px-3 py-1.5 bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg text-xs transition-all"
-              >
-                Добавить сотрудника
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
+                <p className="pb-4 text-xs text-fg-subtle">
+                    Нажмите на сотрудника, чтобы выдать или снять роли. Доступ появится после первого входа
+                    через Яндекс с этой почтой.
+                </p>
+            </main>
 
-      {/* Модальное окно добавления сотрудника */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md p-3">
-          <div className="w-full max-w-md bg-gradient-to-br from-[#1a2332] to-[#2b3858] rounded-xl shadow-2xl border border-white/20 overflow-hidden">
-            <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-4 py-3">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <UserPlus size={18} className="text-white" />
-                  <h3 className="text-base font-bold text-white">Добавить сотрудника</h3>
+            {/* Панель редактирования ролей */}
+            <Sheet
+                open={Boolean(editingUser)}
+                onClose={() => setEditingId(null)}
+                title={editingUser?.name ?? "Сотрудник"}
+                description={editingUser?.email}
+                footer={
+                    <div className="flex justify-end">
+                        <Button onClick={() => setEditingId(null)}>Готово</Button>
+                    </div>
+                }
+            >
+                {editingUser && (
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between gap-2 rounded-control border border-dashed border-border px-3 py-2">
+                            <div className="min-w-0">
+                                <p className="truncate text-sm text-fg">{editingUser.email}</p>
+                                <p className="text-xs text-fg-subtle">
+                                    добавлен {formatDateRu(editingUser.createdAt)}
+                                </p>
+                            </div>
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                leftIcon={Copy}
+                                onClick={() => void copyEmail(editingUser.email)}
+                            >
+                                Копировать
+                            </Button>
+                        </div>
+
+                        <div>
+                            <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-fg-subtle">
+                                Роли и права
+                            </p>
+                            <div className="rounded-card border border-dashed border-border p-1">
+                                {roles.map(role => {
+                                    const assigned = rolesOf(editingUser).some(item => item.id === role.id);
+                                    const description = [role.description, `${roleCounts[role.name] ?? 0} чел.`]
+                                        .filter(Boolean)
+                                        .join(" · ");
+
+                                    return (
+                                        <Checkbox
+                                            key={role.id}
+                                            checked={assigned}
+                                            disabled={busyRoleId === role.id}
+                                            onChange={checked => void toggleRole(editingUser, role, checked)}
+                                            label={roleLabel(role.name)}
+                                            description={description}
+                                        />
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        <div className="rounded-control border border-warning/30 bg-warning-soft px-3 py-2">
+                            <p className="text-xs text-fg">
+                                Роль «Администратор» нельзя снять у последнего администратора — система
+                                останется без управления.
+                            </p>
+                        </div>
+                    </div>
+                )}
+            </Sheet>
+
+            {/* Панель создания сотрудника */}
+            <Sheet
+                open={isCreateOpen}
+                onClose={() => setIsCreateOpen(false)}
+                title="Новый сотрудник"
+                description="Доступ появится после входа через Яндекс"
+                footer={
+                    <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                        <Button variant="ghost" onClick={() => setIsCreateOpen(false)} disabled={isCreating}>
+                            Отмена
+                        </Button>
+                        <Button leftIcon={UserPlus} onClick={() => void createUser()} loading={isCreating}>
+                            Добавить
+                        </Button>
+                    </div>
+                }
+            >
+                <div className="space-y-4">
+                    <FormError message={createError} />
+
+                    <Input
+                        label="Имя и фамилия"
+                        value={createForm.name}
+                        onChange={event => setCreateForm(previous => ({ ...previous, name: event.target.value }))}
+                        placeholder="Иванова Мария Петровна"
+                        required
+                    />
+
+                    <Input
+                        label="Email"
+                        type="email"
+                        inputMode="email"
+                        value={createForm.email}
+                        onChange={event => setCreateForm(previous => ({ ...previous, email: event.target.value }))}
+                        placeholder="teacher@school1298.ru"
+                        hint="Должен совпадать с почтой в Яндексе"
+                        required
+                    />
+
+                    <div>
+                        <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-fg-subtle">
+                            Роли
+                        </p>
+                        <div className="rounded-card border border-dashed border-border p-1">
+                            {roles.map(role => (
+                                <Checkbox
+                                    key={role.id}
+                                    checked={createRoles.includes(role.id)}
+                                    onChange={checked =>
+                                        setCreateRoles(previous =>
+                                            checked ? [...previous, role.id] : previous.filter(id => id !== role.id),
+                                        )
+                                    }
+                                    label={roleLabel(role.name)}
+                                    description={role.description ?? undefined}
+                                />
+                            ))}
+                        </div>
+                        <p className="mt-1.5 flex items-center gap-1 text-xs text-fg-subtle">
+                            <ShieldCheck size={12} aria-hidden />
+                            Можно выбрать несколько ролей сразу
+                        </p>
+                    </div>
                 </div>
-                <button onClick={() => setShowAddModal(false)} className="text-white/70 hover:text-white">
-                  <X size={20} />
-                </button>
-              </div>
-            </div>
-
-            <div className="p-4 space-y-3">
-              <div>
-                <label className="block text-white text-xs mb-1">ФИО *</label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Иванов Иван Иванович"
-                  className="w-full px-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-white text-xs mb-1">Email *</label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="ivanov@school.ru"
-                  className="w-full px-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-white text-xs mb-1">Начальная роль</label>
-                <select
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  className="w-full px-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                >
-                  {roles.map((role) => (
-                    <option key={role.id} value={role.name} className="bg-[#1a2332]">
-                      {roleColors[role.name]?.label || role.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="p-4 border-t border-white/10 bg-white/5 flex gap-3">
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="flex-1 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all text-sm"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={handleAddUser}
-                disabled={isSubmitting}
-                className="flex-1 px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg transition-all text-sm disabled:opacity-50"
-              >
-                {isSubmitting ? "Добавление..." : "Добавить"}
-              </button>
-            </div>
-          </div>
+            </Sheet>
         </div>
-      )}
-    </div>
-  );
+    );
 }

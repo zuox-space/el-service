@@ -5,10 +5,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getStudentsByClass } from "@/lib/mysql_db";
+import { getStudentsGroupedByClass } from "@/lib/mysql_db";
+import { withDbMetrics, startDbMetrics } from "@/lib/dev-metrics";
+import { countSchoolDays, getAcademicYearStart, toLocalISODate } from "@/lib/date";
 
 // GET: Получить все классы со студентами из MySQL
 export async function GET() {
+  startDbMetrics();
   try {
     const session = await getServerSession(authOptions);
     if (!session) {
@@ -22,37 +25,63 @@ export async function GET() {
       ]
     });
 
-    const parsedClasses = await Promise.all(classes.map(async (cls) => {
-      const owner = await prisma.user.findUnique({
-        where: { id: cls.ownerId },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        }
-      });
+    // Владельцы классов — одним запросом вместо запроса на каждый класс (был N+1)
+    const ownerIds = [...new Set(classes.map(cls => cls.ownerId))];
+    const owners = await prisma.user.findMany({
+      where: { id: { in: ownerIds } },
+      select: { id: true, name: true, email: true },
+    });
+    const ownerById = new Map(owners.map(user => [user.id, user]));
 
-      let students: any[] = [];
-      try {
-        const studentsFromMySQL = await getStudentsByClass(cls.name);
-        students = studentsFromMySQL.map((student) => ({
-          id: student.aisId,
-          name: student.name
-        }));
-      } catch (error) {
-        console.error(`❌ Error fetching students for class ${cls.name}:`, error);
-        students = [];
-      }
+    // Ученики — одним запросом ко всей школе вместо запроса на каждый класс
+    const studentsByClass = await getStudentsGroupedByClass();
+
+    // Частота отметок посещаемости: сколько учебных дней с 1 сентября класс был
+    // отмечен, от общего числа учебных дней. Один запрос на всю школу.
+    const academicYearStart = getAcademicYearStart();
+    const attendanceRows = await prisma.attendance.findMany({
+      where: { date: { gte: academicYearStart } },
+      select: { classId: true, date: true },
+    });
+
+    const markedDaysByClass = new Map<string, Set<string>>();
+    for (const row of attendanceRows) {
+      const dates = markedDaysByClass.get(row.classId) ?? new Set<string>();
+      dates.add(toLocalISODate(row.date));
+      markedDaysByClass.set(row.classId, dates);
+    }
+
+    const schoolDays = countSchoolDays(academicYearStart, new Date());
+
+    const parsedClasses = classes.map((cls) => {
+      const owner = ownerById.get(cls.ownerId) || null;
+      const students = (studentsByClass.get(cls.name) || []).map((student) => ({
+        id: student.aisId,
+        name: student.name
+      }));
+
+      const markedDays = markedDaysByClass.get(cls.id)?.size ?? 0;
+      const percent = schoolDays > 0 ? Math.min(100, Math.round((markedDays / schoolDays) * 100)) : 0;
+
+      // Пороги: ≥90 — отлично, ≥80 — хорошо, ≥50 — плохо, ниже — очень плохо
+      const level = percent >= 90 ? "excellent" : percent >= 80 ? "good" : percent >= 50 ? "bad" : "veryBad";
 
       return {
         ...cls,
         students: students,
         owner: owner,
-        teacher: owner
+        teacher: owner,
+        attendance: {
+          markedDays,
+          schoolDays,
+          percent,
+          level,
+          since: toLocalISODate(academicYearStart),
+        },
       };
-    }));
+    });
 
-    return NextResponse.json(parsedClasses);
+    return withDbMetrics(NextResponse.json(parsedClasses));
   } catch (error) {
     console.error("Error fetching classes:", error);
     return NextResponse.json([]);
@@ -93,18 +122,12 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    // Получаем студентов из MySQL
-    let students: any[] = [];
-    try {
-      const studentsFromMySQL = await getStudentsByClass(newClass.name);
-      students = studentsFromMySQL.map((student) => ({
-        id: student.aisId,
-        name: student.name
-      }));
-    } catch (error) {
-      console.error(`❌ Error fetching students for class ${newClass.name}:`, error);
-      students = [];
-    }
+    // Ученики берутся из уже загруженного (и кэшированного) справочника
+    const studentsByClass = await getStudentsGroupedByClass();
+    const students = (studentsByClass.get(newClass.name) || []).map((student) => ({
+      id: student.aisId,
+      name: student.name
+    }));
 
     return NextResponse.json({
       ...newClass,

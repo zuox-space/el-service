@@ -3,12 +3,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getStudentsByClass } from "@/lib/mysql_db";
+import { getStudentsGroupedByClass } from "@/lib/mysql_db";
+import { withDbMetrics, startDbMetrics } from "@/lib/dev-metrics";
 
 export const dynamic = 'force-dynamic';
 
 // GET: Получить все данные о посещаемости для всех классов
 export async function GET(req: NextRequest) {
+    startDbMetrics();
     const session = await getServerSession(authOptions);
     if (!session) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -29,26 +31,20 @@ export async function GET(req: NextRequest) {
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
 
-        console.log(`📊 Fetching attendance for date: ${today.toISOString()}`);
-
-        // Получаем все классы
-        const classes = await prisma.class.findMany({
-            orderBy: { name: 'asc' }
-        });
-
-        console.log(`📚 Found ${classes.length} classes`);
-
-        // Получаем все записи посещаемости за сегодня
-        const allAttendance = await prisma.attendance.findMany({
-            where: {
-                date: {
-                    gte: today,
-                    lt: tomorrow
+        // Все классы и все записи посещаемости за день — по одному запросу на каждый источник
+        const [classes, allAttendance, studentsByClass] = await Promise.all([
+            prisma.class.findMany({ orderBy: { name: 'asc' } }),
+            prisma.attendance.findMany({
+                where: {
+                    date: {
+                        gte: today,
+                        lt: tomorrow
+                    }
                 }
-            }
-        });
-
-        console.log(`📋 Found ${allAttendance.length} attendance records`);
+            }),
+            // 🔥 Один запрос ко всем ученикам вместо запроса на каждый класс (был N+1)
+            getStudentsGroupedByClass(),
+        ]);
 
         // Создаем карту посещаемости по classId
         const attendanceMap = new Map();
@@ -57,25 +53,22 @@ export async function GET(req: NextRequest) {
         });
 
         // 🔥 ФОРМИРУЕМ ДАННЫЕ ТОЛЬКО ИЗ MYSQL
-        const result = await Promise.all(classes.map(async (cls) => {
+        const result = classes.map((cls) => {
             const gradeMatch = cls.name.match(/(\d+)/);
             const grade = gradeMatch ? parseInt(gradeMatch[1]) : 0;
 
-            // 🔥 ПОЛУЧАЕМ СТУДЕНТОВ ТОЛЬКО ИЗ MYSQL
-            let students: any[] = [];
-            try {
-                const studentsFromMySQL = await getStudentsByClass(cls.name);
-                students = studentsFromMySQL.map((student) => ({
-                    id: student.aisId,
-                    name: student.name,
-                    aisId: student.aisId
-                }));
-                console.log(`✅ Class ${cls.name}: loaded ${students.length} students from MySQL`);
-            } catch (error) {
-                console.error(`❌ Error fetching students for class ${cls.name}:`, error);
-                // Если ошибка - возвращаем пустой массив
-                students = [];
-            }
+            // Ученики класса берутся из общей карты.
+            // ⚠️ id ученика из базы АИС — строка, а записи посещаемости исторически хранят числа
+            // (клиент отправлял числовые id). Поэтому все сравнения ниже — через строковое
+            // представление, иначе имена и причины отсутствующих не находились.
+            const students = (studentsByClass.get(cls.name) || []).map((student) => ({
+                id: student.aisId,
+                name: student.name,
+                aisId: student.aisId
+            }));
+
+            const studentById = new Map<string, { id: string; name: string }>();
+            students.forEach(s => studentById.set(String(s.id), { id: s.id, name: s.name }));
 
             const attendance = attendanceMap.get(cls.id);
             let presentStudents: number[] = [];
@@ -97,8 +90,8 @@ export async function GET(req: NextRequest) {
                 }
 
                 // Парсим absentStudents и absentReasons
-                let absentIds: number[] = [];
-                let absentReasons: Record<number, string> = {};
+                let absentIds: (string | number)[] = [];
+                let absentReasons: Record<string, string> = {};
 
                 if (typeof attendance.absentStudents === 'string') {
                     try {
@@ -121,18 +114,15 @@ export async function GET(req: NextRequest) {
                 }
 
                 // 🔥 НАХОДИМ СТУДЕНТОВ ТОЛЬКО В MYSQL ДАННЫХ
-                absentStudents = absentIds.map((id: number) => {
-                    // Ищем студента по id в MySQL данных
-                    const student = students.find((s: any) => s.id === id);
-                    const reason = absentReasons[id] || "other";
-
-                    if (!student) {
-                        console.warn(`⚠️ Student with id ${id} not found in MySQL for class ${cls.name}`);
-                    }
+                absentStudents = absentIds.map((rawId) => {
+                    const key = String(rawId);
+                    const student = studentById.get(key);
+                    // Причина может быть сохранена и под числовым, и под строковым ключом
+                    const reason = absentReasons[key] ?? absentReasons[rawId as any] ?? "other";
 
                     return {
-                        id,
-                        name: student?.name || `Студент ${id}`,
+                        id: student ? student.id : rawId,
+                        name: student?.name || `Студент ${rawId}`,
                         reason
                     };
                 });
@@ -151,7 +141,7 @@ export async function GET(req: NextRequest) {
                     source: 'mysql'
                 }
             };
-        }));
+        });
 
         // Подсчет статистики
         const stats = {
@@ -186,12 +176,10 @@ export async function GET(req: NextRequest) {
             }
         }
 
-        console.log(`📊 Statistics: totalStudents=${stats.totalStudents}, totalPresent=${stats.totalPresent}, totalAbsent=${stats.totalAbsent}`);
-
-        return NextResponse.json({
+        return withDbMetrics(NextResponse.json({
             classes: result,
             statistics: stats
-        });
+        }));
 
     } catch (error) {
         console.error("❌ Error fetching attendance data:", error);

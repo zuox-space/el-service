@@ -1,242 +1,290 @@
+// app/admin/classes/page.tsx
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { RefreshCw } from "lucide-react";
 import {
-  LogOut, ArrowLeft, Users, UserCheck, School, Search,
-  GraduationCap, Mail, ChevronDown, ChevronUp, UserX
-} from "lucide-react";
+    Button,
+    Card,
+    DataTable,
+    EmptyState,
+    FormError,
+    List,
+    ListItem,
+    Modal,
+    PageHeader,
+    SearchInput,
+    Skeleton,
+    type Column,
+} from "@/components/ui/kit";
+
+/**
+ * Классы: кто классный руководитель и сколько учеников.
+ *
+ * Список учеников открывается в модальном окне, а не разворачивается внутри карточки:
+ * на мобильном развёрнутый список занимал несколько экранов и уводил остальные классы вниз.
+ */
 
 interface Teacher {
-  id: string;
-  name: string;
-  email: string;
+    id: string;
+    name: string;
+    email: string;
 }
 
 interface Student {
-  id: number;
-  name: string;
+    id: number;
+    name: string;
 }
 
-interface Class {
-  id: string;
-  name: string;
-  grade: number;
-  letter: string;
-  ownerId: string;
-  owner: Teacher | null;
-  students?: Student[];
+type AttendanceLevel = "excellent" | "good" | "bad" | "veryBad";
+
+interface AttendanceRate {
+    markedDays: number;
+    schoolDays: number;
+    percent: number;
+    level: AttendanceLevel;
+    since: string;
 }
 
-export default function AdminClasses() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
-  const [classes, setClasses] = useState<Class[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [expandedClass, setExpandedClass] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
+interface SchoolClass {
+    id: string;
+    name: string;
+    grade: number;
+    letter: string;
+    ownerId: string;
+    owner: Teacher | null;
+    students?: Student[];
+    attendance?: AttendanceRate;
+}
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+const ATTENDANCE_META: Record<AttendanceLevel, { label: string; className: string }> = {
+    excellent: { label: "отлично", className: "text-success border-success/60" },
+    good: { label: "хорошо", className: "text-info border-info/60" },
+    bad: { label: "плохо", className: "text-warning border-warning/60" },
+    veryBad: { label: "очень плохо", className: "text-danger border-danger/60" },
+};
 
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/login");
-    }
-  }, [status, router]);
+export default function AdminClassesPage() {
+    const { data: session, status } = useSession();
+    const router = useRouter();
 
-  const fetchData = async () => {
-    try {
-      const classesRes = await fetch("/api/admin/classes");
-      const classesData = await classesRes.json();
-      setClasses(Array.isArray(classesData) ? classesData : []);
-    } catch (error) {
-      console.error("Error fetching data:", error);
-      setClasses([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    const [mounted, setMounted] = useState(false);
+    const [classes, setClasses] = useState<SchoolClass[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [search, setSearch] = useState("");
+    const [detail, setDetail] = useState<SchoolClass | null>(null);
 
-  useEffect(() => {
-    if (session) {
-      fetchData();
-    }
-  }, [session]);
+    useEffect(() => {
+        setMounted(true);
+        if (status === "unauthenticated") router.replace("/login");
+        if (status === "authenticated") {
+            const roles = (session?.user?.roles as string[]) || [];
+            if (!roles.includes("ADMIN")) router.replace("/admin");
+        }
+    }, [session, status, router]);
 
-  const toggleExpand = (classId: string) => {
-    setExpandedClass(expandedClass === classId ? null : classId);
-  };
+    const fetchData = useCallback(async () => {
+        setIsLoading(true);
+        setError(null);
 
-  const handleLogout = async () => {
-    await fetch("/api/auth/signout", { method: "POST" });
-    router.push("/login");
-  };
+        try {
+            const response = await fetch("/api/admin/classes");
+            if (!response.ok) throw new Error(`Сервер вернул ошибку ${response.status}`);
 
-  const filteredClasses = Array.isArray(classes)
-    ? classes.filter(cls => cls.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    : [];
+            const data = await response.json();
+            setClasses(Array.isArray(data) ? data : []);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Не удалось загрузить классы");
+            setClasses([]);
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
-  if (!mounted || status === "loading" || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#1a2332] to-[#2b3858]">
-        <div className="bg-white/10 backdrop-blur-lg p-6 rounded-2xl text-center border border-white/20">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-3 text-gray-300 text-sm">Загрузка...</p>
-        </div>
-      </div>
-    );
-  }
+    useEffect(() => {
+        if (session?.user?.roles?.includes("ADMIN")) {
+            void fetchData();
+        }
+    }, [session, fetchData]);
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1a2332] to-[#2b3858]">
-      {/* Шапка */}
-      <div className="bg-white/10 backdrop-blur-lg border-b border-white/20 sticky top-0 z-20">
-        <div className="px-3 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => router.push("/admin")}
-                className="w-8 h-8 flex items-center justify-center bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg transition-all"
-              >
-                <ArrowLeft size={18} />
-              </button>
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center">
-                <School size={16} className="text-white" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-white">Классы</p>
-                <p className="text-xs text-gray-400">Просмотр классов</p>
-              </div>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="w-8 h-8 flex items-center justify-center bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg transition-all"
-            >
-              <LogOut size={16} />
-            </button>
-          </div>
-        </div>
-      </div>
+    const rows = useMemo(() => {
+        const query = search.trim().toLowerCase();
+        if (!query) return classes;
 
-      <div className="p-3 max-w-full">
-        {/* Поиск */}
-        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20 mb-3">
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Поиск классов..."
-              className="w-full pl-9 pr-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        </div>
+        return classes.filter(cls => {
+            const owner = cls.owner?.name ?? cls.owner?.email ?? "";
+            return cls.name.toLowerCase().includes(query) || owner.toLowerCase().includes(query);
+        });
+    }, [classes, search]);
 
-        {/* Статистика */}
-        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20 mb-3">
-          <div className="flex justify-between items-center">
-            <span className="text-xs text-gray-400">Всего классов:</span>
-            <span className="text-white font-bold text-lg">{filteredClasses.length}</span>
-          </div>
-        </div>
+    const columns: Column<SchoolClass>[] = [
+        {
+            key: "name",
+            header: "Класс",
+            width: "120px",
+            render: cls => <span className="font-medium">{cls.name}</span>,
+        },
+        {
+            key: "owner",
+            header: "Классный руководитель",
+            render: cls => (
+                <span className={cls.owner ? "text-fg" : "text-fg-subtle"}>
+                    {cls.owner?.name || cls.owner?.email?.split("@")[0] || "Не назначен"}
+                </span>
+            ),
+        },
+        {
+            key: "students",
+            header: "Учеников",
+            align: "right",
+            width: "120px",
+            render: cls => <span className="tabular-nums">{cls.students?.length ?? 0}</span>,
+        },
+        {
+            key: "attendance",
+            header: "Отметки посещаемости",
+            width: "210px",
+            render: cls => {
+                const rate = cls.attendance;
+                const meta = ATTENDANCE_META[rate?.level ?? "veryBad"];
 
-        {/* Список классов */}
-        <div className="space-y-2">
-          {filteredClasses.length === 0 ? (
-            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 text-center border border-white/20">
-              <School size={40} className="text-gray-500 mx-auto mb-2" />
-              <p className="text-gray-400 text-sm">Нет классов</p>
-            </div>
-          ) : (
-            filteredClasses.map((cls) => (
-              <div
-                key={cls.id}
-                className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 overflow-hidden"
-              >
-                <div className="p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <School size={14} className="text-blue-400 flex-shrink-0" />
-                      <h4 className="font-semibold text-white text-base truncate">{cls.name}</h4>
+                return (
+                    <div className="flex flex-col items-start gap-1">
+                        <span
+                            className={`inline-flex items-center gap-1 rounded-control border border-dashed px-2 py-0.5 text-xs font-medium tabular-nums ${meta.className}`}
+                        >
+                            {rate?.percent ?? 0}%
+                            <span className="text-[10px] font-normal opacity-80">· {meta.label}</span>
+                        </span>
+                        <span className="text-[11px] text-fg-subtle">
+                            {rate?.markedDays ?? 0} из {rate?.schoolDays ?? 0} учебных дней
+                        </span>
                     </div>
-                    <button
-                      onClick={() => toggleExpand(cls.id)}
-                      className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-300 rounded-lg hover:bg-white/10"
-                    >
-                      {expandedClass === cls.id ? (
-                        <ChevronUp size={14} />
-                      ) : (
-                        <ChevronDown size={14} />
-                      )}
-                    </button>
-                  </div>
+                );
+            },
+        },
+    ];
 
-                  <div className="mt-2 space-y-1">
-                    <div className="flex items-center gap-2 text-xs">
-                      <UserCheck size={10} className="text-green-400 flex-shrink-0" />
-                      <span className="text-gray-400">Классный руководитель:</span>
-                      <span className="text-white text-xs truncate">
-                        {cls.owner?.name || cls.owner?.email?.split('@')[0] || "Не назначен"}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      <Users size={10} className="text-blue-400 flex-shrink-0" />
-                      <span className="text-gray-400">Учеников:</span>
-                      <span className="text-white text-xs">{cls.students?.length || 0}</span>
-                    </div>
-                  </div>
-
-                  {/* Список учеников */}
-                  {expandedClass === cls.id && cls.students && cls.students.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-white/10">
-                      <div className="text-xs text-gray-400 mb-2 font-medium">
-                        Список учеников ({cls.students.length}):
-                      </div>
-                      <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
-                        {cls.students.map((student) => (
-                          <div
-                            key={student.id}
-                            className="flex items-center gap-3 p-2 bg-white/5 rounded-lg border border-white/10"
-                          >
-                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                              {student.name.charAt(0).toUpperCase()}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="text-white text-sm font-medium truncate">
-                                {student.name}
-                              </div>
-                              <div className="flex items-center gap-2 text-xs text-gray-400">
-                                <span>ID: {student.id}</span>
-                                <span className="w-1 h-1 bg-gray-600 rounded-full"></span>
-                                <span>Класс: {cls.name}</span>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Если учеников нет */}
-                  {expandedClass === cls.id && (!cls.students || cls.students.length === 0) && (
-                    <div className="mt-3 pt-3 border-t border-white/10">
-                      <div className="flex items-center justify-center py-4 text-gray-500">
-                        <UserX size={16} className="mr-2" />
-                        <span className="text-xs">В классе нет учеников</span>
-                      </div>
-                    </div>
-                  )}
+    if (!mounted || status === "loading") {
+        return (
+            <div className="min-h-full bg-bg">
+                <PageHeader title="Классы" onBack={() => router.push("/admin")} />
+                <div className="mx-auto w-full max-w-[1440px] space-y-3 px-4 py-4">
+                    <Skeleton height={48} radius="control" />
+                    <Skeleton height={240} radius="card" />
                 </div>
-              </div>
-            ))
-          )}
+            </div>
+        );
+    }
+
+    if (!session || !session?.user?.roles?.includes("ADMIN")) return null;
+
+    return (
+        <div className="min-h-full bg-bg">
+            <PageHeader
+                title="Классы"
+                subtitle={`Всего классов: ${classes.length}`}
+                onBack={() => router.push("/admin")}
+                actions={
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        leftIcon={RefreshCw}
+                        onClick={() => void fetchData()}
+                        disabled={isLoading}
+                    >
+                        Обновить
+                    </Button>
+                }
+            />
+
+            <main className="mx-auto w-full max-w-[1440px] space-y-3 px-4 py-4">
+                {error && <FormError message={error} />}
+
+                <Card padding="sm">
+                    <SearchInput
+                        value={search}
+                        onChange={setSearch}
+                        placeholder="Класс или учитель"
+                        label="Поиск"
+                    />
+                </Card>
+
+                {!isLoading && rows.length === 0 ? (
+                    <EmptyState
+                        variant={search ? "no-results" : "empty"}
+                        title={search ? "Классы не найдены" : "Классов нет"}
+                        description={
+                            search
+                                ? "Измените запрос — ищем и по названию класса, и по учителю"
+                                : "В системе пока не создано ни одного класса"
+                        }
+                        action={
+                            search
+                                ? {
+                                    label: "Сбросить поиск",
+                                    onClick: () => setSearch(""),
+                                }
+                                : undefined
+                        }
+                    />
+                ) : (
+                    <DataTable
+                        columns={columns}
+                        rows={rows}
+                        rowKey={cls => cls.id}
+                        loading={isLoading}
+                        onRowClick={cls => setDetail(cls)}
+                        mobileTitle={cls => cls.name}
+                        mobileSubtitle={cls =>
+                            `${cls.owner?.name || "Не назначен"} · ${cls.students?.length ?? 0} учеников`
+                        }
+                        emptyTitle="Классов нет"
+                        caption="Классы и классные руководители"
+                    />
+                )}
+
+                <p className="pb-4 text-xs text-fg-subtle">
+                    Отметки посещаемости считаются с 1 сентября учебного года: дни, когда класс отмечен,
+                    делятся на число учебных дней (пн–пт). Нажмите на класс, чтобы посмотреть список учеников.
+                </p>
+            </main>
+
+            <Modal
+                open={Boolean(detail)}
+                onClose={() => setDetail(null)}
+                title={detail?.name ?? "Класс"}
+                description={
+                    detail
+                        ? `${detail.owner?.name || "Классный руководитель не назначен"} · учеников: ${detail.students?.length ?? 0}`
+                        : undefined
+                }
+                size="md"
+            >
+                {detail &&
+                    (detail.students && detail.students.length > 0 ? (
+                        <List>
+                            {detail.students.map(student => (
+                                <li key={student.id}>
+                                    <ListItem
+                                        title={student.name}
+                                        meta={`ID: ${student.id}`}
+                                        density="compact"
+                                    />
+                                </li>
+                            ))}
+                        </List>
+                    ) : (
+                        <EmptyState
+                            title="В классе нет учеников"
+                            description="Проверьте, что класс заполнен в базе АИС"
+                            compact
+                        />
+                    ))}
+            </Modal>
         </div>
-      </div>
-    </div>
-  );
+    );
 }

@@ -1,675 +1,466 @@
+﻿// app/admin/absent/page.tsx
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { Download, FileText, HelpCircle, Plane, RefreshCw, Thermometer, Trophy } from "lucide-react";
 import {
-  LogOut, ArrowLeft, School, Users, UserX, AlertCircle,
-  ChevronDown, ChevronUp, CheckCircle, XCircle,
-  BarChart3, Download, Building2, Calendar, Menu, X, Search, SortAsc, SortDesc
-} from "lucide-react";
+    Badge,
+    Button,
+    Card,
+    Chip,
+    DataTable,
+    EmptyState,
+    FormError,
+    Input,
+    List,
+    ListItem,
+    Modal,
+    PageHeader,
+    SearchInput,
+    Skeleton,
+    Switch,
+    type Column,
+} from "@/components/ui/kit";
+import { formatDateRu, safeCell, toLocalISODate } from "@/lib/date";
 
-interface Student {
-  id: number;
-  name: string;
-}
+/**
+ * Отсутствия: кто отсутствует, с причинами и разбивкой по корпусам.
+ *
+ * Переведено на DataTable: на десктопе — таблица классов, на мобильном — карточки.
+ * Список отсутствующих по классу открывается в модальном окне.
+ * Добавлен выбор даты: раньше страница показывала только «сегодня»,
+ * поэтому посмотреть прошлый день было нельзя.
+ */
+
+const REASONS = [
+    { id: "sick", label: "Болен", tone: "danger" as const, Icon: Thermometer },
+    { id: "family", label: "По заявлению родителей", tone: "warning" as const, Icon: FileText },
+    { id: "other", label: "Причина неясна", tone: "neutral" as const, Icon: HelpCircle },
+    { id: "vacation", label: "Отпуск / каникулы", tone: "info" as const, Icon: Plane },
+    { id: "competition", label: "Соревнования", tone: "accent" as const, Icon: Trophy },
+];
+
+const reasonLabel = (id: string) => REASONS.find(reason => reason.id === id)?.label ?? id;
+const reasonTone = (id: string) => REASONS.find(reason => reason.id === id)?.tone ?? "neutral";
+
+const BUILDINGS = [
+    { id: "all", label: "Все корпуса", grades: [] as number[] },
+    { id: "tiger", label: "1–3 классы", grades: [1, 2, 3] },
+    { id: "turtle", label: "4–6 классы", grades: [4, 5, 6] },
+    { id: "crocodile", label: "7–11 классы", grades: [7, 8, 9, 10, 11] },
+];
 
 interface AbsentStudent {
-  id: number;
-  name: string;
-  reason: string;
+    id: string | number;
+    name: string;
+    reason: string;
 }
 
 interface ClassAttendance {
-  id: string;
-  name: string;
-  totalStudents: number;
-  presentStudents: number[];
-  absentStudents: AbsentStudent[];
-  isMarked: boolean;
-  grade: number;
+    id: string;
+    name: string;
+    grade: number;
+    totalStudents: number;
+    presentStudents: Array<string | number>;
+    absentStudents: AbsentStudent[];
+    isMarked: boolean;
 }
 
 interface Statistics {
-  totalStudents: number;
-  totalPresent: number;
-  totalAbsent: number;
-  byReason: {
-    sick: number;
-    family: number;
-    other: number;
-    vacation: number;
-    competition: number;
-  };
-  byBuilding: {
-    tiger: { total: number; present: number; absent: number };
-    turtle: { total: number; present: number; absent: number };
-    crocodile: { total: number; present: number; absent: number };
-  };
+    totalStudents: number;
+    totalPresent: number;
+    totalAbsent: number;
+    byReason: Record<string, number>;
 }
 
-const reasonLabels: Record<string, string> = {
-  sick: "🤒 Болен",
-  family: "📝 По заявлению родителей",
-  other: "⚠️ Причина неясна или неизвестна",
-  vacation: "✈️ Отпуск/каникулы",
-  competition: "🏆 Соревнования/олимпиада"
-};
+export default function AbsentPage() {
+    const { data: session, status } = useSession();
+    const router = useRouter();
 
-const buildingLabels: Record<string, { name: string; icon: string; grades: number[] }> = {
-  tiger: { name: "Тигрёнок", icon: "🐯", grades: [1, 2, 3] },
-  turtle: { name: "Черепаха", icon: "🐢", grades: [4, 5, 6] },
-  crocodile: { name: "Крокодил", icon: "🐊", grades: [7, 8, 9, 10, 11] }
-};
+    const [mounted, setMounted] = useState(false);
+    const [date, setDate] = useState(() => toLocalISODate());
+    const [classes, setClasses] = useState<ClassAttendance[]>([]);
+    const [statistics, setStatistics] = useState<Statistics | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-type SortField = "name" | "totalStudents" | "presentCount" | "absentCount";
-type SortOrder = "asc" | "desc";
+    const [building, setBuilding] = useState("all");
+    const [search, setSearch] = useState("");
+    const [onlyMarked, setOnlyMarked] = useState(false);
+    const [unmarkedFirst, setUnmarkedFirst] = useState(true);
+    const [detail, setDetail] = useState<ClassAttendance | null>(null);
 
-// Функция для извлечения числовой части из названия класса
-const extractClassNumber = (className: string): number => {
-  const match = className.match(/^(\d+)/);
-  return match ? parseInt(match[1]) : 0;
-};
+    useEffect(() => {
+        setMounted(true);
+        if (status === "unauthenticated") router.replace("/login");
+        if (status === "authenticated") {
+            const roles = (session?.user?.roles as string[]) || [];
+            if (!roles.includes("ADMIN")) router.replace("/admin");
+        }
+    }, [session, status, router]);
 
-// Функция для извлечения буквенной части из названия класса
-const extractClassLetter = (className: string): string => {
-  const match = className.match(/^\d+-([А-Я])/);
-  return match ? match[1] : "";
-};
-
-// Функция сравнения названий классов
-const compareClassNames = (a: string, b: string): number => {
-  const numA = extractClassNumber(a);
-  const numB = extractClassNumber(b);
-
-  if (numA !== numB) {
-    return numA - numB;
-  }
-
-  const letterA = extractClassLetter(a);
-  const letterB = extractClassLetter(b);
-  return letterA.localeCompare(letterB);
-};
-
-export default function AdminAbsentPage() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
-  const [classes, setClasses] = useState<ClassAttendance[]>([]);
-  const [filteredClasses, setFilteredClasses] = useState<ClassAttendance[]>([]);
-  const [selectedBuilding, setSelectedBuilding] = useState<string>("all");
-  const [showFilters, setShowFilters] = useState(false);
-  const [searchQuery, setSearchQuery] = useState<string>("");
-  const [sortField, setSortField] = useState<SortField>("name");
-  const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
-  const [statistics, setStatistics] = useState<Statistics>({
-    totalStudents: 0,
-    totalPresent: 0,
-    totalAbsent: 0,
-    byReason: { sick: 0, family: 0, other: 0, vacation: 0, competition: 0 },
-    byBuilding: {
-      tiger: { total: 0, present: 0, absent: 0 },
-      turtle: { total: 0, present: 0, absent: 0 },
-      crocodile: { total: 0, present: 0, absent: 0 }
-    }
-  });
-  const [filteredStatistics, setFilteredStatistics] = useState<Statistics>({
-    totalStudents: 0,
-    totalPresent: 0,
-    totalAbsent: 0,
-    byReason: { sick: 0, family: 0, other: 0, vacation: 0, competition: 0 },
-    byBuilding: {
-      tiger: { total: 0, present: 0, absent: 0 },
-      turtle: { total: 0, present: 0, absent: 0 },
-      crocodile: { total: 0, present: 0, absent: 0 }
-    }
-  });
-  const [expandedClass, setExpandedClass] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [mounted, setMounted] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Проверка прав доступа
-  useEffect(() => {
-    if (status === "loading") return;
-
-    if (!session) {
-      router.replace("/login");
-      return;
-    }
-
-    const roles = (session?.user?.roles as string[]) || [];
-    if (!roles.includes("ADMIN")) {
-      router.replace("/");
-      return;
-    }
-  }, [session, status, router]);
-
-  // Загрузка данных - ОДИН ЗАПРОС
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
+    const fetchData = useCallback(async () => {
         setIsLoading(true);
+        setError(null);
 
-        const today = new Date().toISOString();
+        try {
+            const response = await fetch(`/api/admin/attendance-data?date=${date}`);
+            if (!response.ok) {
+                throw new Error(`Сервер вернул ошибку ${response.status}`);
+            }
 
-        // Один запрос для всех данных
-        const response = await fetch(`/api/admin/attendance-data?date=${today}`);
-        const data = await response.json();
+            const data = await response.json();
+            setClasses(Array.isArray(data.classes) ? data.classes : []);
+            setStatistics(data.statistics ?? null);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Не удалось загрузить данные");
+            setClasses([]);
+            setStatistics(null);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [date]);
 
-        if (data.error) {
-          console.error("Error:", data.error);
-          return;
+    useEffect(() => {
+        if (session?.user?.roles?.includes("ADMIN")) {
+            void fetchData();
+        }
+    }, [session, fetchData]);
+
+    const rows = useMemo(() => {
+        const query = search.trim().toLowerCase();
+        const grades = BUILDINGS.find(item => item.id === building)?.grades ?? [];
+
+        const filtered = classes.filter(cls => {
+            if (grades.length > 0 && !grades.includes(cls.grade)) return false;
+            if (query && !cls.name.toLowerCase().includes(query)) return false;
+            if (onlyMarked && !cls.isMarked) return false;
+            return true;
+        });
+
+        // Неотмеченные классы — наверх: сразу видно, кто ещё не сдал посещаемость
+        if (unmarkedFirst) {
+            filtered.sort((a, b) => {
+                if (a.isMarked !== b.isMarked) return a.isMarked ? 1 : -1;
+                return a.name.localeCompare(b.name, "ru");
+            });
+        } else {
+            filtered.sort((a, b) => a.name.localeCompare(b.name, "ru"));
         }
 
-        setClasses(data.classes || []);
-        setFilteredClasses(data.classes || []);
-        setStatistics(data.statistics || {
-          totalStudents: 0,
-          totalPresent: 0,
-          totalAbsent: 0,
-          byReason: { sick: 0, family: 0, other: 0, vacation: 0, competition: 0 },
-          byBuilding: {
-            tiger: { total: 0, present: 0, absent: 0 },
-            turtle: { total: 0, present: 0, absent: 0 },
-            crocodile: { total: 0, present: 0, absent: 0 }
-          }
+        return filtered;
+    }, [classes, building, search, onlyMarked, unmarkedFirst]);
+
+    const columns: Column<ClassAttendance>[] = [
+        { key: "name", header: "Класс", width: "110px" },
+        {
+            key: "totalStudents",
+            header: "Учеников",
+            align: "right",
+            width: "110px",
+            render: cls => <span className="tabular-nums">{cls.totalStudents}</span>,
+        },
+        {
+            key: "present",
+            header: "Присутствуют",
+            align: "right",
+            width: "130px",
+            render: cls => (
+                <span className="tabular-nums">{cls.isMarked ? cls.presentStudents.length : "—"}</span>
+            ),
+        },
+        {
+            key: "absent",
+            header: "Отсутствуют",
+            align: "right",
+            width: "130px",
+            render: cls =>
+                cls.isMarked ? (
+                    <span
+                        className={
+                            cls.absentStudents.length > 0
+                                ? "font-semibold tabular-nums text-warning"
+                                : "tabular-nums text-fg"
+                        }
+                    >
+                        {cls.absentStudents.length}
+                    </span>
+                ) : (
+                    <Badge tone="neutral">не отмечен</Badge>
+                ),
+        },
+        {
+            key: "reasons",
+            header: "Причины",
+            render: cls => {
+                if (cls.absentStudents.length === 0) {
+                    return <span className="text-xs text-fg-subtle">—</span>;
+                }
+
+                const counts = cls.absentStudents.reduce<Record<string, number>>((acc, student) => {
+                    acc[student.reason] = (acc[student.reason] || 0) + 1;
+                    return acc;
+                }, {});
+
+                return (
+                    <div className="flex flex-wrap items-center gap-2 py-0.5">
+                        {Object.entries(counts)
+                            .sort(([, a], [, b]) => b - a)
+                            .map(([reason, count]) => {
+                                const meta = REASONS.find(item => item.id === reason);
+                                const Icon = meta?.Icon ?? HelpCircle;
+
+                                return (
+                                    <span
+                                        key={reason}
+                                        className="inline-flex items-center gap-1.5 rounded-control border border-dashed border-border px-2 py-1 text-xs text-fg-muted"
+                                    >
+                                        <Icon size={13} strokeWidth={1.75} aria-hidden />
+                                        <span className="text-fg">{reasonLabel(reason)}</span>
+                                        <span className="font-semibold tabular-nums text-fg">{count}</span>
+                                    </span>
+                                );
+                            })}
+                    </div>
+                );
+            },
+        },
+    ];
+
+    const exportToExcel = () => {
+        let html = `<html><head><meta charset="UTF-8"><title>Отсутствия</title>
+            <style>body{font-family:Arial,sans-serif}h1{font-size:16px}table{border-collapse:collapse;width:100%}
+            th,td{border:1px solid #ddd;padding:6px;text-align:left}th{background:#f2f2f2}</style></head><body>
+            <h1>Отсутствия</h1><p>Дата: ${safeCell(date)}</p>
+            <table><tr><th>Класс</th><th>Учеников</th><th>Присутствуют</th><th>Отсутствуют</th><th>Кто отсутствует</th></tr>`;
+
+        rows.forEach(cls => {
+            const absent = cls.absentStudents
+                .map(student => `${student.name} (${reasonLabel(student.reason)})`)
+                .join("; ");
+            html += `<tr><td>${safeCell(cls.name)}</td><td>${cls.totalStudents}</td>
+                <td>${cls.isMarked ? cls.presentStudents.length : "—"}</td>
+                <td>${cls.isMarked ? cls.absentStudents.length : "—"}</td>
+                <td>${safeCell(absent)}</td></tr>`;
         });
-        setFilteredStatistics(data.statistics || {
-          totalStudents: 0,
-          totalPresent: 0,
-          totalAbsent: 0,
-          byReason: { sick: 0, family: 0, other: 0, vacation: 0, competition: 0 },
-          byBuilding: {
-            tiger: { total: 0, present: 0, absent: 0 },
-            turtle: { total: 0, present: 0, absent: 0 },
-            crocodile: { total: 0, present: 0, absent: 0 }
-          }
-        });
-      } catch (error) {
-        console.error("Error fetching data:", error);
-      } finally {
-        setIsLoading(false);
-      }
+
+        html += `</table></body></html>`;
+
+        const blob = new Blob([html], { type: "application/vnd.ms-excel" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `отсутствия_${date}.xls`;
+        link.click();
+        URL.revokeObjectURL(url);
     };
 
-    if (session && session?.user?.roles?.includes("ADMIN")) {
-      fetchData();
-    }
-  }, [session]);
-
-  // Фильтрация по корпусу, поиск и сортировка
-  useEffect(() => {
-    let result = [...classes];
-
-    // Фильтрация по корпусу
-    if (selectedBuilding !== "all") {
-      const buildingGrades = buildingLabels[selectedBuilding as keyof typeof buildingLabels]?.grades || [];
-      result = result.filter(cls => buildingGrades.includes(cls.grade));
-    }
-
-    // Поиск по названию класса
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim();
-      result = result.filter(cls =>
-        cls.name.toLowerCase().includes(query)
-      );
-    }
-
-    // Сортировка
-    result.sort((a, b) => {
-      let compareA: string | number;
-      let compareB: string | number;
-
-      switch (sortField) {
-        case "name":
-          return sortOrder === "asc"
-            ? compareClassNames(a.name, b.name)
-            : compareClassNames(b.name, a.name);
-        case "totalStudents":
-          compareA = a.totalStudents;
-          compareB = b.totalStudents;
-          break;
-        case "presentCount":
-          compareA = a.presentStudents.length;
-          compareB = b.presentStudents.length;
-          break;
-        case "absentCount":
-          compareA = a.absentStudents.length;
-          compareB = b.absentStudents.length;
-          break;
-        default:
-          return sortOrder === "asc"
-            ? compareClassNames(a.name, b.name)
-            : compareClassNames(b.name, a.name);
-      }
-
-      if (typeof compareA === "number" && typeof compareB === "number") {
-        return sortOrder === "asc" ? compareA - compareB : compareB - compareA;
-      }
-
-      return 0;
-    });
-
-    setFilteredClasses(result);
-
-    // Пересчет статистики для отфильтрованных данных
-    const newStats: Statistics = {
-      totalStudents: 0,
-      totalPresent: 0,
-      totalAbsent: 0,
-      byReason: { sick: 0, family: 0, other: 0, vacation: 0, competition: 0 },
-      byBuilding: {
-        tiger: { total: 0, present: 0, absent: 0 },
-        turtle: { total: 0, present: 0, absent: 0 },
-        crocodile: { total: 0, present: 0, absent: 0 }
-      }
-    };
-
-    for (const cls of result) {
-      newStats.totalStudents += cls.totalStudents;
-      newStats.totalPresent += cls.presentStudents.length;
-      newStats.totalAbsent += cls.absentStudents.length;
-
-      for (const student of cls.absentStudents) {
-        if (newStats.byReason[student.reason as keyof typeof newStats.byReason] !== undefined) {
-          newStats.byReason[student.reason as keyof typeof newStats.byReason]++;
-        }
-      }
-    }
-
-    setFilteredStatistics(newStats);
-  }, [selectedBuilding, classes, searchQuery, sortField, sortOrder]);
-
-  const toggleExpand = (classId: string) => {
-    setExpandedClass(expandedClass === classId ? null : classId);
-  };
-
-  const handleLogout = async () => {
-    await fetch("/api/auth/signout", { method: "POST" });
-    router.push("/login");
-  };
-
-  const toggleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-    } else {
-      setSortField(field);
-      setSortOrder("asc");
-    }
-  };
-
-  const getSortIcon = (field: SortField) => {
-    if (sortField !== field) return null;
-    return sortOrder === "asc" ? <SortAsc size={14} /> : <SortDesc size={14} />;
-  };
-
-  const exportToYandex = async () => {
-    setIsExporting(true);
-
-    let html = `
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>Отсутствующие ${new Date().toLocaleDateString("ru-RU")}</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; }
-          h1 { color: #333; font-size: 24px; }
-          h2 { color: #666; margin-top: 20px; font-size: 18px; }
-          table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
-          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-          th { background-color: #f2f2f2; font-weight: bold; }
-        </style>
-      </head>
-      <body>
-        <h1>Отчет по отсутствующим</h1>
-        <p>Дата: ${new Date().toLocaleDateString("ru-RU")}</p>
-        
-        <h2>Общая статистика</h2>
-        <table>
-          <tr><th>Показатель</th><th>Значение</th></tr>
-          <tr><td>Всего учеников</td><td>${filteredStatistics.totalStudents}</td></tr>
-          <tr><td>Присутствуют</td><td>${filteredStatistics.totalPresent}</td></tr>
-          <tr><td>Отсутствуют</td><td>${filteredStatistics.totalAbsent}</td></tr>
-        </table>
-        
-        <h2>Статистика по причинам</h2>
-        <table>
-          <tr><th>Причина</th><th>Количество</th></tr>
-          <tr><td>🤒 Болеют</td><td>${filteredStatistics.byReason.sick}</td></tr>
-          <tr><td>📝 По заявлению родителей</td><td>${filteredStatistics.byReason.family}</td></tr>
-          <tr><td>⚠️ Причина неясна или неизвестна</td><td>${filteredStatistics.byReason.other}</td></tr>
-          <tr><td>✈️ Отпуск/каникулы</td><td>${filteredStatistics.byReason.vacation}</td></tr>
-          <tr><td>🏆 Соревнования</td><td>${filteredStatistics.byReason.competition}</td></tr>
-        </table>
-        
-        <h2>Отсутствующие по классам</h2>
-    `;
-
-    for (const cls of filteredClasses) {
-      html += `<h3>${cls.name}</h3><table><tr><th>Ученик</th><th>Причина отсутствия</th></tr>`;
-
-      if (!cls.isMarked) {
-        html += `<tr><td colspan="2" style="text-align: center; color: orange;">Отметка не произведена</td></tr>`;
-      } else if (cls.absentStudents.length === 0) {
-        html += `<tr><td colspan="2" style="text-align: center; color: green;">Все присутствуют</td></tr>`;
-      } else {
-        for (const student of cls.absentStudents) {
-          html += `<tr><td>${student.name}</td><td>${reasonLabels[student.reason] || student.reason}</td></tr>`;
-        }
-      }
-
-      html += `</table>`;
-    }
-
-    html += `</body></html>`;
-
-    const blob = new Blob([html], { type: "application/vnd.ms-excel" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `otchet_ot_sutstvuyushchie_${new Date().toISOString().split("T")[0]}.xls`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    setIsExporting(false);
-    // alert("Отчет сформирован. Файл будет скачан автоматически.");
-  };
-
-  if (!mounted || status === "loading" || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#1a2332] to-[#2b3858]">
-        <div className="bg-white/10 backdrop-blur-lg p-6 rounded-2xl text-center border border-white/20">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-3 text-gray-300 text-sm">Загрузка данных...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!session || !session?.user?.roles?.includes("ADMIN")) {
-    return null;
-  }
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1a2332] to-[#2b3858]">
-      {/* Шапка */}
-      <div className="bg-white/10 backdrop-blur-lg border-b border-white/20 sticky top-0 z-20">
-        <div className="px-3 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => router.push("/admin")}
-                className="w-8 h-8 flex items-center justify-center bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg transition-all"
-              >
-                <ArrowLeft size={18} />
-              </button>
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center">
-                <UserX size={16} className="text-white" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-white">Отсутствующие</p>
-                <p className="text-xs text-gray-400">{new Date().toLocaleDateString("ru-RU", { day: 'numeric', month: 'short' })}</p>
-              </div>
-            </div>
-            <div className="flex gap-1">
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="w-8 h-8 flex items-center justify-center bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg transition-all"
-              >
-                <Building2 size={16} />
-              </button>
-              <button
-                onClick={exportToYandex}
-                disabled={isExporting}
-                className="w-8 h-8 flex items-center justify-center bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg transition-all"
-              >
-                <Download size={16} />
-              </button>
-              <button
-                onClick={handleLogout}
-                className="w-8 h-8 flex items-center justify-center bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg transition-all"
-              >
-                <LogOut size={16} />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="p-3 max-w-full">
-        {/* Статистика */}
-        <div className="bg-gradient-to-br from-blue-600/20 to-indigo-600/20 backdrop-blur-lg rounded-xl p-3 border border-white/20 mb-3">
-          <div className="grid grid-cols-3 gap-2 mb-2">
-            <div className="bg-white/5 rounded-lg p-2 text-center">
-              <Users size={18} className="text-blue-400 mx-auto mb-1" />
-              <div className="text-lg font-bold text-white">{filteredStatistics.totalStudents}</div>
-              <div className="text-[10px] text-gray-400">Всего</div>
-            </div>
-            <div className="bg-white/5 rounded-lg p-2 text-center">
-              <CheckCircle size={18} className="text-green-400 mx-auto mb-1" />
-              <div className="text-lg font-bold text-green-400">{filteredStatistics.totalPresent}</div>
-              <div className="text-[10px] text-gray-400">Присутствуют</div>
-            </div>
-            <div className="bg-white/5 rounded-lg p-2 text-center">
-              <XCircle size={18} className="text-red-400 mx-auto mb-1" />
-              <div className="text-lg font-bold text-red-400">{filteredStatistics.totalAbsent}</div>
-              <div className="text-[10px] text-gray-400">Отсутствуют</div>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap justify-between gap-1">
-            <div className="flex items-center gap-1 text-xs">
-              <span className="text-base">🤒</span>
-              <span className="font-bold text-white">{filteredStatistics.byReason.sick}</span>
-            </div>
-            <div className="flex items-center gap-1 text-xs">
-              <span className="text-base">📝</span>
-              <span className="font-bold text-white">{filteredStatistics.byReason.family}</span>
-            </div>
-            <div className="flex items-center gap-1 text-xs">
-              <span className="text-base">⚠️</span>
-              <span className="font-bold text-white">{filteredStatistics.byReason.other}</span>
-            </div>
-            <div className="flex items-center gap-1 text-xs">
-              <span className="text-base">✈️</span>
-              <span className="font-bold text-white">{filteredStatistics.byReason.vacation}</span>
-            </div>
-            <div className="flex items-center gap-1 text-xs">
-              <span className="text-base">🏆</span>
-              <span className="font-bold text-white">{filteredStatistics.byReason.competition}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Фильтр по корпусам */}
-        {showFilters && (
-          <div className="bg-white/10 backdrop-blur-lg rounded-xl p-2 border border-white/20 mb-3">
-            <div className="grid grid-cols-4 gap-1">
-              <button
-                onClick={() => setSelectedBuilding("all")}
-                className={`py-1.5 rounded-lg text-xs font-medium transition-all ${selectedBuilding === "all"
-                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white"
-                  : "text-gray-400 hover:text-white hover:bg-white/10"
-                  }`}
-              >
-                Все
-              </button>
-              <button
-                onClick={() => setSelectedBuilding("tiger")}
-                className={`py-1.5 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1 ${selectedBuilding === "tiger"
-                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white"
-                  : "text-gray-400 hover:text-white hover:bg-white/10"
-                  }`}
-              >
-                <span className="text-sm">🐯</span>
-                <span className="hidden sm:inline">Тигрёнок</span>
-              </button>
-              <button
-                onClick={() => setSelectedBuilding("turtle")}
-                className={`py-1.5 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1 ${selectedBuilding === "turtle"
-                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white"
-                  : "text-gray-400 hover:text-white hover:bg-white/10"
-                  }`}
-              >
-                <span className="text-sm">🐢</span>
-                <span className="hidden sm:inline">Черепаха</span>
-              </button>
-              <button
-                onClick={() => setSelectedBuilding("crocodile")}
-                className={`py-1.5 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1 ${selectedBuilding === "crocodile"
-                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white"
-                  : "text-gray-400 hover:text-white hover:bg-white/10"
-                  }`}
-              >
-                <span className="text-sm">🐊</span>
-                <span className="hidden sm:inline">Крокодил</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Поиск и сортировка */}
-        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-2 border border-white/20 mb-3">
-          <div className="flex flex-col sm:flex-row gap-2">
-            <div className="flex-1 relative">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Поиск по классу..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-400 text-sm focus:outline-none focus:border-blue-500/50"
-              />
-            </div>
-
-            <div className="flex gap-1 flex-wrap">
-              <button
-                onClick={() => toggleSort("name")}
-                className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1 ${sortField === "name"
-                  ? "bg-blue-500/30 text-blue-300 border border-blue-500/30"
-                  : "text-gray-400 hover:text-white hover:bg-white/10"
-                  }`}
-              >
-                По классу {getSortIcon("name")}
-              </button>
-              <button
-                onClick={() => toggleSort("totalStudents")}
-                className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1 ${sortField === "totalStudents"
-                  ? "bg-blue-500/30 text-blue-300 border border-blue-500/30"
-                  : "text-gray-400 hover:text-white hover:bg-white/10"
-                  }`}
-              >
-                По кол-ву {getSortIcon("totalStudents")}
-              </button>
-              <button
-                onClick={() => toggleSort("presentCount")}
-                className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1 ${sortField === "presentCount"
-                  ? "bg-green-500/30 text-green-300 border border-green-500/30"
-                  : "text-gray-400 hover:text-white hover:bg-white/10"
-                  }`}
-              >
-                ✅ {getSortIcon("presentCount")}
-              </button>
-              <button
-                onClick={() => toggleSort("absentCount")}
-                className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1 ${sortField === "absentCount"
-                  ? "bg-red-500/30 text-red-300 border border-red-500/30"
-                  : "text-gray-400 hover:text-white hover:bg-white/10"
-                  }`}
-              >
-                ❌ {getSortIcon("absentCount")}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Список классов */}
-        <div className="space-y-2">
-          {filteredClasses.length === 0 ? (
-            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 text-center border border-white/20">
-              <AlertCircle size={40} className="text-gray-400 mx-auto mb-2" />
-              <p className="text-gray-300 text-sm">Классы не найдены</p>
-              <p className="text-gray-500 text-xs mt-1">Попробуйте изменить параметры поиска или фильтрации</p>
-            </div>
-          ) : (
-            filteredClasses.map((cls) => (
-              <div
-                key={cls.id}
-                className={`bg-white/10 backdrop-blur-lg rounded-xl border transition-all ${cls.isMarked ? "border-green-500/30" : "border-yellow-500/30"
-                  }`}
-              >
-                <button
-                  onClick={() => toggleExpand(cls.id)}
-                  className="w-full p-3 text-left"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <School size={16} className="text-blue-400 flex-shrink-0" />
-                      <span className="font-bold text-white text-base">{cls.name}</span>
-                      {!cls.isMarked && (
-                        <span className="flex items-center gap-1 text-xs bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded-full flex-shrink-0">
-                          <AlertCircle size={10} />
-                        </span>
-                      )}
-                      {cls.isMarked && cls.absentStudents.length === 0 && (
-                        <span className="text-xs bg-green-500/20 text-green-300 px-1.5 py-0.5 rounded-full flex-shrink-0">
-                          ✅
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="text-gray-400">👥{cls.totalStudents}</span>
-                      <span className="text-green-400">✅{cls.presentStudents.length}</span>
-                      <span className="text-red-400">❌{cls.absentStudents.length}</span>
-                      {expandedClass === cls.id ? (
-                        <ChevronUp size={16} className="text-gray-400" />
-                      ) : (
-                        <ChevronDown size={16} className="text-gray-400" />
-                      )}
-                    </div>
-                  </div>
-                </button>
-
-                {expandedClass === cls.id && (
-                  <div className="px-3 pb-3 pt-2 border-t border-white/10">
-                    {!cls.isMarked ? (
-                      <div className="text-center text-orange-400 py-4 text-sm">
-                        <AlertCircle size={24} className="mx-auto mb-1" />
-                        Отметка не произведена
-                      </div>
-                    ) : cls.absentStudents.length === 0 ? (
-                      <div className="text-center text-green-400 py-4 text-sm">
-                        <CheckCircle size={24} className="mx-auto mb-1" />
-                        Все присутствуют
-                      </div>
-                    ) : (
-                      <div className="space-y-1">
-                        <div className="text-xs font-semibold text-gray-300 mb-1">
-                          Отсутствуют ({cls.absentStudents.length}):
-                        </div>
-                        {cls.absentStudents.map((student) => (
-                          <div key={student.id} className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
-                            <span className="text-white text-sm">{student.name}</span>
-                            <span className="text-xs text-orange-400">
-                              {reasonLabels[student.reason] || student.reason}
-                            </span>
-                          </div>
+    if (!mounted || status === "loading") {
+        return (
+            <div className="min-h-full bg-bg">
+                <PageHeader title="Отсутствия" onBack={() => router.push("/admin")} />
+                <div className="mx-auto w-full max-w-[1440px] space-y-3 px-4 py-4">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        {Array.from({ length: 4 }).map((_, index) => (
+                            <Skeleton key={index} height={64} radius="card" />
                         ))}
-                      </div>
-                    )}
-                  </div>
+                    </div>
+                    <Skeleton height={200} radius="card" />
+                </div>
+            </div>
+        );
+    }
+
+    if (!session || !session?.user?.roles?.includes("ADMIN")) return null;
+
+    const markedCount = classes.filter(cls => cls.isMarked).length;
+    const presentedShare =
+        statistics && statistics.totalStudents > 0
+            ? Math.round((statistics.totalPresent / statistics.totalStudents) * 100)
+            : 0;
+
+    return (
+        <div className="min-h-full bg-bg">
+            <PageHeader
+                title="Отсутствия"
+                subtitle={formatDateRu(date, { day: "numeric", month: "long", year: "numeric" })}
+                onBack={() => router.push("/admin")}
+                actions={
+                    <>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            leftIcon={RefreshCw}
+                            onClick={() => void fetchData()}
+                            disabled={isLoading}
+                        >
+                            Обновить
+                        </Button>
+                        <span className="hidden sm:inline-flex">
+                            <Button
+                            size="sm"
+                            variant="ghost"
+                            leftIcon={Download}
+                            onClick={exportToExcel}
+                            disabled={rows.length === 0}>
+                            Выгрузить
+                        </Button>
+                        </span>
+                    </>
+                }
+            />
+
+            <main className="mx-auto w-full max-w-[1440px] space-y-3 px-4 py-4">
+                {error && <FormError message={error} />}
+
+                <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <StatTile label="Учеников" value={statistics?.totalStudents ?? 0} />
+                    <StatTile label="Присутствуют" value={statistics?.totalPresent ?? 0} />
+                    <StatTile label="Отсутствуют" value={statistics?.totalAbsent ?? 0} />
+                    <StatTile
+                        label="Присутствие"
+                        value={`${presentedShare}%`}
+                        hint={`отмечено классов: ${markedCount} из ${classes.length}`}
+                    />
+                </section>
+
+                <Card padding="sm">
+                    <div className="grid gap-2 sm:grid-cols-3">
+                        <Input
+                            type="date"
+                            label="Дата"
+                            value={date}
+                            max={toLocalISODate()}
+                            onChange={event => setDate(event.target.value)}
+                        />
+                        <SearchInput
+                            value={search}
+                            onChange={setSearch}
+                            placeholder="Например, 7А"
+                            label="Поиск класса"
+                        />
+                        <div className="flex items-end pb-2">
+                            <Switch
+                                checked={onlyMarked}
+                                onChange={setOnlyMarked}
+                                label="Только отмеченные"
+                                description="Скрыть классы без отметки"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="mt-3">
+                        <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-fg-subtle">
+                            Корпус
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                            {BUILDINGS.map(item => (
+                                <Chip
+                                    key={item.id}
+                                    selected={building === item.id}
+                                    onClick={() => setBuilding(item.id)}
+                                >
+                                    {item.label}
+                                </Chip>
+                            ))}
+                        </div>
+                    </div>
+                </Card>
+
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs text-fg-subtle">
+                        Нажмите на класс, чтобы увидеть, кто отсутствует и по какой причине.
+                    </p>
+                    <Chip selected={unmarkedFirst} onClick={() => setUnmarkedFirst(!unmarkedFirst)}>
+                        Сначала неотмеченные
+                    </Chip>
+                </div>
+
+                {!isLoading && rows.length === 0 ? (
+                    <EmptyState
+                        variant={search || onlyMarked || building !== "all" ? "no-results" : "empty"}
+                        title={
+                            search || onlyMarked || building !== "all"
+                                ? "Классы не найдены"
+                                : "Нет данных за эту дату"
+                        }
+                        description={
+                            search || onlyMarked || building !== "all"
+                                ? "Измените фильтры или выберите другой корпус"
+                                : "Классы не загрузились или за этот день отметок нет"
+                        }
+                    />
+                ) : (
+                    <DataTable
+                        columns={columns}
+                        rows={rows}
+                        rowKey={cls => cls.id}
+                        loading={isLoading}
+                        onRowClick={cls => setDetail(cls)}
+                        mobileTitle={cls => `${cls.name} · ${cls.totalStudents} учеников`}
+                        mobileSubtitle={cls =>
+                            cls.isMarked
+                                ? `присутствуют ${cls.presentStudents.length} · отсутствуют ${cls.absentStudents.length}`
+                                : "отметки нет"
+                        }
+                        mobileDetailKeys={["reasons"]}
+                        emptyTitle="Нет данных за эту дату"
+                        caption="Отсутствия по классам"
+                    />
                 )}
-              </div>
-            ))
-          )}
+
+
+            </main>
+
+            <Modal
+                open={Boolean(detail)}
+                onClose={() => setDetail(null)}
+                title={detail ? `${detail.name} · отсутствуют: ${detail.absentStudents.length}` : "Класс"}
+                description={
+                    detail
+                        ? `Всего учеников: ${detail.totalStudents} · присутствуют: ${detail.presentStudents.length}`
+                        : undefined
+                }
+                size="md"
+            >
+                {detail &&
+                    (detail.absentStudents.length === 0 ? (
+                        <EmptyState
+                            title="Все на месте"
+                            description={detail.isMarked ? "Отсутствующих в этом классе нет" : "Класс ещё не отмечен"}
+                            compact
+                        />
+                    ) : (
+                        <List>
+                            {detail.absentStudents.map(student => (
+                                <li key={String(student.id)}>
+                                    <ListItem
+                                        title={student.name}
+                                        trailing="badge"
+                                        trailingContent={
+                                            <Badge tone={reasonTone(student.reason)}>
+                                                {reasonLabel(student.reason)}
+                                            </Badge>
+                                        }
+                                        density="compact"
+                                    />
+                                </li>
+                            ))}
+                        </List>
+                    ))}
+            </Modal>
         </div>
-      </div>
-    </div>
-  );
+    );
+}
+
+function StatTile({ label, value, hint }: { label: string; value: number | string; hint?: string }) {
+    return (
+        <div className="rounded-card border border-border bg-surface p-3">
+            <p className="text-xs text-fg-subtle">{label}</p>
+            <p className="mt-0.5 text-xl font-semibold tabular-nums text-fg">{value}</p>
+            {hint && <p className="text-[11px] text-fg-subtle">{hint}</p>}
+        </div>
+    );
 }

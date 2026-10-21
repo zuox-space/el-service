@@ -5,7 +5,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { query } from "@/lib/mysql_db";
+import { getStudentsGroupedByClass } from "@/lib/mysql_db";
+import { withDbMetrics, startDbMetrics } from "@/lib/dev-metrics";
 
 interface StudentInfo {
     aisId: string;
@@ -14,6 +15,7 @@ interface StudentInfo {
 }
 
 export async function GET() {
+    startDbMetrics();
     const session = await getServerSession(authOptions);
     if (!session) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -38,24 +40,8 @@ export async function GET() {
 
         console.log(`📚 Найдено классов 1-4: ${classes.length}`);
 
-        // 2. Все студенты из MySQL
-        const allStudents = await query<StudentInfo>(`
-      SELECT 
-        aisId,
-        CONCAT(lastName, ' ', firstName) AS name,
-        className 
-      FROM students 
-      WHERE archive = 0
-    `);
-
-        // Группируем студентов по классам
-        const studentsByClass = new Map<string, StudentInfo[]>();
-        allStudents.forEach(s => {
-            if (!studentsByClass.has(s.className)) {
-                studentsByClass.set(s.className, []);
-            }
-            studentsByClass.get(s.className)!.push(s);
-        });
+        // 2. Все ученики: берём из общего (кэшированного) справочника, а не своим SQL
+        const studentsByClass = await getStudentsGroupedByClass();
 
         // 3. Все активные самовыходы
         const today = new Date();
@@ -112,7 +98,7 @@ export async function GET() {
             totalStudentsWithAuth: stats.reduce((sum, c) => sum + c.studentsWithAuth, 0),
         };
 
-        return NextResponse.json({ classes: stats, totals });
+        return withDbMetrics(NextResponse.json({ classes: stats, totals }));
     } catch (error) {
         console.error("❌ Error fetching classes stats:", error);
         return NextResponse.json(

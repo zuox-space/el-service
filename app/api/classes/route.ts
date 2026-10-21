@@ -5,9 +5,11 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getStudentsByClass } from "@/lib/mysql_db";
+import { getStudentsGroupedByClass } from "@/lib/mysql_db";
+import { withDbMetrics, startDbMetrics } from "@/lib/dev-metrics";
 
 export async function GET() {
+  startDbMetrics();
   try {
     const session = await getServerSession(authOptions);
 
@@ -15,90 +17,54 @@ export async function GET() {
       return NextResponse.json([]);
     }
 
-    // Получаем пользователя из БД по email
-    const dbUser = await prisma.user.findUnique({
-      where: { email: session.user.email! }
-    });
+    // id пользователя уже есть в сессии — отдельный запрос к базе не нужен
+    const userId = session.user.id;
 
-    if (!dbUser) {
+    if (!userId) {
       return NextResponse.json([]);
     }
 
-    // 1. Получаем классы, где пользователь - владелец
+    // 1. Классы, где пользователь — владелец, и классы, которыми с ним поделились.
+    //    Можно получить одним запросом вместо «найти шаринги → найти классы по id».
     const myClasses = await prisma.class.findMany({
-      where: { ownerId: dbUser.id }
+      where: {
+        OR: [
+          { ownerId: userId },
+          { sharedWith: { some: { teacherId: userId } } },
+        ],
+      },
+      include: {
+        sharedWith: { select: { teacherId: true } },
+      },
+      orderBy: { name: 'asc' },
     });
 
-    // 2. Получаем ID классов, которыми поделились с пользователем
-    const shares = await prisma.classShare.findMany({
-      where: { teacherId: dbUser.id }
+    // 2. Ученики — одним запросом ко всей школе (был запрос на каждый класс)
+    const studentsByClass = await getStudentsGroupedByClass();
+
+    const parsedClasses = myClasses.map((cls) => {
+      const isOwner = cls.ownerId === userId;
+      const students = (studentsByClass.get(cls.name) || []).map((student) => ({
+        id: student.aisId,
+        name: student.name,
+      }));
+
+      const { sharedWith, ...rest } = cls;
+
+      return {
+        ...rest,
+        isOwner,
+        isShared: !isOwner,
+        students,
+        _meta: {
+          source: 'mysql',
+          count: students.length,
+          className: cls.name,
+        },
+      };
     });
 
-    const sharedClassIds = shares.map(s => s.classId);
-
-    // 3. Получаем классы, которыми поделились (только их!)
-    const sharedClasses = await prisma.class.findMany({
-      where: { id: { in: sharedClassIds } }
-    });
-
-    // 4. Объединяем
-    const allUserClasses = [
-      ...myClasses.map(cls => ({
-        ...cls,
-        isOwner: true,
-        isShared: false
-      })),
-      ...sharedClasses.map(cls => ({
-        ...cls,
-        isOwner: false,
-        isShared: true
-      }))
-    ];
-
-    // 5. Получаем студентов из MySQL для каждого класса
-    const parsedClasses = await Promise.all(
-      allUserClasses.map(async (cls) => {
-        try {
-          // Получаем студентов из MySQL по названию класса
-          const studentsFromMySQL = await getStudentsByClass(cls.name);
-
-          // Форматируем студентов в нужный формат
-          const formattedStudents = studentsFromMySQL.map((student, index) => ({
-            id: student.aisId,
-            name: student.name,
-          }));
-          console.log(formattedStudents)
-          return {
-            ...cls,
-            // Заменяем students на данные из MySQL
-            students: formattedStudents,
-            // Добавляем мета-информацию
-            _meta: {
-              source: 'mysql',
-              count: formattedStudents.length,
-              className: cls.name
-            }
-          };
-        } catch (error) {
-          console.error(`Error fetching students for class ${cls.name}:`, error);
-          // В случае ошибки возвращаем пустой массив
-          return {
-            ...cls,
-            students: [],
-            _meta: {
-              source: 'mysql',
-              error: 'Failed to fetch students',
-              className: cls.name
-            }
-          };
-        }
-      })
-    );
-
-    console.log(`User ${dbUser.email} has ${myClasses.length} own classes and ${sharedClasses.length} shared classes`);
-    console.log(`Total students loaded from MySQL: ${parsedClasses.reduce((acc, cls) => acc + cls.students.length, 0)}`);
-
-    return NextResponse.json(parsedClasses);
+    return withDbMetrics(NextResponse.json(parsedClasses));
 
   } catch (error) {
     console.error("API Error:", error);
