@@ -10,6 +10,8 @@ import {
     Archive,
     ArrowLeft,
     CheckCircle,
+    ChevronDown,
+    ChevronUp,
     Clock,
     FileText,
     HelpCircle,
@@ -38,6 +40,7 @@ import AuthorizationModal from "@/components/ui/AuthorizationModal";
 import {
     Badge,
     Button,
+    Chip,
     Card,
     EmptyState,
     InlineLoading,
@@ -51,6 +54,7 @@ import {
 } from "@/components/ui/kit";
 import { ProfileMenu } from "@/components/shell/ProfileMenu";
 import { useAccess } from "@/components/access/AccessProvider";
+import { MobilePageHeader } from "@/components/shell/MobilePageHeader";
 import { NoAccess } from "@/components/access/NoAccess";
 import { formatDateRu } from "@/lib/date";
 import { safeFormatShortName } from "@/lib/utils";
@@ -133,6 +137,11 @@ export default function HomePage() {
     const [classViolations, setClassViolations] = useState<any[]>([]);
     const [isLoadingClassViolations, setIsLoadingClassViolations] = useState(false);
     const [resolveTargets, setResolveTargets] = useState<any[] | null>(null);
+    // Показ всех нарушений класса: диапазон дат и «Показать ещё»
+    const [classRange, setClassRange] = useState<"all" | "today" | "week" | "month">("all");
+    const [classVisible, setClassVisible] = useState(20);
+    // На мобильном вкладки живут в раскрывающемся меню — как панель фиксаций
+    const [isTabMenuOpen, setIsTabMenuOpen] = useState(false);
     const [isLoadingViolations, setIsLoadingViolations] = useState(false);
 
     const [authorizations, setAuthorizations] = useState<any[]>([]);
@@ -295,29 +304,46 @@ export default function HomePage() {
     }, [selectedClass, selectedDate]);
 
     // Все нарушения класса (для блока со статусами и отработкой)
-    const loadClassViolations = useCallback(async (className: string) => {
-        setIsLoadingClassViolations(true);
-        try {
-            const response = await fetch(
-                `/api/violations?className=${encodeURIComponent(className)}&pageSize=100&stats=false`,
-            );
-            if (!response.ok) throw new Error(`Сервер вернул ошибку ${response.status}`);
+    const loadClassViolations = useCallback(
+        async (className: string, range: "all" | "today" | "week" | "month" = "all") => {
+            setIsLoadingClassViolations(true);
+            try {
+                const params = new URLSearchParams({
+                    className,
+                    pageSize: "100",
+                    stats: "false",
+                });
 
-            const data = await response.json();
-            const rows = Array.isArray(data) ? data : Array.isArray(data?.violations) ? data.violations : [];
-            setClassViolations(rows);
-        } catch (error) {
-            console.error("Error fetching class violations:", error);
-            setClassViolations([]);
-        } finally {
-            setIsLoadingClassViolations(false);
-        }
-    }, []);
+                if (range !== "all") {
+                    const now = new Date();
+                    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                    if (range === "week") start.setDate(start.getDate() - 6);
+                    if (range === "month") start.setMonth(start.getMonth() - 1);
+                    params.set("startDate", formatDateLocal(start));
+                    params.set("endDate", formatDateLocal(now));
+                }
+
+                const response = await fetch(`/api/violations?${params.toString()}`);
+                if (!response.ok) throw new Error(`Сервер вернул ошибку ${response.status}`);
+
+                const data = await response.json();
+                const rows = Array.isArray(data) ? data : Array.isArray(data?.violations) ? data.violations : [];
+                setClassViolations(rows);
+                setClassVisible(20);
+            } catch (error) {
+                console.error("Error fetching class violations:", error);
+                setClassViolations([]);
+            } finally {
+                setIsLoadingClassViolations(false);
+            }
+        },
+        [],
+    );
 
     useEffect(() => {
         if (!selectedClass || activeTab !== "violations") return;
-        void loadClassViolations(selectedClass.name);
-    }, [selectedClass, activeTab, loadClassViolations]);
+        void loadClassViolations(selectedClass.name, classRange);
+    }, [selectedClass, activeTab, classRange, loadClassViolations]);
 
     // Нарушения за выбранную дату
     useEffect(() => {
@@ -769,8 +795,19 @@ export default function HomePage() {
     return (
         <div className="min-h-full bg-bg pb-24 md:pb-8">
             <main className="mx-auto w-full max-w-3xl space-y-3 px-4 py-4">
-                {/* Профиль — закреплён сверху и открывает настройки */}
-                <div className="sticky top-0 z-20 -mx-4 border-b border-border bg-bg/95 px-4 py-2 backdrop-blur-sm">
+                {/* Мобильный хэдер: профиль как на главной, ниже название со стрелкой */}
+                <div className="-mx-4">
+                    <MobilePageHeader
+                        title="Мой класс"
+                        userName={safeFormatShortName(session.user.name)}
+                        userEmail={session.user.email ?? null}
+                        roles={roles}
+                        onLogout={() => void handleLogout()}
+                    />
+                </div>
+
+                {/* Десктоп: профиль и переход к сервисам, как раньше */}
+                <div className="sticky top-0 z-20 -mx-4 hidden border-b border-border bg-bg/95 px-4 py-2 backdrop-blur-sm md:block">
                     <div className="flex items-center justify-between gap-2">
                         <ProfileMenu
                             userName={safeFormatShortName(session.user.name)}
@@ -779,7 +816,7 @@ export default function HomePage() {
                             variant="full"
                         />
                         <div className="flex shrink-0 items-center gap-2">
-                            <span className="hidden text-xs text-fg-subtle sm:inline">
+                            <span className="text-xs text-fg-subtle">
                                 {isClassTeacher ? "Классный руководитель" : "Преподаватель"}
                             </span>
                             <Link
@@ -805,14 +842,60 @@ export default function HomePage() {
                 {/* Дата: компактная лента дней без подписи «Сегодня» и месяца */}
                 <WeekListScrollable selectedDate={selectedDate} setSelectedDate={setSelectedDate} />
 
-                {/* Вкладки */}
-                <Tabs
-                    variant="scrollable"
-                    value={activeTab}
-                    onChange={setActiveTab}
-                    items={tabItems}
-                    ariaLabel="Разделы класса"
-                />
+                {/* Мобильный: вкладки в раскрывающемся меню */}
+                <div className="relative md:hidden">
+                    <Button
+                        fullWidth
+                        variant="secondary"
+                        onClick={() => setIsTabMenuOpen(open => !open)}
+                        aria-expanded={isTabMenuOpen}
+                        rightIcon={isTabMenuOpen ? ChevronUp : ChevronDown}
+                    >
+                        Меню · {tabItems.find(item => item.id === activeTab)?.label ?? "Посещаемость"}
+                    </Button>
+
+                    {isTabMenuOpen && (
+                        <div className="absolute left-0 right-0 top-full z-30 mt-1 rounded-3xl border border-border bg-surface p-1.5 shadow-raised">
+                            {tabItems.map(item => {
+                                const TabIcon = item.icon;
+                                const selected = item.id === activeTab;
+
+                                return (
+                                    <button
+                                        key={item.id}
+                                        type="button"
+                                        onClick={() => {
+                                            setActiveTab(item.id);
+                                            setIsTabMenuOpen(false);
+                                        }}
+                                        className={`flex w-full items-center gap-2 rounded-full px-3 py-2.5 text-left text-sm transition-colors ${
+                                            selected
+                                                ? "bg-accent-soft text-accent-text"
+                                                : "text-fg hover:bg-surface-hover"
+                                        }`}
+                                    >
+                                        {TabIcon && <TabIcon size={18} aria-hidden />}
+                                        <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                                        {typeof item.count === "number" && item.count > 0 && (
+                                            <span className="shrink-0 text-xs text-fg-subtle">{item.count}</span>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                {/* Десктоп: привычные вкладки */}
+                <div className="hidden md:block">
+                    <Tabs
+                        variant="scrollable"
+                        value={activeTab}
+                        onChange={setActiveTab}
+                        items={tabItems}
+                        ariaLabel="Разделы класса"
+                    />
+                </div>
 
                 {/* -------------------------- Посещаемость -------------------------- */}
                 {activeTab === "attendance" && (
@@ -990,8 +1073,27 @@ export default function HomePage() {
                             </span>
                         </div>
 
+                        <div className="flex flex-wrap items-center gap-1.5">
+                            {(
+                                [
+                                    { id: "all", label: "Все" },
+                                    { id: "today", label: "Сегодня" },
+                                    { id: "week", label: "Неделя" },
+                                    { id: "month", label: "Месяц" },
+                                ] as const
+                            ).map(item => (
+                                <Chip
+                                    key={item.id}
+                                    selected={classRange === item.id}
+                                    onClick={() => setClassRange(item.id)}
+                                >
+                                    {item.label}
+                                </Chip>
+                            ))}
+                        </div>
+
                         <ViolationsAdminList
-                            violations={classViolations}
+                            violations={classViolations.slice(0, classVisible)}
                             isLoading={isLoadingClassViolations}
                             selectable={false}
                             onResolve={
@@ -1001,6 +1103,16 @@ export default function HomePage() {
                             }
                             emptyMessage="Нарушений по классу нет"
                         />
+
+                        {classViolations.length > classVisible && (
+                            <Button
+                                fullWidth
+                                variant="secondary"
+                                onClick={() => setClassVisible(previous => previous + 20)}
+                            >
+                                Показать ещё ({classViolations.length - classVisible})
+                            </Button>
+                        )}
 
                         {!isClassTeacher && (
                             <p className="px-1 text-xs text-fg-subtle">
@@ -1146,7 +1258,24 @@ export default function HomePage() {
                 onDone={() => {
                     setResolveTargets(null);
                     if (selectedClass) {
-                        void loadClassViolations(selectedClass.name);
+                        void loadClassViolations(selectedClass.name, classRange);
+
+                        // Список «за сегодня» тоже обновляем — иначе статус менялся
+                        // только после перезагрузки страницы
+                        const dateStr = formatDateLocal(selectedDate);
+                        void fetch(
+                            `/api/violations?className=${encodeURIComponent(selectedClass.name)}&date=${dateStr}&pageSize=100&stats=false`,
+                        )
+                            .then(response => (response.ok ? response.json() : null))
+                            .then(data => {
+                                const rows = Array.isArray(data)
+                                    ? data
+                                    : Array.isArray(data?.violations)
+                                        ? data.violations
+                                        : [];
+                                setTodayViolations(rows);
+                            })
+                            .catch(error => console.error("Error refreshing today violations:", error));
                     }
                 }}
             />

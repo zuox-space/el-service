@@ -6,7 +6,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { ArrowLeft, ChevronDown, History } from "lucide-react";
+import { signOut } from "next-auth/react";
 import { Badge, Card, Chip, PageHeader, Skeleton } from "@/components/ui/kit";
+import { MobilePageHeader } from "@/components/shell/MobilePageHeader";
 import { formatDateTimeMoscow } from "@/lib/date";
 import { getViolationType, resolverLabel } from "@/lib/violations";
 
@@ -102,16 +104,29 @@ export default function MyViolationsPage() {
 
     if (!session) return null;
 
+    const handleLogout = async () => {
+        await signOut({ callbackUrl: "/login" });
+    };
+
     return (
         <div className="min-h-full bg-bg">
-            {/* Мобильный хэдер: стрелка назад и название раздела; на десктопе — с подзаголовком */}
-            <PageHeader
+            {/* Мобильный хэдер — как на главной, ниже название со стрелкой назад */}
+            <MobilePageHeader
                 title="Мои фиксации"
-                subtitle={
-                    <span className="hidden sm:inline">Замечания, которые вы зафиксировали, и их отработка</span>
-                }
-                onBack={() => router.push("/")}
+                userName={session.user.name}
+                userEmail={session.user.email ?? null}
+                roles={(session.user.roles as string[]) ?? []}
+                onLogout={() => void handleLogout()}
             />
+
+            {/* Десктоп: обычный заголовок раздела */}
+            <div className="hidden md:block">
+                <PageHeader
+                    title="Мои фиксации"
+                    subtitle="Замечания, которые вы зафиксировали, и их отработка"
+                    onBack={() => router.push("/")}
+                />
+            </div>
 
             <main className="mx-auto w-full max-w-3xl space-y-3 px-4 py-4">
                 <section className="grid grid-cols-3 gap-2">
