@@ -1,24 +1,14 @@
 "use client";
 
 // app/page.tsx — стартовая страница-портал
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import {
-    AlertTriangle,
     ArrowRight,
-    BarChart3,
-    ChartPie,
-    ClipboardList,
-    LayoutDashboard,
-    ListOrdered,
     School,
-    ShieldAlert,
-    Shirt,
-    UserX,
-    Users,
-    type LucideIcon,
+    ShieldCheck,
 } from "lucide-react";
 import { Badge, Button, Card, EmptyState, Skeleton } from "@/components/ui/kit";
 import { ProfileMenu } from "@/components/shell/ProfileMenu";
@@ -50,20 +40,6 @@ interface PortalData {
     myClass: { available: boolean; classes: string[]; studentsCount: number };
     services: PortalService[];
 }
-
-const SERVICE_ICONS: Record<string, LucideIcon> = {
-    dashboard: LayoutDashboard,
-    students: Users,
-    classes: ClipboardList,
-    classesOverview: ListOrdered,
-    violations: AlertTriangle,
-    schoolRecords: ShieldAlert,
-    truants: UserX,
-    violationsStats: ChartPie,
-    uniform: Shirt,
-    absent: BarChart3,
-    users: Users,
-};
 
 const shortName = (fullName: string | null | undefined): string => {
     if (!fullName) return "Коллега";
@@ -121,8 +97,6 @@ export default function PortalPage() {
     const hasMyClass = Boolean(data?.myClass.available);
     const roles = (data?.user.roles ?? []) as string[];
 
-    const adminServices = useMemo(() => services.filter(service => service.id !== "dashboard"), [services]);
-    const dashboardService = useMemo(() => services.find(service => service.id === "dashboard"), [services]);
 
     if (!mounted || status === "loading" || (isLoading && !data)) {
         return (
@@ -228,72 +202,44 @@ export default function PortalPage() {
                     </section>
                 )}
 
-                {/* Панель управления */}
+                {/* Админ панель — одна карточка: внутри уже показываются доступные разделы */}
                 {hasServices && (
                     <section aria-labelledby="admin-title">
-                        <div className="mb-2 flex items-center justify-between px-1">
-                            <h2 id="admin-title" className="text-xs font-medium uppercase tracking-wide text-fg-subtle">
-                                Панель управления
-                            </h2>
-                            {dashboardService && (
-                                <Link href="/admin" className="text-xs text-fg-muted transition-colors hover:text-fg">
-                                    Открыть дашборд
-                                </Link>
-                            )}
-                        </div>
-
-                        {dashboardService && (
-                            <Link
-                                href={dashboardService.href}
-                                className="group mb-2 block rounded-card border border-dashed border-border bg-surface p-3 shadow-card transition-colors hover:border-accent/50 hover:bg-surface-hover"
-                            >
-                                <div className="flex items-center gap-3">
-                                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-control bg-accent-soft text-accent-text">
-                                        <LayoutDashboard size={18} aria-hidden />
-                                    </span>
-                                    <div className="min-w-0 flex-1">
-                                        <h3 className="text-sm font-semibold text-fg">{dashboardService.label}</h3>
-                                        <p className="truncate text-xs text-fg-muted">{dashboardService.description}</p>
+                        <h2
+                            id="admin-title"
+                            className="mb-2 px-1 text-xs font-medium uppercase tracking-wide text-fg-subtle"
+                        >
+                            Управление школой
+                        </h2>
+                        <Link
+                            href="/admin"
+                            className="group block rounded-card border border-dashed border-border bg-surface p-4 shadow-card transition-colors hover:border-accent/50 hover:bg-surface-hover"
+                        >
+                            <div className="flex items-start gap-3">
+                                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-control bg-accent-soft text-accent-text">
+                                    <ShieldCheck size={22} aria-hidden />
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <h3 className="text-base font-semibold text-fg">Админ панель</h3>
+                                        <Badge tone="info">
+                                            {services.length}{" "}
+                                            {services.length === 1 ? "раздел" : services.length < 5 ? "раздела" : "разделов"}
+                                        </Badge>
                                     </div>
-                                    <ArrowRight
-                                        size={16}
-                                        className="shrink-0 text-fg-subtle group-hover:text-accent-text"
-                                        aria-hidden
-                                    />
+                                    <p className="mt-1 text-sm text-fg-muted">
+                                        Контроль выхода, нарушения, аналитика и другие разделы, которые вам выданы
+                                    </p>
                                 </div>
-                            </Link>
-                        )}
-
-                        {adminServices.length > 0 && (
-                            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                                {adminServices.map(service => {
-                                    const Icon = SERVICE_ICONS[service.id] ?? ClipboardList;
-
-                                    return (
-                                        <Link
-                                            key={service.id}
-                                            href={service.href}
-                                            className="group rounded-card border border-dashed border-border bg-surface p-3 shadow-card transition-colors hover:border-accent/50 hover:bg-surface-hover"
-                                        >
-                                            <div className="flex items-start gap-3">
-                                                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-surface-hover text-accent-text">
-                                                    <Icon size={17} aria-hidden />
-                                                </span>
-                                                <div className="min-w-0 flex-1">
-                                                    <h3 className="text-sm font-medium text-fg">{service.label}</h3>
-                                                    <p className="mt-0.5 line-clamp-2 text-xs text-fg-subtle">
-                                                        {service.description}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </Link>
-                                    );
-                                })}
+                                <ArrowRight
+                                    size={18}
+                                    className="mt-1 shrink-0 text-fg-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-accent-text"
+                                    aria-hidden
+                                />
                             </div>
-                        )}
+                        </Link>
                     </section>
                 )}
-
                 {!hasMyClass && !hasServices && (
                     <Card padding="none">
                         <EmptyState
