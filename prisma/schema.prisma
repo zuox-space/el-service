@@ -48,6 +48,11 @@ model Role {
   description String?
   createdAt   DateTime @default(now())
 
+  /// Доступы по умолчанию: разделы, которые видит сотрудник с этой ролью.
+  /// Пустой массив — берутся значения из реестра (lib/access/registry.ts),
+  /// чтобы встроенные роли работали без настройки.
+  defaultSections String[] @default([])
+
   userRoles UserRole[]
 }
 

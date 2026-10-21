@@ -1,18 +1,19 @@
 // lib/access/server.ts
 //
-// Серверное определение доступов. Используется страницами (через /api/access/me)
-// и API-роутами (requireSection). Логика одна:
+// Серверное определение доступов. Логика одна:
 //   • ADMIN видит всё;
 //   • если у сотрудника включена индивидуальная настройка (accessOverride),
 //     действует ровно список выданных разделов;
-//   • иначе — разделы по ролям (значения по умолчанию из реестра).
+//   • иначе — объединение доступов по ролям: сначала берём `defaultSections`
+//     роли из БД (их настраивает администратор в интерфейсе), а если там пусто —
+//     значения по умолчанию из реестра (lib/access/registry.ts).
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
     ALL_SECTION_IDS,
-    sectionsForRoles,
+    sectionsForRole,
     type AccessSectionId,
 } from "./registry";
 
@@ -23,6 +24,11 @@ export interface AccessInfo {
     roles: string[];
     override: boolean;
     sections: AccessSectionId[];
+}
+
+interface RoleLike {
+    name: string;
+    defaultSections: string[];
 }
 
 /** Доступы конкретного пользователя по его id. */
@@ -40,7 +46,10 @@ export async function getAccessForUser(userId: string): Promise<AccessInfo | nul
     return buildAccess({
         id: user.id,
         email: user.email,
-        roles: user.userRoles.map(item => item.role.name),
+        roles: user.userRoles.map(item => ({
+            name: item.role.name,
+            defaultSections: item.role.defaultSections,
+        })),
         override: user.accessOverride,
         rows: user.sectionAccess.filter(row => row.allowed).map(row => row.section),
     });
@@ -61,7 +70,6 @@ export async function getSessionAccess(): Promise<AccessInfo | null> {
     });
 
     if (!user) {
-        // Пользователь вошёл, но в базе его нет — прав нет ни на что
         return {
             userId: session.user.id ?? "",
             email,
@@ -75,7 +83,10 @@ export async function getSessionAccess(): Promise<AccessInfo | null> {
     return buildAccess({
         id: user.id,
         email: user.email,
-        roles: user.userRoles.map(item => item.role.name),
+        roles: user.userRoles.map(item => ({
+            name: item.role.name,
+            defaultSections: item.role.defaultSections,
+        })),
         override: user.accessOverride,
         rows: user.sectionAccess.filter(row => row.allowed).map(row => row.section),
     });
@@ -84,26 +95,43 @@ export async function getSessionAccess(): Promise<AccessInfo | null> {
 function buildAccess(input: {
     id: string;
     email: string;
-    roles: string[];
+    roles: RoleLike[];
     override: boolean;
     rows: string[];
 }): AccessInfo {
-    const isAdmin = input.roles.includes("ADMIN");
+    const isAdmin = input.roles.some(role => role.name === "ADMIN");
 
     const sections: AccessSectionId[] = isAdmin
         ? ALL_SECTION_IDS
         : input.override
             ? (input.rows as AccessSectionId[])
-            : sectionsForRoles(input.roles);
+            : sectionsForRoleList(input.roles);
 
     return {
         userId: input.id,
         email: input.email,
         isAdmin,
-        roles: input.roles,
+        roles: input.roles.map(role => role.name),
         override: input.override,
         sections,
     };
+}
+
+/** Объединение доступов всех ролей сотрудника. */
+export function sectionsForRoleList(roles: RoleLike[]): AccessSectionId[] {
+    const result = new Set<AccessSectionId>();
+
+    for (const role of roles) {
+        // Индивидуально настроенные доступы роли важнее значений из реестра
+        const fromDb = (role.defaultSections ?? []).filter((section): section is AccessSectionId =>
+            (ALL_SECTION_IDS as string[]).includes(section),
+        );
+        const defaults = fromDb.length > 0 ? fromDb : sectionsForRole(role.name);
+
+        for (const section of defaults) result.add(section);
+    }
+
+    return [...result];
 }
 
 export type SectionGuardResult = { ok: true; access: AccessInfo } | { ok: false; response: NextResponse };

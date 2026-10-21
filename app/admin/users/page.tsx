@@ -24,6 +24,7 @@ import {
     type Column,
 } from "@/components/ui/kit";
 import { ACCESS_GROUPS, ACCESS_SECTIONS } from "@/lib/access/registry";
+import { roleLabel, roleTone } from "@/lib/roles";
 import { formatDateRu } from "@/lib/date";
 
 /**
@@ -52,17 +53,7 @@ interface StaffUser {
     userRoles?: Array<{ role: RoleInfo }>;
 }
 
-const ROLE_META: Record<string, { label: string; tone: "accent" | "info" | "warning" | "success" | "neutral" }> = {
-    ADMIN: { label: "Администратор", tone: "accent" },
-    METHODIST: { label: "Методист", tone: "info" },
-    HEAD_TEACHER: { label: "Завуч", tone: "warning" },
-    CLASS_TEACHER: { label: "Классный руководитель", tone: "success" },
-    TEACHER: { label: "Учитель", tone: "neutral" },
-    SECURITY: { label: "Охранник", tone: "info" },
-};
-
-const roleLabel = (name: string) => ROLE_META[name]?.label ?? name;
-const roleTone = (name: string) => ROLE_META[name]?.tone ?? "neutral";
+// Подписи и цвета ролей — общие для страницы сотрудников и страницы ролей
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

@@ -36,6 +36,8 @@ export interface AccessSection {
     group: string;
     /** Корневой путь страницы (для навигации и проверки маршрута) */
     href?: string;
+    /** Дополнительные адреса, которые тоже относятся к разделу */
+    extraPaths?: string[];
     /** Только администратор: выдать нельзя никому */
     adminOnly?: boolean;
     /** Роли, которым доступ даётся по умолчанию, пока нет индивидуальной настройки */
@@ -146,6 +148,7 @@ export const ACCESS_SECTIONS: AccessSection[] = [
         description: "Добавление сотрудников, роли и выдача доступов к разделам",
         group: "admin",
         href: "/admin/users",
+        extraPaths: ["/admin/roles"],
         adminOnly: true,
     },
 ];
@@ -165,6 +168,13 @@ export function sectionsForRoles(roles: string[]): AccessSectionId[] {
     return [...result];
 }
 
+/** Разделы, которые роль даёт по умолчанию (значения из реестра). */
+export function sectionsForRole(roleName: string): AccessSectionId[] {
+    return ACCESS_SECTIONS
+        .filter(section => !section.adminOnly && section.defaultRoles?.includes(roleName))
+        .map(section => section.id);
+}
+
 export function isSectionId(value: string): value is AccessSectionId {
     return (ALL_SECTION_IDS as string[]).includes(value);
 }
@@ -179,6 +189,10 @@ export function sectionForPath(pathname: string): AccessSection | null {
         const href = section.href as string;
         if (href === "/") continue;
         if (pathname === href || pathname.startsWith(`${href}/`)) return section;
+
+        for (const extra of section.extraPaths ?? []) {
+            if (pathname === extra || pathname.startsWith(`${extra}/`)) return section;
+        }
     }
 
     return null;
