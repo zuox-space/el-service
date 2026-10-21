@@ -29,8 +29,6 @@ export async function GET(request: NextRequest) {
         const session = await getServerSession(authOptions);
         if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-        const roles = (session.user?.roles as string[]) || [];
-        if (!roles.includes("ADMIN")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
         const { searchParams } = new URL(request.url);
         const startParam = searchParams.get("startDate");
