@@ -43,6 +43,8 @@ export async function GET(req: NextRequest) {
         const studentId = searchParams.get("studentId");  // для одного ученика
         const teacherId = searchParams.get("teacherId");  // для учителя
         const search = (searchParams.get("search") || "").trim(); // поиск по ученику/учителю/комментарию
+        const resolution = searchParams.get("resolution") || ""; // resolved | unresolved — отработка
+        const mine = searchParams.get("mine") === "1";           // только свои нарушения
 
         const page = parseIntParam(searchParams.get("page"), 1, 1, 100000);
         const pageSize = parseIntParam(searchParams.get("pageSize"), DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE);
@@ -89,6 +91,13 @@ export async function GET(req: NextRequest) {
             }
         }
         if (violationType) where.violationType = violationType;
+
+        // Фильтр по отработке: администрация отмечает, что замечание разобрано
+        if (resolution === "resolved") where.resolvedAt = { not: null };
+        if (resolution === "unresolved") where.resolvedAt = null;
+
+        // «Мои нарушения» — столько, сколько зафиксировал текущий сотрудник
+        if (mine) where.teacherId = session.user.id;
         if (studentId) where.studentId = String(studentId);
         if (teacherId) where.teacherId = teacherId;
 
@@ -148,6 +157,14 @@ export async function GET(req: NextRequest) {
             byClass[row.className] = row._count?._all ?? 0;
         });
 
+        // Сколько замечаний уже разобрано, а сколько ждёт администрацию
+        const [resolvedCount, unresolvedCount] = withStats
+            ? await Promise.all([
+                prisma.violation.count({ where: { ...where, resolvedAt: { not: null } } }),
+                prisma.violation.count({ where: { ...where, resolvedAt: null } }),
+            ])
+            : [0, 0];
+
         const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
         return NextResponse.json({
@@ -163,6 +180,8 @@ export async function GET(req: NextRequest) {
                 byClass,
                 uniqueStudents: uniqueStudents.length,
                 uniqueClasses: Object.keys(byClass).length,
+                resolved: resolvedCount,
+                unresolved: unresolvedCount,
             },
         });
     } catch (error) {

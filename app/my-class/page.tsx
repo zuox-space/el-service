@@ -936,6 +936,7 @@ export default function HomePage() {
                         </Button>
 
                         <ViolationsList
+                            showResolution
                             violations={todayViolations}
                             isLoading={isLoadingViolations}
                             showClassName={false}

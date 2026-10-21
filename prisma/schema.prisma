@@ -178,12 +178,18 @@ model Violation {
   studentName String
   className   String
   violationType String  // тип нарушения
-  comment     String?   // комментарий
-  teacherId   String
+  comment     String?   // комментарий того, кто зафиксировал
+  teacherId   String    // кто зафиксировал (сотрудник)
   teacherName String
   date        DateTime @default(now())
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  // Отработка нарушения администрацией (в будущем — соцпедагогом)
+  resolvedAt        DateTime?
+  resolvedBy        String?   // id сотрудника, отметившего отработку
+  resolvedByName    String?   // имя для отображения
+  resolutionComment String?   // что именно сделано
 }
 model SchoolRecord {
   id               String    @id @default(cuid())

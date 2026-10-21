@@ -233,9 +233,23 @@ export interface CheckboxProps {
     disabled?: boolean;
     error?: string;
     className?: string;
+    /**
+     * Компактный вид: только чекбокс без подписи — для плотных строк списков,
+     * где подпись дублирует соседний текст (доступность сохраняется через label).
+     */
+    compact?: boolean;
 }
 
-export function Checkbox({ checked, onChange, label, description, disabled, error, className }: CheckboxProps) {
+export function Checkbox({
+    checked,
+    onChange,
+    label,
+    description,
+    disabled,
+    error,
+    className,
+    compact = false,
+}: CheckboxProps) {
     const id = useId();
 
     return (
@@ -243,8 +257,8 @@ export function Checkbox({ checked, onChange, label, description, disabled, erro
             <label
                 htmlFor={id}
                 className={cn(
-                    "flex min-h-12 cursor-pointer items-start gap-3 rounded-control px-1 py-2",
-                    "hover:bg-surface-2",
+                    "flex cursor-pointer items-start gap-3 rounded-control",
+                    compact ? "min-h-0 gap-0 px-0 py-0" : "min-h-12 px-1 py-2 hover:bg-surface-2",
                     disabled && "cursor-not-allowed opacity-50 hover:bg-transparent",
                 )}
             >
@@ -273,7 +287,7 @@ export function Checkbox({ checked, onChange, label, description, disabled, erro
                     </span>
                 </span>
 
-                <span className="flex min-w-0 flex-col">
+                <span className={compact ? "sr-only" : "flex min-w-0 flex-col"}>
                     <span className="text-sm text-fg">{label}</span>
                     {description && <span className="text-xs text-fg-subtle">{description}</span>}
                 </span>

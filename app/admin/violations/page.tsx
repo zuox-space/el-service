@@ -4,11 +4,12 @@
 import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useState, useEffect, useLayoutEffect, useMemo, useCallback, Suspense } from "react";
-import { BarChart3, ChartPie, ChevronLeft, ChevronRight, Download, Filter } from "lucide-react";
-import ViolationsList from "@/components/ui/ViolationsList";
+import { BarChart3, ChartPie, CheckCheck, ChevronLeft, ChevronRight, Download, Filter } from "lucide-react";
+import { ViolationsAdminList } from "@/components/ui/ViolationsAdminList";
+import { ResolveViolationModal } from "@/components/ui/ResolveViolationModal";
 import { VIOLATION_TYPES, getViolationType } from "@/lib/violations";
 import { toLocalISODate, formatDateTimeMoscow, safeCell } from "@/lib/date";
-import { Button, Card, Chip, Input, Modal, ModalFooter, PageHeader, SearchInput, Select, Skeleton, useToast } from "@/components/ui/kit";
+import { Button, Card, Checkbox, Chip, Input, Modal, ModalFooter, PageHeader, SearchInput, Select, Skeleton, useToast } from "@/components/ui/kit";
 
 const PAGE_SIZE = 25;
 
@@ -21,6 +22,9 @@ interface Violation {
     comment: string | null;
     teacherName: string;
     date: string;
+    resolvedAt?: string | null;
+    resolvedByName?: string | null;
+    resolutionComment?: string | null;
 }
 
 interface ViolationStats {
@@ -29,6 +33,8 @@ interface ViolationStats {
     byClass: Record<string, number>;
     uniqueStudents: number;
     uniqueClasses: number;
+    resolved: number;
+    unresolved: number;
 }
 
 const EMPTY_STATS: ViolationStats = {
@@ -37,6 +43,8 @@ const EMPTY_STATS: ViolationStats = {
     byClass: {},
     uniqueStudents: 0,
     uniqueClasses: 0,
+    resolved: 0,
+    unresolved: 0,
 };
 
 /** Дата нарушения в московском времени — школа работает по нему, независимо от того, откуда открыт браузер. */
@@ -94,6 +102,10 @@ function ViolationsContent() {
     const [gradeGroup, setGradeGroup] = useState(() => searchParams.get('gradeGroup') || "");
     const [searchInput, setSearchInput] = useState(() => searchParams.get('search') || "");
     const [searchQuery, setSearchQuery] = useState(() => searchParams.get('search') || "");
+    // Отработка: пусто — все, unresolved — ждут администрацию, resolved — разобраны
+    const [resolution, setResolution] = useState(() => searchParams.get('resolution') || "");
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [resolveTargets, setResolveTargets] = useState<Violation[] | null>(null);
     const [page, setPage] = useState(() => {
         const p = Number.parseInt(searchParams.get('page') || '1', 10);
         return Number.isFinite(p) && p > 0 ? p : 1;
@@ -148,9 +160,10 @@ function ViolationsContent() {
         if (selectedClass) params.set('className', selectedClass);
         if (gradeGroup) params.set('gradeGroup', gradeGroup);
         if (searchQuery) params.set('search', searchQuery);
+        if (resolution) params.set('resolution', resolution);
         if (page > 1) params.set('page', String(page));
         router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-    }, [mounted, startDate, endDate, selectedType, selectedClass, gradeGroup, searchQuery, page, pathname, router]);
+    }, [mounted, startDate, endDate, selectedType, selectedClass, gradeGroup, searchQuery, resolution, page, pathname, router]);
 
     const fetchViolations = useCallback(async () => {
         try {
@@ -167,6 +180,7 @@ function ViolationsContent() {
             if (selectedClass) params.set('className', selectedClass);
             if (gradeGroup) params.set('gradeGroup', gradeGroup);
             if (searchQuery) params.set('search', searchQuery);
+            if (resolution) params.set('resolution', resolution);
 
             const response = await fetch(`/api/violations?${params.toString()}`);
             if (!response.ok) {
@@ -188,6 +202,8 @@ function ViolationsContent() {
                     byClass: data.stats?.byClass ?? {},
                     uniqueStudents: data.stats?.uniqueStudents ?? 0,
                     uniqueClasses: data.stats?.uniqueClasses ?? 0,
+                    resolved: data.stats?.resolved ?? 0,
+                    unresolved: data.stats?.unresolved ?? 0,
                 });
             } else {
                 // Старый формат ответа (массив) — считаем сами
@@ -195,6 +211,8 @@ function ViolationsContent() {
                 setTotalPages(1);
                 setStats({
                     total: rows.length,
+                    resolved: rows.filter(v => v.resolvedAt).length,
+                    unresolved: rows.filter(v => !v.resolvedAt).length,
                     byType: rows.reduce((acc: Record<string, number>, v) => {
                         acc[v.violationType] = (acc[v.violationType] || 0) + 1;
                         return acc;
@@ -216,7 +234,7 @@ function ViolationsContent() {
         } finally {
             setIsLoading(false);
         }
-    }, [startDate, endDate, page, selectedType, selectedClass, gradeGroup, searchQuery]);
+    }, [startDate, endDate, page, selectedType, selectedClass, gradeGroup, searchQuery, resolution]);
 
     useEffect(() => {
         if (isAdmin) {
@@ -372,7 +390,7 @@ function ViolationsContent() {
         },
     ]), []);
 
-    const hasActiveFilters = Boolean(selectedType || selectedClass || gradeGroup || searchQuery);
+    const hasActiveFilters = Boolean(selectedType || selectedClass || gradeGroup || searchQuery || resolution);
     const rangeInvalid = startDate > endDate;
     const firstShown = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
     const lastShown = Math.min(page * PAGE_SIZE, total);
@@ -385,6 +403,8 @@ function ViolationsContent() {
         setSelectedType("");
         setSelectedClass("");
         setSearchInput("");
+        setResolution("");
+        setSelectedIds(new Set());
         setPage(1);
     };
 
@@ -435,8 +455,10 @@ function ViolationsContent() {
                 )}
 
                 {/* Статистика считается на сервере по ВСЕМ нарушениям периода, а не по странице */}
-                <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <section className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
                     <StatTile label="Всего за период" value={stats.total} />
+                    <StatTile label="Не отработано" value={stats.unresolved} tone="warning" />
+                    <StatTile label="Отработано" value={stats.resolved} tone="success" />
                     <StatTile label="Учеников" value={stats.uniqueStudents} />
                     <StatTile label="Классов" value={stats.uniqueClasses} />
                     <StatTile label="Страниц" value={total === 0 ? 0 : totalPages} />
@@ -554,6 +576,41 @@ function ViolationsContent() {
                                         </Chip>
                                     )}
                                 </div>
+
+                                <div>
+                                    <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-fg-subtle">
+                                        Отработка
+                                    </p>
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                        <Chip
+                                            selected={resolution === ""}
+                                            onClick={() => {
+                                                setResolution("");
+                                                setPage(1);
+                                            }}
+                                        >
+                                            Все
+                                        </Chip>
+                                        <Chip
+                                            selected={resolution === "unresolved"}
+                                            onClick={() => {
+                                                setResolution("unresolved");
+                                                setPage(1);
+                                            }}
+                                        >
+                                            Не отработаны
+                                        </Chip>
+                                        <Chip
+                                            selected={resolution === "resolved"}
+                                            onClick={() => {
+                                                setResolution("resolved");
+                                                setPage(1);
+                                            }}
+                                        >
+                                            Отработаны
+                                        </Chip>
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -609,12 +666,55 @@ function ViolationsContent() {
                     </div>
                 )}
 
-                <ViolationsList
+                {/* Выбор и групповые действия: удобно закрывать пачку замечаний разом */}
+                {violations.length > 0 && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-control border border-dashed border-border bg-surface px-2 py-1.5">
+                        <Checkbox
+                            checked={violations.length > 0 && violations.every(row => selectedIds.has(row.id))}
+                            onChange={() =>
+                                setSelectedIds(
+                                    violations.every(row => selectedIds.has(row.id))
+                                        ? new Set()
+                                        : new Set(violations.map(row => row.id)),
+                                )
+                            }
+                            label={`Выбрать все на странице (${violations.length})`}
+                        />
+                        {selectedIds.size > 0 && (
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-xs text-fg-muted">Выбрано: {selectedIds.size}</span>
+                                <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    leftIcon={CheckCheck}
+                                    onClick={() =>
+                                        setResolveTargets(violations.filter(row => selectedIds.has(row.id)))
+                                    }
+                                >
+                                    Отработать выбранные
+                                </Button>
+                                <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+                                    Снять выбор
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                <ViolationsAdminList
                     violations={violations}
                     isLoading={isLoading && violations.length === 0}
-                    onDelete={handleDelete}
-                    showClassName={true}
-                    showTeacher={true}
+                    selected={selectedIds}
+                    onToggleSelect={id =>
+                        setSelectedIds(previous => {
+                            const next = new Set(previous);
+                            if (next.has(id)) next.delete(id);
+                            else next.add(id);
+                            return next;
+                        })
+                    }
+                    onResolve={violation => setResolveTargets([violation])}
+                    onDelete={violation => handleDelete(violation.id)}
                     emptyMessage={
                         error
                             ? "Данные не загружены"
@@ -672,15 +772,38 @@ function ViolationsContent() {
                     Запись исчезнет из статистики и из портфолио ученика. Действие необратимо.
                 </p>
             </Modal>
+
+            {/* Отработка: один комментарий на одно или сразу на несколько нарушений */}
+            <ResolveViolationModal
+                open={Boolean(resolveTargets)}
+                onClose={() => setResolveTargets(null)}
+                violations={resolveTargets ?? []}
+                onDone={() => {
+                    setResolveTargets(null);
+                    setSelectedIds(new Set());
+                    void fetchViolations();
+                }}
+            />
         </div>
     );
 }
 
-function StatTile({ label, value }: { label: string; value: number }) {
+function StatTile({
+    label,
+    value,
+    tone = "neutral",
+}: {
+    label: string;
+    value: number;
+    tone?: "neutral" | "success" | "warning";
+}) {
+    const valueColor =
+        tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : "text-fg";
+
     return (
         <div className="rounded-card border border-border bg-surface p-3">
             <p className="text-xs text-fg-subtle">{label}</p>
-            <p className="mt-0.5 text-xl font-semibold tabular-nums text-fg">{value}</p>
+            <p className={`mt-0.5 text-xl font-semibold tabular-nums ${valueColor}`}>{value}</p>
         </div>
     );
 }

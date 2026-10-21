@@ -4,7 +4,7 @@
 import { Trash2 } from "lucide-react";
 import { getViolationType } from "@/lib/violations";
 import { formatDateTimeMoscow } from "@/lib/date";
-import { EmptyState, List, ListItem } from "@/components/ui/kit";
+import { Badge, EmptyState, List, ListItem } from "@/components/ui/kit";
 
 /**
  * ViolationsList — список нарушений.
@@ -24,6 +24,9 @@ interface Violation {
     comment: string | null;
     teacherName: string;
     date: string;
+    resolvedAt?: string | null;
+    resolvedByName?: string | null;
+    resolutionComment?: string | null;
 }
 
 interface ViolationsListProps {
@@ -32,6 +35,8 @@ interface ViolationsListProps {
     onDelete?: (id: string) => void;
     showClassName?: boolean;
     showTeacher?: boolean;
+    /** Показывать статус отработки (для «Моих нарушений» и экрана учителя) */
+    showResolution?: boolean;
     emptyMessage?: string;
 }
 
@@ -41,6 +46,7 @@ export default function ViolationsList({
     onDelete,
     showClassName = true,
     showTeacher = true,
+    showResolution = false,
     emptyMessage = "Нет нарушений",
 }: ViolationsListProps) {
     if (isLoading) {
@@ -68,6 +74,9 @@ export default function ViolationsList({
                 const metaParts = [formatDateTimeMoscow(violation.date)];
                 if (showClassName && violation.className) metaParts.push(violation.className);
                 if (showTeacher && violation.teacherName) metaParts.push(violation.teacherName);
+                if (showResolution && violation.resolvedAt) {
+                    metaParts.push(`отработано ${formatDateTimeMoscow(violation.resolvedAt)}`);
+                }
 
                 return (
                     <li key={violation.id}>
@@ -80,7 +89,18 @@ export default function ViolationsList({
                                     <Icon size={18} strokeWidth={1.75} className={type.color} />
                                 </span>
                             }
-                            title={violation.studentName}
+                            title={
+                                showResolution ? (
+                                    <span className="flex flex-wrap items-center gap-1.5">
+                                        <span className="truncate">{violation.studentName}</span>
+                                        <Badge tone={violation.resolvedAt ? "success" : "warning"}>
+                                            {violation.resolvedAt ? "Отработано" : "Не отработано"}
+                                        </Badge>
+                                    </span>
+                                ) : (
+                                    violation.studentName
+                                )
+                            }
                             subtitle={
                                 // Без flex-wrap и с min-w-0: длинный комментарий не выталкивал
                                 // кнопку удаления за пределы строки на телефоне
@@ -88,6 +108,11 @@ export default function ViolationsList({
                                     <span className={`shrink-0 ${type.color}`}>{type.shortLabel}</span>
                                     {violation.comment && (
                                         <span className="min-w-0 truncate text-fg-muted">· {violation.comment}</span>
+                                    )}
+                                    {showResolution && violation.resolvedAt && violation.resolutionComment && (
+                                        <span className="min-w-0 truncate text-success">
+                                            · {violation.resolvedByName || "Администратор"}: {violation.resolutionComment}
+                                        </span>
                                     )}
                                 </span>
                             }
