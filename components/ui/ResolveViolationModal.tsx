@@ -6,8 +6,8 @@ import { CheckCheck, RotateCcw } from "lucide-react";
 import {
     Button,
     FormError,
-    Modal,
     ModalFooter,
+    Sheet,
     Textarea,
 } from "@/components/ui/kit";
 import { getViolationType } from "@/lib/violations";
@@ -83,7 +83,7 @@ export function ResolveViolationModal({ open, onClose, violations, onDone }: Res
     };
 
     return (
-        <Modal
+        <Sheet
             open={open}
             onClose={onClose}
             title={allResolved ? "Отработка нарушения" : "Отметить отработку"}
@@ -92,7 +92,6 @@ export function ResolveViolationModal({ open, onClose, violations, onDone }: Res
                     ? single?.studentName
                     : `Выбрано нарушений: ${violations.length}`
             }
-            size="md"
             footer={
                 <ModalFooter
                     onCancel={onClose}
@@ -159,6 +158,6 @@ export function ResolveViolationModal({ open, onClose, violations, onDone }: Res
                     </p>
                 )}
             </div>
-        </Modal>
+        </Sheet>
     );
 }

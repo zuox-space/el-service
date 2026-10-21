@@ -10,7 +10,7 @@ import { Card, Chip, PageHeader, Skeleton } from "@/components/ui/kit";
 import ViolationsList from "@/components/ui/ViolationsList";
 
 /**
- * «Мои нарушения» — история замечаний, которые сотрудник зафиксировал сам.
+ * «Мои фиксации» — история замечаний, которые сотрудник зафиксировал сам.
  *
  * Здесь видно, что с ними стало: ждут администрацию или уже отработаны,
  * кто отметил отработку и что именно было сделано. Страница личная, поэтому
@@ -86,7 +86,7 @@ export default function MyViolationsPage() {
     if (!mounted || status === "loading") {
         return (
             <div className="min-h-full bg-bg">
-                <PageHeader title="Мои нарушения" onBack={() => router.push("/")} />
+                <PageHeader title="Мои фиксации" onBack={() => router.push("/")} />
                 <div className="mx-auto w-full max-w-3xl space-y-3 px-4 py-4">
                     <Skeleton height={72} radius="card" />
                     <Skeleton height={220} radius="card" />
@@ -100,7 +100,7 @@ export default function MyViolationsPage() {
     return (
         <div className="min-h-full bg-bg">
             <PageHeader
-                title="Мои нарушения"
+                title="Мои фиксации"
                 subtitle="Замечания, которые вы зафиксировали, и их отработка"
                 onBack={() => router.push("/")}
             />

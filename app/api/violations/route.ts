@@ -96,7 +96,7 @@ export async function GET(req: NextRequest) {
         if (resolution === "resolved") where.resolvedAt = { not: null };
         if (resolution === "unresolved") where.resolvedAt = null;
 
-        // «Мои нарушения» — столько, сколько зафиксировал текущий сотрудник
+        // «Мои фиксации» — столько, сколько зафиксировал текущий сотрудник
         if (mine) where.teacherId = session.user.id;
         if (studentId) where.studentId = String(studentId);
         if (teacherId) where.teacherId = teacherId;

@@ -4,18 +4,18 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { History, ThumbsDown, X } from "lucide-react";
+import { CircleAlert, History, X } from "lucide-react";
 import ViolationModal from "@/components/ui/ViolationModal";
 import { useAccess } from "@/components/access/AccessProvider";
 import { useToast } from "@/components/ui/kit";
 
 /**
- * Глобальная кнопка сотрудника — «нарушение и история».
+ * Глобальная кнопка сотрудника — «фиксация и история».
  *
- * Свёрнутая — круглая кнопка с дизлайком; по нажатию раскрывается в вертикальную
- * скруглённую панель из двух действий: зафиксировать нарушение и открыть историю
- * своих замечаний с их отработкой. Живёт поверх всех страниц у тех, кому это
- * действительно доступно.
+ * Свёрнутая — круглая кнопка в цвете нарушения (красный), по нажатию
+ * раскрывается вертикальная скруглённая панель из двух иконок без подписей:
+ * зафиксировать нарушение и открыть историю своих фиксаций. Живёт поверх всех
+ * страниц у тех, кому это действительно доступно.
  */
 export function GlobalViolationFab() {
     const { status } = useSession();
@@ -79,20 +79,21 @@ export function GlobalViolationFab() {
         <>
             <div
                 ref={rootRef}
-                className="fixed bottom-20 right-4 z-40 flex flex-col items-end gap-2 sm:bottom-6 sm:right-6"
+                className="fixed bottom-20 right-4 z-40 flex flex-col items-center gap-2 sm:bottom-6 sm:right-6"
             >
                 {expanded && (
-                    <div className="flex flex-col items-stretch gap-2 rounded-3xl border border-border bg-surface p-2 shadow-raised">
+                    <div className="flex flex-col items-center gap-2 rounded-full border border-border bg-surface p-1.5 shadow-raised">
                         <button
                             type="button"
                             onClick={() => {
                                 setExpanded(false);
                                 setIsOpen(true);
                             }}
-                            className="flex items-center gap-2 rounded-full bg-accent-solid px-4 py-2.5 text-sm font-medium text-accent-fg transition-colors hover:bg-accent-solid-hover"
+                            aria-label="Зафиксировать нарушение"
+                            title="Зафиксировать нарушение"
+                            className="flex h-12 w-12 items-center justify-center rounded-full border border-danger/40 bg-danger-soft text-danger transition-colors hover:bg-danger/20 active:scale-95"
                         >
-                            <ThumbsDown size={18} aria-hidden />
-                            Нарушение
+                            <CircleAlert size={22} aria-hidden />
                         </button>
                         <button
                             type="button"
@@ -100,10 +101,11 @@ export function GlobalViolationFab() {
                                 setExpanded(false);
                                 router.push("/my-violations");
                             }}
-                            className="flex items-center gap-2 rounded-full border border-dashed border-border px-4 py-2.5 text-sm text-fg transition-colors hover:bg-surface-hover"
+                            aria-label="История моих фиксаций"
+                            title="История моих фиксаций"
+                            className="flex h-12 w-12 items-center justify-center rounded-full border border-dashed border-border bg-surface-2 text-fg-muted transition-colors hover:bg-surface-3 hover:text-fg active:scale-95"
                         >
-                            <History size={18} aria-hidden />
-                            История
+                            <History size={20} aria-hidden />
                         </button>
                     </div>
                 )}
@@ -111,12 +113,12 @@ export function GlobalViolationFab() {
                 <button
                     type="button"
                     onClick={() => setExpanded(open => !open)}
-                    aria-label={expanded ? "Свернуть меню нарушений" : "Нарушения: зафиксировать или история"}
+                    aria-label={expanded ? "Свернуть меню" : "Фиксации: нарушение или история"}
                     aria-expanded={expanded}
                     title={expanded ? "Свернуть" : "Зафиксировать нарушение"}
-                    className="flex h-14 w-14 items-center justify-center rounded-full border border-accent/30 bg-accent-solid text-accent-fg shadow-raised transition-transform hover:scale-105 active:scale-95"
+                    className="flex h-14 w-14 items-center justify-center rounded-full border border-danger/50 bg-danger-soft text-danger shadow-raised transition-all hover:bg-danger/20 hover:scale-105 active:scale-95"
                 >
-                    {expanded ? <X size={24} aria-hidden /> : <ThumbsDown size={24} aria-hidden />}
+                    {expanded ? <X size={24} aria-hidden /> : <CircleAlert size={26} aria-hidden />}
                 </button>
             </div>
 
