@@ -74,6 +74,11 @@ export const MORE_LINK: NavLink = {
 /** Полное дерево разделов: сайдбар на десктопе и экран «Ещё» на мобильном. */
 export const NAV_GROUPS: NavGroup[] = [
     {
+        // Самый частый переход — держим наверху, чтобы не искать внизу сайдбара
+        title: "Навигация",
+        items: [{ id: "home", label: "На главную", href: "/", icon: Home }],
+    },
+    {
         title: "Оперативно",
         items: [{ id: "dashboard", label: "Контроль выхода", href: "/admin", icon: LayoutDashboard, exact: true, section: "dashboard" }],
     },
@@ -115,10 +120,7 @@ export const NAV_GROUPS: NavGroup[] = [
             { id: "roles", label: "Роли и доступы", href: "/admin/roles", icon: ShieldCheck, section: "users" },
         ],
     },
-    {
-        title: "Аккаунт",
-        items: [{ id: "home", label: "На главную", href: "/", icon: Home }],
-    },
+
 ];
 
 /**

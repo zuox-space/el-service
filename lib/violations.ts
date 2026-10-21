@@ -108,3 +108,18 @@ export const VIOLATION_TYPES: ViolationType[] = [
 export function getViolationType(typeId: string): ViolationType {
     return VIOLATION_TYPES.find(t => t.id === typeId) || VIOLATION_TYPES[VIOLATION_TYPES.length - 1];
 }
+
+/**
+ * Подпись того, кто отметил отработку.
+ *
+ * Если нарушение закрыл классный руководитель со своего экрана, это важно
+ * видеть и в админке, и в истории сотрудника — поэтому добавляем уточнение.
+ */
+export function resolverLabel(
+    name: string | null | undefined,
+    source?: string | null,
+): string {
+    if (!name) return "Администратор";
+
+    return source === "CLASS_TEACHER" ? `${name} · классный руководитель` : name;
+}

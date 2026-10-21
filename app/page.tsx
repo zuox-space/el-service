@@ -120,6 +120,7 @@ export default function PortalPage() {
                     <ProfileMenu
                         userName={shortName(data?.user.name ?? session.user.name)}
                         userEmail={data?.user.email ?? session.user.email ?? null}
+                        roles={roles}
                         onLogout={() => void handleLogout()}
                         variant="full"
                     />
@@ -131,6 +132,8 @@ export default function PortalPage() {
                         ))}
                     </div>
                 </div>
+
+                <p className="mt-1 truncate px-1 text-xs text-fg-subtle sm:hidden">{data?.user.email ?? session.user.email}</p>
 
                 {/* Приветствие */}
                 <Card padding="md" className="relative overflow-hidden">

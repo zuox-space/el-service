@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ChevronLeft } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/lib/cn";
 import { ProfileMenu } from "./ProfileMenu";
@@ -80,6 +82,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     {showHeader && (
                         <header className="sticky top-0 z-20 border-b border-border bg-bg/95 shadow-card backdrop-blur-sm">
                             <div className="mx-auto flex h-14 w-full max-w-[1440px] items-center gap-2 px-4">
+                                {pathname !== "/admin" && (
+                                    <Link
+                                        href="/admin"
+                                        aria-label="Назад"
+                                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-control text-fg-muted transition-colors hover:bg-surface-hover hover:text-fg md:hidden"
+                                    >
+                                        <ChevronLeft size={20} aria-hidden />
+                                    </Link>
+                                )}
                                 <h1 className="min-w-0 flex-1 truncate text-lg font-semibold text-fg">{title}</h1>
                                 <div className="flex shrink-0 items-center gap-1">
                                     {headerActions}

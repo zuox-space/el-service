@@ -36,9 +36,11 @@ interface ResolveViolationModalProps {
     violations: ResolvableViolation[];
     /** Вызывается после успешного сохранения — родитель обновляет список */
     onDone: () => void;
+    /** class_teacher — отметку ставит классный руководитель со своего экрана */
+    source?: "class_teacher";
 }
 
-export function ResolveViolationModal({ open, onClose, violations, onDone }: ResolveViolationModalProps) {
+export function ResolveViolationModal({ open, onClose, violations, onDone, source }: ResolveViolationModalProps) {
     const [comment, setComment] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState<"resolve" | "unresolve" | null>(null);
@@ -67,7 +69,7 @@ export function ResolveViolationModal({ open, onClose, violations, onDone }: Res
             const response = await fetch("/api/violations/resolve", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ ids: violations.map(item => item.id), comment: text, resolved }),
+                body: JSON.stringify({ ids: violations.map(item => item.id), comment: text, resolved, source }),
             });
 
             const data = await response.json().catch(() => ({}));

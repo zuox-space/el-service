@@ -2,7 +2,7 @@
 
 // components/ui/ViolationsList.tsx
 import { Trash2 } from "lucide-react";
-import { getViolationType } from "@/lib/violations";
+import { getViolationType, resolverLabel } from "@/lib/violations";
 import { formatDateTimeMoscow } from "@/lib/date";
 import { Badge, EmptyState, List, ListItem } from "@/components/ui/kit";
 
@@ -27,6 +27,7 @@ interface Violation {
     resolvedAt?: string | null;
     resolvedByName?: string | null;
     resolutionComment?: string | null;
+    resolvedSource?: string | null;
 }
 
 interface ViolationsListProps {
@@ -111,7 +112,7 @@ export default function ViolationsList({
                                     )}
                                     {showResolution && violation.resolvedAt && violation.resolutionComment && (
                                         <span className="min-w-0 truncate text-success">
-                                            · {violation.resolvedByName || "Администратор"}: {violation.resolutionComment}
+                                            · {resolverLabel(violation.resolvedByName, violation.resolvedSource)}: {violation.resolutionComment}
                                         </span>
                                     )}
                                 </span>

@@ -5,17 +5,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requireSection } from "@/lib/access/server";
+import { requireAnySection } from "@/lib/access/server";
 
 /**
- * Отработка нарушений администрацией.
+ * Отработка нарушений.
  *
- * Один вызов закрывает и одиночное, и групповое замечание: передаётся список id.
- * Комментарий о проделанной работе обязателен — иначе непонятно, что сделано.
- * Если `resolved: false`, отметка снимается (комментарий и автор очищаются).
+ * Кто может отмечать:
+ *  • раздел «Нарушения» — любые записи (администрация, в будущем соцпедагог);
+ *  • раздел «Мой класс» — только нарушения своих классов (классный руководитель).
+ *
+ * Флаг `resolvedSource`: если отработку поставил именно классный руководитель
+ * со своего экрана, сохраняем CLASS_TEACHER — это видно в истории у сотрудника.
+ * Отметка из админки остаётся просто конкретным пользователем.
  */
 export async function POST(request: NextRequest) {
-    const guard = await requireSection("violations");
+    const guard = await requireAnySection(["violations", "myClass"]);
     if (!guard.ok) return guard.response;
 
     const session = await getServerSession(authOptions);
@@ -51,20 +55,59 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    const result = await prisma.violation.updateMany({
+    const violations = await prisma.violation.findMany({
         where: { id: { in: ids } },
+        select: { id: true, className: true },
+    });
+
+    if (violations.length === 0) {
+        return NextResponse.json({ error: "Нарушения не найдены" }, { status: 404 });
+    }
+
+    // Классный руководитель — только по своим классам
+    const hasFullAccess = guard.access.sections.includes("violations");
+    if (!hasFullAccess) {
+        const [owned, shared] = await Promise.all([
+            prisma.class.findMany({ where: { ownerId: session.user.id }, select: { name: true } }),
+            prisma.classShare.findMany({
+                where: { teacherId: session.user.id },
+                select: { class: { select: { name: true } } },
+            }),
+        ]);
+
+        const ownClasses = new Set([
+            ...owned.map(item => item.name),
+            ...shared.map(item => item.class.name),
+        ]);
+
+        const foreign = violations.filter(item => !ownClasses.has(item.className));
+        if (foreign.length > 0) {
+            return NextResponse.json(
+                { error: "Можно отрабатывать только нарушения своих классов" },
+                { status: 403 },
+            );
+        }
+    }
+
+    const isClassTeacher = guard.access.roles.includes("CLASS_TEACHER");
+    const wantsClassTeacher = body.source === "class_teacher";
+
+    const result = await prisma.violation.updateMany({
+        where: { id: { in: violations.map(item => item.id) } },
         data: resolved
             ? {
                 resolvedAt: new Date(),
                 resolvedBy: session.user.id,
                 resolvedByName: session.user.name ?? session.user.email ?? "Сотрудник",
                 resolutionComment: comment,
+                resolvedSource: wantsClassTeacher && isClassTeacher ? "CLASS_TEACHER" : null,
             }
             : {
                 resolvedAt: null,
                 resolvedBy: null,
                 resolvedByName: null,
                 resolutionComment: null,
+                resolvedSource: null,
             },
     });
 
@@ -72,5 +115,6 @@ export async function POST(request: NextRequest) {
         success: true,
         updated: result.count,
         resolved,
+        resolvedSource: wantsClassTeacher && isClassTeacher ? "CLASS_TEACHER" : null,
     });
 }

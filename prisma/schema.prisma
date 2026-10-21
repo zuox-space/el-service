@@ -190,6 +190,7 @@ model Violation {
   resolvedBy        String?   // id сотрудника, отметившего отработку
   resolvedByName    String?   // имя для отображения
   resolutionComment String?   // что именно сделано
+  resolvedSource    String?   // CLASS_TEACHER — отметил классный руководитель, null — администрация
 }
 model SchoolRecord {
   id               String    @id @default(cuid())

@@ -3,7 +3,7 @@
 // components/ui/ViolationsAdminList.tsx
 import { CheckCheck, Trash2 } from "lucide-react";
 import { Badge, Checkbox, EmptyState, IconButton, List, ListItem } from "@/components/ui/kit";
-import { getViolationType } from "@/lib/violations";
+import { getViolationType, resolverLabel } from "@/lib/violations";
 import { formatDateTimeMoscow } from "@/lib/date";
 
 /**
@@ -26,25 +26,31 @@ export interface AdminViolation {
     resolvedAt?: string | null;
     resolvedByName?: string | null;
     resolutionComment?: string | null;
+    resolvedSource?: string | null;
 }
 
 interface ViolationsAdminListProps {
     violations: AdminViolation[];
     isLoading?: boolean;
-    selected: Set<string>;
-    onToggleSelect: (id: string) => void;
-    onResolve: (violation: AdminViolation) => void;
-    onDelete: (violation: AdminViolation) => void;
+    selected?: Set<string>;
+    onToggleSelect?: (id: string) => void;
+    /** Если не передан — кнопки отработки нет (только просмотр) */
+    onResolve?: (violation: AdminViolation) => void;
+    /** Если не передан — кнопки удаления нет (например, у классного руководителя) */
+    onDelete?: (violation: AdminViolation) => void;
+    /** Чекбоксы выбора для групповых действий */
+    selectable?: boolean;
     emptyMessage?: string;
 }
 
 export function ViolationsAdminList({
     violations,
     isLoading = false,
-    selected,
+    selected = new Set<string>(),
     onToggleSelect,
     onResolve,
     onDelete,
+    selectable = Boolean(onToggleSelect),
     emptyMessage = "Нет нарушений",
 }: ViolationsAdminListProps) {
     if (isLoading) {
@@ -76,12 +82,14 @@ export function ViolationsAdminList({
                         <ListItem
                             leading={
                                 <span className="flex items-center gap-2">
-                                    <Checkbox
-                                        checked={isSelected}
-                                        onChange={() => onToggleSelect(violation.id)}
-                                        label={`Выбрать: ${violation.studentName}`}
-                                        compact
-                                    />
+                                    {selectable && (
+                                        <Checkbox
+                                            checked={isSelected}
+                                            onChange={() => onToggleSelect?.(violation.id)}
+                                            label={`Выбрать: ${violation.studentName}`}
+                                            compact
+                                        />
+                                    )}
                                     <span
                                         className={`flex h-9 w-9 items-center justify-center rounded-control ${type.bgColor}`}
                                         aria-hidden
@@ -108,7 +116,7 @@ export function ViolationsAdminList({
                                     </span>
                                     {resolved && violation.resolutionComment && (
                                         <span className="line-clamp-2 text-xs text-fg-muted">
-                                            {violation.resolvedByName || "Администратор"}: {violation.resolutionComment}
+                                            {resolverLabel(violation.resolvedByName, violation.resolvedSource)}: {violation.resolutionComment}
                                         </span>
                                     )}
                                 </span>
@@ -126,22 +134,26 @@ export function ViolationsAdminList({
                             trailing="badge"
                             trailingContent={
                                 <span className="flex items-center gap-1">
-                                    <IconButton
-                                        icon={CheckCheck}
-                                        variant="ghost"
-                                        label={
-                                            resolved
-                                                ? `Изменить отработку: ${violation.studentName}`
-                                                : `Отработать нарушение: ${violation.studentName}`
-                                        }
-                                        onClick={() => onResolve(violation)}
-                                    />
-                                    <IconButton
-                                        icon={Trash2}
-                                        variant="danger"
-                                        label={`Удалить нарушение: ${violation.studentName}`}
-                                        onClick={() => onDelete(violation)}
-                                    />
+                                    {onResolve && (
+                                        <IconButton
+                                            icon={CheckCheck}
+                                            variant="ghost"
+                                            label={
+                                                resolved
+                                                    ? `Изменить отработку: ${violation.studentName}`
+                                                    : `Отработать нарушение: ${violation.studentName}`
+                                            }
+                                            onClick={() => onResolve(violation)}
+                                        />
+                                    )}
+                                    {onDelete && (
+                                        <IconButton
+                                            icon={Trash2}
+                                            variant="danger"
+                                            label={`Удалить нарушение: ${violation.studentName}`}
+                                            onClick={() => onDelete(violation)}
+                                        />
+                                    )}
                                 </span>
                             }
                         />

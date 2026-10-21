@@ -32,6 +32,8 @@ import ClassSelector from "@/components/ui/ClassSelector";
 import SelfExitModal from "@/components/ui/SelfExitModal";
 import ViolationModal from "@/components/ui/ViolationModal";
 import ViolationsList from "@/components/ui/ViolationsList";
+import { ViolationsAdminList } from "@/components/ui/ViolationsAdminList";
+import { ResolveViolationModal } from "@/components/ui/ResolveViolationModal";
 import AuthorizationModal from "@/components/ui/AuthorizationModal";
 import {
     Badge,
@@ -127,6 +129,10 @@ export default function HomePage() {
     const [studentsList, setStudentsList] = useState<any[]>([]);
     const [selfExits, setSelfExits] = useState<any[]>([]);
     const [todayViolations, setTodayViolations] = useState<any[]>([]);
+    // Все нарушения класса — ниже сегодняшних, со статусами и отработкой
+    const [classViolations, setClassViolations] = useState<any[]>([]);
+    const [isLoadingClassViolations, setIsLoadingClassViolations] = useState(false);
+    const [resolveTargets, setResolveTargets] = useState<any[] | null>(null);
     const [isLoadingViolations, setIsLoadingViolations] = useState(false);
 
     const [authorizations, setAuthorizations] = useState<any[]>([]);
@@ -287,6 +293,31 @@ export default function HomePage() {
 
         void fetchData();
     }, [selectedClass, selectedDate]);
+
+    // Все нарушения класса (для блока со статусами и отработкой)
+    const loadClassViolations = useCallback(async (className: string) => {
+        setIsLoadingClassViolations(true);
+        try {
+            const response = await fetch(
+                `/api/violations?className=${encodeURIComponent(className)}&pageSize=100&stats=false`,
+            );
+            if (!response.ok) throw new Error(`Сервер вернул ошибку ${response.status}`);
+
+            const data = await response.json();
+            const rows = Array.isArray(data) ? data : Array.isArray(data?.violations) ? data.violations : [];
+            setClassViolations(rows);
+        } catch (error) {
+            console.error("Error fetching class violations:", error);
+            setClassViolations([]);
+        } finally {
+            setIsLoadingClassViolations(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!selectedClass || activeTab !== "violations") return;
+        void loadClassViolations(selectedClass.name);
+    }, [selectedClass, activeTab, loadClassViolations]);
 
     // Нарушения за выбранную дату
     useEffect(() => {
@@ -935,6 +966,10 @@ export default function HomePage() {
                             Добавить нарушение
                         </Button>
 
+                        <p className="px-1 text-xs font-medium uppercase tracking-wide text-fg-subtle">
+                            {isSelectedDateToday ? "Сегодня" : `За ${formatDateLocal(selectedDate)}`}
+                        </p>
+
                         <ViolationsList
                             showResolution
                             violations={todayViolations}
@@ -944,6 +979,34 @@ export default function HomePage() {
                                 isSelectedDateToday ? "Сегодня нарушений нет" : "Нарушений за выбранную дату нет"
                             }
                         />
+
+                        {/* Все нарушения класса: статусы и отработка классным руководителем */}
+                        <div className="flex items-center justify-between gap-2 px-1 pt-2">
+                            <p className="text-xs font-medium uppercase tracking-wide text-fg-subtle">
+                                Все нарушения класса
+                            </p>
+                            <span className="text-xs text-fg-subtle">
+                                {classViolations.filter((row: any) => !row.resolvedAt).length} ждут отработки
+                            </span>
+                        </div>
+
+                        <ViolationsAdminList
+                            violations={classViolations}
+                            isLoading={isLoadingClassViolations}
+                            selectable={false}
+                            onResolve={
+                                isClassTeacher
+                                    ? (violation: any) => setResolveTargets([violation])
+                                    : undefined
+                            }
+                            emptyMessage="Нарушений по классу нет"
+                        />
+
+                        {!isClassTeacher && (
+                            <p className="px-1 text-xs text-fg-subtle">
+                                Отработку отмечает классный руководитель или администрация.
+                            </p>
+                        )}
                     </div>
                 )}
 
@@ -1073,6 +1136,20 @@ export default function HomePage() {
                 )}
             </main>
 
+
+            {/* Отработка нарушения классным руководителем — отмечаем это флагом */}
+            <ResolveViolationModal
+                open={Boolean(resolveTargets)}
+                onClose={() => setResolveTargets(null)}
+                violations={resolveTargets ?? []}
+                source="class_teacher"
+                onDone={() => {
+                    setResolveTargets(null);
+                    if (selectedClass) {
+                        void loadClassViolations(selectedClass.name);
+                    }
+                }}
+            />
 
             {/* -------------------------------- Модалки ------------------------------- */}
             <PassModal

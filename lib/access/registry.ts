@@ -100,7 +100,9 @@ export const ACCESS_SECTIONS: AccessSection[] = [
         description: "Список нарушений с фильтрами, создание и удаление записей",
         group: "discipline",
         href: "/admin/violations",
-        defaultRoles: ["ADMIN", "CLASS_TEACHER", "HEAD_TEACHER", "METHODIST"],
+        // Классный руководитель работает с нарушениями через «Мой класс»:
+        // там он видит только свои классы и не получает полный доступ админки.
+        defaultRoles: ["ADMIN", "HEAD_TEACHER", "METHODIST"],
     },
     {
         id: "schoolRecords",
