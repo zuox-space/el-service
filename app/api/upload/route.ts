@@ -14,7 +14,7 @@ import { authOptions } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
 
-    const accessGuard = await requireSection("workspace");
+    const accessGuard = await requireSection("myClass");
     if (!accessGuard.ok) return accessGuard.response;
 
   const session = await getServerSession(authOptions);

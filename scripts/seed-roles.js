@@ -4,6 +4,7 @@ const prisma = new PrismaClient();
 
 async function seedRoles() {
   const roles = [
+    { name: "EMPLOYEE", description: "Сотрудник: вход и главная страница" },
     { name: "TEACHER", description: "Учитель (базовый доступ)" },
     { name: "CLASS_TEACHER", description: "Классный руководитель" },
     { name: "METHODIST", description: "Методист" },

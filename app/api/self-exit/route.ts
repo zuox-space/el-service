@@ -11,7 +11,7 @@ import { prisma } from "@/lib/prisma";
 
 // GET: Получить активные самовыходы
 export async function GET(req: NextRequest) {
-    const accessGuard = await requireSection("workspace");
+    const accessGuard = await requireSection("myClass");
     if (!accessGuard.ok) return accessGuard.response;
 
 
@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
 
 // POST: Создать самовыход
 export async function POST(req: NextRequest) {
-    const accessGuard = await requireSection("workspace");
+    const accessGuard = await requireSection("myClass");
     if (!accessGuard.ok) return accessGuard.response;
 
 
@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
 
 // DELETE: Удалить самовыход
 export async function DELETE(req: NextRequest) {
-    const accessGuard = await requireSection("workspace");
+    const accessGuard = await requireSection("myClass");
     if (!accessGuard.ok) return accessGuard.response;
 
 

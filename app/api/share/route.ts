@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
 
-    const accessGuard = await requireSection("workspace");
+    const accessGuard = await requireSection("myClass");
     if (!accessGuard.ok) return accessGuard.response;
 
   console.log("=== GET /api/share ===");
@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
 
-    const accessGuard = await requireSection("workspace");
+    const accessGuard = await requireSection("myClass");
     if (!accessGuard.ok) return accessGuard.response;
 
   console.log("\n=== POST /api/share START ===");
@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
 
-    const accessGuard = await requireSection("workspace");
+    const accessGuard = await requireSection("myClass");
     if (!accessGuard.ok) return accessGuard.response;
 
   console.log("\n=== DELETE /api/share ===");

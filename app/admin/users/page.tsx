@@ -317,10 +317,7 @@ export default function AdminUsersPage() {
             setCreateError("Проверьте email: он должен совпадать с почтой в Яндексе");
             return;
         }
-        if (createRoles.length === 0) {
-            setCreateError("Выберите хотя бы одну роль");
-            return;
-        }
+        // Роль можно не выбирать — сервер выдаст «Сотрудник» (доступ только к главной)
 
         setIsCreating(true);
         try {

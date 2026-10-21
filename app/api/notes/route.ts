@@ -13,7 +13,7 @@ import { prisma } from "@/lib/prisma";
 // GET: Получить заметки
 export async function GET(req: NextRequest) {
 
-    const accessGuard = await requireSection("workspace");
+    const accessGuard = await requireSection("myClass");
     if (!accessGuard.ok) return accessGuard.response;
 
   const session = await getServerSession(authOptions);
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
 // POST: Создать заметку
 export async function POST(req: NextRequest) {
 
-    const accessGuard = await requireSection("workspace");
+    const accessGuard = await requireSection("myClass");
     if (!accessGuard.ok) return accessGuard.response;
 
   const session = await getServerSession(authOptions);
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
 // PUT: Обновить статус заметки
 export async function PUT(req: NextRequest) {
 
-    const accessGuard = await requireSection("workspace");
+    const accessGuard = await requireSection("myClass");
     if (!accessGuard.ok) return accessGuard.response;
 
   const session = await getServerSession(authOptions);
@@ -129,7 +129,7 @@ export async function PUT(req: NextRequest) {
 // DELETE: Удалить заметку
 export async function DELETE(req: NextRequest) {
 
-    const accessGuard = await requireSection("workspace");
+    const accessGuard = await requireSection("myClass");
     if (!accessGuard.ok) return accessGuard.response;
 
   const session = await getServerSession(authOptions);

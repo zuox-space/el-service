@@ -13,6 +13,7 @@ export const ROLE_META: Record<string, { label: string; tone: RoleTone }> = {
     CLASS_TEACHER: { label: "Классный руководитель", tone: "success" },
     TEACHER: { label: "Учитель", tone: "neutral" },
     SECURITY: { label: "Охранник", tone: "info" },
+    EMPLOYEE: { label: "Сотрудник", tone: "neutral" },
 };
 
 export const roleLabel = (name: string): string => ROLE_META[name]?.label ?? name;

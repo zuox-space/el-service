@@ -10,7 +10,7 @@ import { query } from "@/lib/mysql_db";
 
 
 export async function GET(req: NextRequest) {
-    const accessGuard = await requireAnySection(["students", "workspace"]);
+    const accessGuard = await requireAnySection(["students", "myClass"]);
     if (!accessGuard.ok) return accessGuard.response;
 
 

@@ -23,7 +23,7 @@ function parseIntParam(value: string | null, fallback: number, min: number, max:
 // GET: Получить нарушения с фильтрами, пагинацией и статистикой
 export async function GET(req: NextRequest) {
     // Фиксировать нарушение может учитель на рабочем экране и раздел «Нарушения»
-    const accessGuard = await requireAnySection(["violations", "workspace"]);
+    const accessGuard = await requireAnySection(["violations", "myClass"]);
     if (!accessGuard.ok) return accessGuard.response;
 
 
@@ -174,7 +174,7 @@ export async function GET(req: NextRequest) {
 // POST: Создать нарушение
 export async function POST(req: NextRequest) {
     // Фиксировать нарушение может учитель на рабочем экране и раздел «Нарушения»
-    const accessGuard = await requireAnySection(["violations", "workspace"]);
+    const accessGuard = await requireAnySection(["violations", "myClass"]);
     if (!accessGuard.ok) return accessGuard.response;
 
 

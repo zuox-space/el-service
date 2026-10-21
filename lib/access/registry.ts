@@ -10,7 +10,7 @@
 // После этого раздел сам появится в матрице доступов у сотрудника и в фильтрации меню.
 
 export type AccessSectionId =
-    | "workspace"
+    | "myClass"
     | "dashboard"
     | "students"
     | "classes"
@@ -45,7 +45,7 @@ export interface AccessSection {
 }
 
 export const ACCESS_GROUPS: AccessGroup[] = [
-    { id: "workspace", title: "Рабочий экран" },
+    { id: "workspace", title: "Классное руководство" },
     { id: "dashboard", title: "Оперативно" },
     { id: "students", title: "Ученики и классы" },
     { id: "discipline", title: "Дисциплина" },
@@ -55,11 +55,11 @@ export const ACCESS_GROUPS: AccessGroup[] = [
 
 export const ACCESS_SECTIONS: AccessSection[] = [
     {
-        id: "workspace",
-        label: "Рабочий экран учителя",
+        id: "myClass",
+        label: "Мой класс",
         description: "Пропуска, отметка посещаемости, нарушения, самовыходы и доверенности своего класса",
         group: "workspace",
-        href: "/",
+        href: "/my-class",
         defaultRoles: ["CLASS_TEACHER", "TEACHER", "ADMIN", "METHODIST", "HEAD_TEACHER"],
     },
     {

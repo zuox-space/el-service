@@ -12,7 +12,7 @@ import { withDbMetrics, startDbMetrics } from "@/lib/dev-metrics";
 
 
 export async function GET() {
-    const accessGuard = await requireSection("workspace");
+    const accessGuard = await requireSection("myClass");
     if (!accessGuard.ok) return accessGuard.response;
 
 

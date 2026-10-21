@@ -10,7 +10,7 @@ import { prisma } from "@/lib/prisma";
 
 
 export async function GET(req: NextRequest) {
-    const accessGuard = await requireAnySection(["workspace", "schoolRecords"]);
+    const accessGuard = await requireAnySection(["myClass", "schoolRecords"]);
     if (!accessGuard.ok) return accessGuard.response;
 
 

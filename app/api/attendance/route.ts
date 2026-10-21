@@ -10,7 +10,7 @@ import { prisma } from "@/lib/prisma";
 
 // GET метод - получение отметки
 export async function GET(req: NextRequest) {
-    const accessGuard = await requireSection("workspace");
+    const accessGuard = await requireSection("myClass");
     if (!accessGuard.ok) return accessGuard.response;
 
 
@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
 
 // POST метод - сохранение отметки
 export async function POST(req: NextRequest) {
-    const accessGuard = await requireSection("workspace");
+    const accessGuard = await requireSection("myClass");
     if (!accessGuard.ok) return accessGuard.response;
 
 

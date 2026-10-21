@@ -13,7 +13,7 @@ import { prisma } from "@/lib/prisma";
 // GET: Получить новости для класса на дату
 export async function GET(req: NextRequest) {
 
-    const accessGuard = await requireSection("workspace");
+    const accessGuard = await requireSection("myClass");
     if (!accessGuard.ok) return accessGuard.response;
 
   const session = await getServerSession(authOptions);
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
 // POST: Создать новость
 export async function POST(req: NextRequest) {
 
-    const accessGuard = await requireSection("workspace");
+    const accessGuard = await requireSection("myClass");
     if (!accessGuard.ok) return accessGuard.response;
 
   const session = await getServerSession(authOptions);
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
 // DELETE: Удалить новость
 export async function DELETE(req: NextRequest) {
 
-    const accessGuard = await requireSection("workspace");
+    const accessGuard = await requireSection("myClass");
     if (!accessGuard.ok) return accessGuard.response;
 
   const session = await getServerSession(authOptions);

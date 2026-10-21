@@ -10,7 +10,7 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-    const accessGuard = await requireAnySection(["workspace", "dashboard"]);
+    const accessGuard = await requireAnySection(["myClass", "dashboard"]);
     if (!accessGuard.ok) return accessGuard.response;
 
 

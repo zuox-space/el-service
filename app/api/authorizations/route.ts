@@ -11,7 +11,7 @@ import { prisma } from "@/lib/prisma";
 
 // GET: Получить доверенности
 export async function GET(req: NextRequest) {
-    const accessGuard = await requireSection("workspace");
+    const accessGuard = await requireSection("myClass");
     if (!accessGuard.ok) return accessGuard.response;
 
 
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
 
 // POST: Создать доверенность
 export async function POST(req: NextRequest) {
-    const accessGuard = await requireSection("workspace");
+    const accessGuard = await requireSection("myClass");
     if (!accessGuard.ok) return accessGuard.response;
 
 
@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
 
 // PUT: Отозвать доверенность (в архив)
 export async function PUT(req: NextRequest) {
-    const accessGuard = await requireSection("workspace");
+    const accessGuard = await requireSection("myClass");
     if (!accessGuard.ok) return accessGuard.response;
 
 
@@ -144,7 +144,7 @@ export async function PUT(req: NextRequest) {
 
 // DELETE: Полное удаление (только админ)
 export async function DELETE(req: NextRequest) {
-    const accessGuard = await requireSection("workspace");
+    const accessGuard = await requireSection("myClass");
     if (!accessGuard.ok) return accessGuard.response;
 
 

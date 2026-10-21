@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 
 // GET: Получить пропуски
 export async function GET(req: NextRequest) {
-    const accessGuard = await requireAnySection(["workspace", "dashboard"]);
+    const accessGuard = await requireAnySection(["myClass", "dashboard"]);
     if (!accessGuard.ok) return accessGuard.response;
 
 
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
 
 // POST: Создать пропуск
 export async function POST(req: NextRequest) {
-    const accessGuard = await requireAnySection(["workspace", "dashboard"]);
+    const accessGuard = await requireAnySection(["myClass", "dashboard"]);
     if (!accessGuard.ok) return accessGuard.response;
 
 
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
 
 // PUT: Обновить пропуск (альтернатива PATCH)
 export async function PUT(req: NextRequest) {
-    const accessGuard = await requireAnySection(["workspace", "dashboard"]);
+    const accessGuard = await requireAnySection(["myClass", "dashboard"]);
     if (!accessGuard.ok) return accessGuard.response;
 
 
@@ -125,7 +125,7 @@ export async function PUT(req: NextRequest) {
 
 // DELETE: Удалить пропуск
 export async function DELETE(req: NextRequest) {
-    const accessGuard = await requireAnySection(["workspace", "dashboard"]);
+    const accessGuard = await requireAnySection(["myClass", "dashboard"]);
     if (!accessGuard.ok) return accessGuard.response;
 
 

@@ -12,7 +12,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET() {
 
-    const accessGuard = await requireAnySection(["users", "workspace"]);
+    const accessGuard = await requireAnySection(["users", "myClass"]);
     if (!accessGuard.ok) return accessGuard.response;
 
   try {

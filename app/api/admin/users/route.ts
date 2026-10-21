@@ -70,23 +70,26 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    // Назначаем роль, если указана
-    if (role) {
-      const roleRecord = await prisma.role.findFirst({
-        where: { name: role }
-      });
-      
-      if (roleRecord) {
-        await prisma.userRole.create({
-          data: {
-            userId: newUser.id,
-            roleId: roleRecord.id,
-            assignedBy: session.user.id
-          }
-        });
-      }
-    }
+    // Роль по умолчанию — «Сотрудник»: вход и главная страница, без доступов
+    // к разделам. Роль можно не передавать — сотрудник всё равно её получит.
+    const roleName = role || "EMPLOYEE";
+    const roleRecord = await prisma.role.upsert({
+      where: { name: roleName },
+      update: {},
+      create: {
+        name: roleName,
+        description: roleName === "EMPLOYEE" ? "Сотрудник: вход и главная страница" : null,
+        defaultSections: [],
+      },
+    });
 
+    await prisma.userRole.create({
+      data: {
+        userId: newUser.id,
+        roleId: roleRecord.id,
+        assignedBy: session.user.id
+      }
+    });
     // Возвращаем пользователя с ролями
     const userWithRoles = await prisma.user.findUnique({
       where: { id: newUser.id },

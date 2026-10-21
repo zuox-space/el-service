@@ -76,6 +76,7 @@ const ROLES = [
     { name: 'ADMIN', description: 'Администратор: статистика, ВШУ, персонал' },
     { name: 'CLASS_TEACHER', description: 'Классный руководитель' },
     { name: 'TEACHER', description: 'Учитель-предметник' },
+    { name: 'EMPLOYEE', description: 'Сотрудник: вход и главная страница' },
     { name: 'SECURITY', description: 'Охрана: просмотр выданных пропусков' },
 ];
 
