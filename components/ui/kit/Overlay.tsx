@@ -71,7 +71,8 @@ export function Overlay({
     const isMobile = useIsMobile();
 
     const asSide = variant === "side" && !isMobile;
-    const asSheet = !asSide && (variant === "sheet" || (variant === "auto" && isMobile));
+    // side на мобильном обязан стать шторкой снизу, а не центрированной модалкой
+    const asSheet = !asSide && (variant === "sheet" || variant === "side" || (variant === "auto" && isMobile));
 
     useEffect(() => setMounted(true), []);
 

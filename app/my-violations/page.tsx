@@ -5,12 +5,11 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { ArrowLeft, ChevronDown, History } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { signOut } from "next-auth/react";
-import { Badge, Card, Chip, PageHeader, Skeleton } from "@/components/ui/kit";
+import { Card, Chip, PageHeader, Skeleton } from "@/components/ui/kit";
+import { ViolationAccordion } from "@/components/ui/ViolationAccordion";
 import { MobilePageHeader } from "@/components/shell/MobilePageHeader";
-import { formatDateTimeMoscow } from "@/lib/date";
-import { getViolationType, resolverLabel } from "@/lib/violations";
 
 /**
  * «Мои фиксации» — история замечаний, которые сотрудник зафиксировал сам.
@@ -164,125 +163,14 @@ export default function MyViolationsPage() {
                     </Card>
                 )}
 
-                {isLoading ? (
-                    <div className="space-y-2">
-                        <Skeleton height={84} radius="card" />
-                        <Skeleton height={84} radius="card" />
-                    </div>
-                ) : violations.length === 0 && !error ? (
-                    <Card padding="none">
-                        <div className="px-4 py-10 text-center">
-                            <History size={22} className="mx-auto text-fg-subtle" aria-hidden />
-                            <p className="mt-2 text-sm text-fg">Вы ещё не фиксировали нарушения</p>
-                            <p className="mt-1 text-xs text-fg-muted">
-                                Нажмите кнопку с восклицательным знаком внизу справа — замечание появится здесь.
-                            </p>
-                            <Link
-                                href="/"
-                                className="mt-3 inline-flex items-center gap-1 text-xs text-fg-muted transition-colors hover:text-fg"
-                            >
-                                <ArrowLeft size={14} aria-hidden />
-                                На главную
-                            </Link>
-                        </div>
-                    </Card>
-                ) : (
-                    <ul role="list" className="space-y-2">
-                        {violations.map(violation => {
-                            const type = getViolationType(violation.violationType);
-                            const Icon = type.Icon;
-                            const resolved = Boolean(violation.resolvedAt);
-                            const expanded = expandedId === violation.id;
-
-                            return (
-                                <li key={violation.id}>
-                                    <Card padding="none" className="overflow-hidden">
-                                        <button
-                                            type="button"
-                                            onClick={() => setExpandedId(expanded ? null : violation.id)}
-                                            aria-expanded={expanded}
-                                            className="flex w-full items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-surface-hover"
-                                        >
-                                            <span
-                                                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-control ${type.bgColor}`}
-                                                aria-hidden
-                                            >
-                                                <Icon size={18} strokeWidth={1.75} className={type.color} />
-                                            </span>
-
-                                            <span className="min-w-0 flex-1">
-                                                <span className="flex flex-wrap items-center gap-1.5">
-                                                    <span className="truncate text-sm font-medium text-fg">
-                                                        {violation.studentName}
-                                                    </span>
-                                                    <span className={`shrink-0 text-xs ${type.color}`}>
-                                                        {type.shortLabel}
-                                                    </span>
-                                                </span>
-                                                <span className="mt-0.5 block truncate text-xs text-fg-subtle">
-                                                    {formatDateTimeMoscow(violation.date)} · {violation.className}
-                                                </span>
-                                                {violation.comment && (
-                                                    <span
-                                                        className={`mt-1 block text-xs text-fg-muted ${expanded ? "" : "truncate"}`}
-                                                    >
-                                                        {violation.comment}
-                                                    </span>
-                                                )}
-                                            </span>
-
-                                            {/* Статус — справа */}
-                                            <span className="flex shrink-0 flex-col items-end gap-1">
-                                                <Badge tone={resolved ? "success" : "warning"}>
-                                                    {resolved ? "Отработано" : "Не отработано"}
-                                                </Badge>
-                                                <ChevronDown
-                                                    size={16}
-                                                    className={`text-fg-subtle transition-transform ${expanded ? "rotate-180" : ""}`}
-                                                    aria-hidden
-                                                />
-                                            </span>
-                                        </button>
-
-                                        {expanded && (
-                                            <div className="space-y-1.5 border-t border-border bg-surface-2 px-3 py-2.5 text-xs">
-                                                <p className="text-fg-muted">
-                                                    <span className="text-fg-subtle">Ваш комментарий: </span>
-                                                    {violation.comment?.trim() ? violation.comment : "—"}
-                                                </p>
-
-                                                {resolved ? (
-                                                    <>
-                                                        <p className="text-fg-muted">
-                                                            <span className="text-fg-subtle">Отработано: </span>
-                                                            {resolverLabel(
-                                                                violation.resolvedByName,
-                                                                violation.resolvedSource,
-                                                            )}
-                                                            {violation.resolvedAt
-                                                                ? ` · ${formatDateTimeMoscow(violation.resolvedAt)}`
-                                                                : ""}
-                                                        </p>
-                                                        <p className="text-fg-muted">
-                                                            <span className="text-fg-subtle">Что сделано: </span>
-                                                            {violation.resolutionComment || "—"}
-                                                        </p>
-                                                    </>
-                                                ) : (
-                                                    <p className="text-warning">
-                                                        Ждёт отработки: администрация или классный руководитель ещё не
-                                                        отметили работу.
-                                                    </p>
-                                                )}
-                                            </div>
-                                        )}
-                                    </Card>
-                                </li>
-                            );
-                        })}
-                    </ul>
-                )}
-
+                <ViolationAccordion
+                    items={violations}
+                    isLoading={isLoading}
+                    showStudent
+                    showTeacher={false}
+                    emptyTitle="Вы ещё не фиксировали нарушения"
+                    emptyDescription="Нажмите кнопку с восклицательным знаком внизу справа — замечание появится здесь."
+                />
                 <p className="pb-6 text-center text-[11px] text-fg-subtle">
                     Нажмите на карточку, чтобы увидеть ответ по нарушению.
                 </p>

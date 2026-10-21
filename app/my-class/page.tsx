@@ -33,9 +33,8 @@ import AttendanceModal from "@/components/ui/AttendanceModal";
 import ClassSelector from "@/components/ui/ClassSelector";
 import SelfExitModal from "@/components/ui/SelfExitModal";
 import ViolationModal from "@/components/ui/ViolationModal";
-import ViolationsList from "@/components/ui/ViolationsList";
-import { ViolationsAdminList } from "@/components/ui/ViolationsAdminList";
 import { ResolveViolationModal } from "@/components/ui/ResolveViolationModal";
+import { ViolationAccordion } from "@/components/ui/ViolationAccordion";
 import AuthorizationModal from "@/components/ui/AuthorizationModal";
 import {
     Badge,
@@ -44,6 +43,7 @@ import {
     Card,
     EmptyState,
     InlineLoading,
+    SearchInput,
     List,
     ListItem,
     Modal,
@@ -139,9 +139,14 @@ export default function HomePage() {
     const [resolveTargets, setResolveTargets] = useState<any[] | null>(null);
     // Показ всех нарушений класса: диапазон дат и «Показать ещё»
     const [classRange, setClassRange] = useState<"all" | "today" | "week" | "month">("all");
-    const [classVisible, setClassVisible] = useState(20);
     // На мобильном вкладки живут в раскрывающемся меню — как панель фиксаций
     const [isTabMenuOpen, setIsTabMenuOpen] = useState(false);
+    // Нарушения класса: поиск по фамилии и постраничная загрузка по 5
+    const [classSearch, setClassSearch] = useState("");
+    const [classSearchQuery, setClassSearchQuery] = useState("");
+    const [classPage, setClassPage] = useState(1);
+    const [classTotal, setClassTotal] = useState(0);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [isLoadingViolations, setIsLoadingViolations] = useState(false);
 
     const [authorizations, setAuthorizations] = useState<any[]>([]);
@@ -185,7 +190,7 @@ export default function HomePage() {
 
     const tabs: TabType[] = useMemo(() => {
         const base: TabType[] = [
-            { id: "attendance", name: "Посещаемость", Icon: CheckCircle },
+            { id: "attendance", name: "Главная", Icon: CheckCircle },
             { id: "violations", name: "Нарушения", Icon: AlertTriangle },
             { id: "schoolRecord", name: "ВШУ", Icon: ShieldAlert },
         ];
@@ -305,12 +310,21 @@ export default function HomePage() {
 
     // Все нарушения класса (для блока со статусами и отработкой)
     const loadClassViolations = useCallback(
-        async (className: string, range: "all" | "today" | "week" | "month" = "all") => {
-            setIsLoadingClassViolations(true);
+        async (
+            className: string,
+            range: "all" | "today" | "week" | "month" = "all",
+            search: string = "",
+            page: number = 1,
+            append: boolean = false,
+        ) => {
+            if (append) setIsLoadingMore(true);
+            else setIsLoadingClassViolations(true);
+
             try {
                 const params = new URLSearchParams({
                     className,
-                    pageSize: "100",
+                    page: String(page),
+                    pageSize: "5",
                     stats: "false",
                 });
 
@@ -323,27 +337,38 @@ export default function HomePage() {
                     params.set("endDate", formatDateLocal(now));
                 }
 
+                if (search.trim()) params.set("search", search.trim());
+
                 const response = await fetch(`/api/violations?${params.toString()}`);
                 if (!response.ok) throw new Error(`Сервер вернул ошибку ${response.status}`);
 
                 const data = await response.json();
                 const rows = Array.isArray(data) ? data : Array.isArray(data?.violations) ? data.violations : [];
-                setClassViolations(rows);
-                setClassVisible(20);
+
+                setClassViolations(previous => (append ? [...previous, ...rows] : rows));
+                setClassTotal(typeof data?.total === "number" ? data.total : rows.length);
+                setClassPage(page);
             } catch (error) {
                 console.error("Error fetching class violations:", error);
-                setClassViolations([]);
+                if (!append) setClassViolations([]);
             } finally {
                 setIsLoadingClassViolations(false);
+                setIsLoadingMore(false);
             }
         },
         [],
     );
 
+    // Ввод в поиске не дёргает сервер на каждую букву
+    useEffect(() => {
+        const timer = setTimeout(() => setClassSearchQuery(classSearch.trim()), 350);
+        return () => clearTimeout(timer);
+    }, [classSearch]);
+
     useEffect(() => {
         if (!selectedClass || activeTab !== "violations") return;
-        void loadClassViolations(selectedClass.name, classRange);
-    }, [selectedClass, activeTab, classRange, loadClassViolations]);
+        void loadClassViolations(selectedClass.name, classRange, classSearchQuery, 1, false);
+    }, [selectedClass, activeTab, classRange, classSearchQuery, loadClassViolations]);
 
     // Нарушения за выбранную дату
     useEffect(() => {
@@ -832,12 +857,17 @@ export default function HomePage() {
                 </div>
 
                 {/* Класс */}
-                <ClassSelector
-                    selectedClass={selectedClass}
-                    onClassChange={handleClassChange}
-                    classes={classes}
-                    currentTeacherId={session.user?.id}
-                />
+                <div className="flex items-center justify-between gap-3">
+                    <h2 className="shrink-0 text-base font-semibold text-fg">Мой класс</h2>
+                    <div className="flex min-w-0 flex-1 items-center justify-end gap-2 border-l border-border pl-3">
+                        <ClassSelector
+                            selectedClass={selectedClass}
+                            onClassChange={handleClassChange}
+                            classes={classes}
+                            currentTeacherId={session.user?.id}
+                        />
+                    </div>
+                </div>
 
                 {/* Дата: компактная лента дней без подписи «Сегодня» и месяца */}
                 <WeekListScrollable selectedDate={selectedDate} setSelectedDate={setSelectedDate} />
@@ -1005,6 +1035,28 @@ export default function HomePage() {
                     </div>
                 )}
 
+                {/* Нарушения за выбранный день — на главной вкладке, с отработкой */}
+                {activeTab === "attendance" && (
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2 px-1">
+                            <p className="text-xs font-medium uppercase tracking-wide text-fg-subtle">
+                                {isSelectedDateToday ? "Нарушения за сегодня" : `Нарушения за ${formatDateLocal(selectedDate)}`}
+                            </p>
+                            <span className="text-xs text-fg-subtle">{todayViolations.length}</span>
+                        </div>
+
+                        <ViolationAccordion
+                            items={todayViolations}
+                            isLoading={isLoadingViolations}
+                            canResolve={isClassTeacher}
+                            onResolve={violation => setResolveTargets([violation])}
+                            emptyTitle={
+                                isSelectedDateToday ? "Сегодня нарушений нет" : "Нарушений за выбранную дату нет"
+                            }
+                        />
+                    </div>
+                )}
+
                 {/* --------------------------- Самовыходы --------------------------- */}
                 {activeTab === "self-exit" && (
                     <div className="space-y-3">
@@ -1049,29 +1101,12 @@ export default function HomePage() {
                             Добавить нарушение
                         </Button>
 
-                        <p className="px-1 text-xs font-medium uppercase tracking-wide text-fg-subtle">
-                            {isSelectedDateToday ? "Сегодня" : `За ${formatDateLocal(selectedDate)}`}
-                        </p>
-
-                        <ViolationsList
-                            showResolution
-                            violations={todayViolations}
-                            isLoading={isLoadingViolations}
-                            showClassName={false}
-                            emptyMessage={
-                                isSelectedDateToday ? "Сегодня нарушений нет" : "Нарушений за выбранную дату нет"
-                            }
+                        <SearchInput
+                            value={classSearch}
+                            onChange={setClassSearch}
+                            placeholder="Фамилия ученика"
+                            label="Поиск"
                         />
-
-                        {/* Все нарушения класса: статусы и отработка классным руководителем */}
-                        <div className="flex items-center justify-between gap-2 px-1 pt-2">
-                            <p className="text-xs font-medium uppercase tracking-wide text-fg-subtle">
-                                Все нарушения класса
-                            </p>
-                            <span className="text-xs text-fg-subtle">
-                                {classViolations.filter((row: any) => !row.resolvedAt).length} ждут отработки
-                            </span>
-                        </div>
 
                         <div className="flex flex-wrap items-center gap-1.5">
                             {(
@@ -1092,37 +1127,47 @@ export default function HomePage() {
                             ))}
                         </div>
 
-                        <ViolationsAdminList
-                            violations={classViolations.slice(0, classVisible)}
+                        <div className="flex items-center justify-between gap-2 px-1">
+                            <p className="text-xs font-medium uppercase tracking-wide text-fg-subtle">
+                                Все нарушения класса
+                            </p>
+                            <span className="text-xs text-fg-subtle">{classTotal} всего</span>
+                        </div>
+
+                        <ViolationAccordion
+                            items={classViolations}
                             isLoading={isLoadingClassViolations}
-                            selectable={false}
-                            onResolve={
-                                isClassTeacher
-                                    ? (violation: any) => setResolveTargets([violation])
-                                    : undefined
+                            canResolve={isClassTeacher}
+                            onResolve={violation => setResolveTargets([violation])}
+                            emptyTitle="Нарушений по классу нет"
+                            emptyDescription={
+                                classSearchQuery ? "Попробуйте другую фамилию" : "За выбранный период замечаний нет"
                             }
-                            emptyMessage="Нарушений по классу нет"
                         />
 
-                        {classViolations.length > classVisible && (
+                        {classViolations.length < classTotal && (
                             <Button
                                 fullWidth
                                 variant="secondary"
-                                onClick={() => setClassVisible(previous => previous + 20)}
+                                loading={isLoadingMore}
+                                onClick={() => {
+                                    if (!selectedClass) return;
+                                    void loadClassViolations(
+                                        selectedClass.name,
+                                        classRange,
+                                        classSearchQuery,
+                                        classPage + 1,
+                                        true,
+                                    );
+                                }}
                             >
-                                Показать ещё ({classViolations.length - classVisible})
+                                Показать ещё
                             </Button>
-                        )}
-
-                        {!isClassTeacher && (
-                            <p className="px-1 text-xs text-fg-subtle">
-                                Отработку отмечает классный руководитель или администрация.
-                            </p>
                         )}
                     </div>
                 )}
 
-                {/* ------------------------------- ВШУ ------------------------------ */}
+                                {/* ------------------------------- ВШУ ------------------------------ */}
                 {activeTab === "schoolRecord" && (
                     <div className="space-y-3">
                         {isLoadingSchoolRecords ? (
@@ -1258,7 +1303,7 @@ export default function HomePage() {
                 onDone={() => {
                     setResolveTargets(null);
                     if (selectedClass) {
-                        void loadClassViolations(selectedClass.name, classRange);
+                        void loadClassViolations(selectedClass.name, classRange, classSearchQuery, 1, false);
 
                         // Список «за сегодня» тоже обновляем — иначе статус менялся
                         // только после перезагрузки страницы

@@ -29,7 +29,7 @@ export function MobilePageHeader({
 }) {
     return (
         <header className="sticky top-0 z-20 border-b border-border bg-bg/95 backdrop-blur-sm md:hidden">
-            <div className="px-4 pt-2">
+            <div className="px-3 pt-2">
                 <ProfileMenu
                     userName={userName}
                     userEmail={userEmail}
@@ -37,10 +37,9 @@ export function MobilePageHeader({
                     onLogout={onLogout}
                     variant="full"
                 />
-                <p className="mt-0.5 truncate pl-1 text-xs text-fg-subtle">{userEmail}</p>
             </div>
 
-            <div className="flex items-center gap-1 px-2 pb-2 pt-1">
+            <div className="flex items-center gap-1 px-1 pb-2 pt-1">
                 <Link
                     href={backHref}
                     aria-label="Назад"
