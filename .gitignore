@@ -52,3 +52,7 @@ certificates
 /public/sw.js
 /public/workbox-*.js
 /public/fallback-*.js
+
+# deploy secrets and dumps
+deploy/env.production
+deploy/dumps/

@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.gitignore
+devdb
+deploy/env.production
+deploy/dumps
+*.log
+*.dump
+.env*
+!.env.example
+.DS_Store
+coverage
+backup_*.dump

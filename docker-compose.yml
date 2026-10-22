@@ -1,0 +1,42 @@
+services:
+  # Приложение. Порт наружу — APP_PORT из deploy/env.production (по умолчанию 3000).
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: el-service:latest
+    env_file:
+      - ./deploy/env.production
+    environment:
+      PORT: "3000"
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+  # Разовая миграция схемы: docker compose --profile setup run --rm migrate
+  migrate:
+    image: el-service:latest
+    profiles: ["setup"]
+    env_file:
+      - ./deploy/env.production
+    entrypoint: ["npx", "prisma", "db", "push", "--skip-generate", "--accept-data-loss"]
+    restart: "no"
+
+  # Нормализация классов: docker compose --profile setup run --rm normalize
+  normalize:
+    image: el-service:latest
+    profiles: ["setup"]
+    env_file:
+      - ./deploy/env.production
+    entrypoint: ["node", "scripts/normalize-class-names.mjs", "--apply"]
+    restart: "no"
