@@ -61,6 +61,7 @@ function runSync(fixture, options = {}) {
     ];
 
     if (options.apply !== false) args.push("--apply");
+    for (const extra of options.args ?? []) args.push(extra);
 
     // stdio: inherit — единственный режим, доступный в песочнице (pipe даёт EPERM)
     const result = spawnSync(process.execPath, args, { stdio: "inherit" });
@@ -225,8 +226,43 @@ async function main() {
     check("у второго есть EMPLOYEE", roleNames(secondUser).includes("EMPLOYEE"));
     check("конфликт попал в отчёт", conflict.report.classes.conflicts >= 1, conflict.report.classes.conflicts);
 
-    /* ---------------------------------- 8. Dry-run --------------------------------- */
-    console.log("\n8) Проверка без записи (dry-run)");
+    /* --------------------- 8. Класс у ручного сотрудника и охраны -------------------- */
+    console.log("\n8) Класс у ручного сотрудника: передаём; у охраны — не трогаем");
+    await reset();
+
+    const manualOwner = await prisma.user.create({
+        data: { email: "popova@school1298.ru", name: "Попова Наталья Сергеевна", syncEnabled: false },
+    });
+    const manualClass = await prisma.class.create({
+        data: { name: "8Б", grade: 8, letter: "Б", ownerId: manualOwner.id },
+    });
+
+    const guardRole = await prisma.role.create({ data: { name: "SECURITY", description: "Охрана" } });
+    const guardOwner = await prisma.user.create({
+        data: { email: "guard@school1298.ru", name: "Охранник", syncEnabled: false },
+    });
+    await prisma.userRole.create({ data: { userId: guardOwner.id, roleId: guardRole.id } });
+    const guardClass = await prisma.class.create({
+        data: { name: "4А", grade: 4, letter: "А", ownerId: guardOwner.id },
+    });
+
+    const manualRun = runSync("teachers-manual-class.json");
+    const reassigned = await classByName("8Б");
+    const stillGuard = await classByName("4А");
+    check("класс ручного сотрудника передан учителю из источника", reassigned?.owner?.email === "a.filippova@school1298.ru", reassigned?.owner?.email);
+    check("про передачу есть предупреждение", manualRun.report.warnings.some(item => item.includes("ручным сотрудником")), JSON.stringify(manualRun.report.warnings.slice(0, 2)));
+    check("класс охраны не тронут", stillGuard?.owner?.email === "guard@school1298.ru", stillGuard?.owner?.email);
+    check("профиль ручного сотрудника не изменён", (await userByEmail("popova@school1298.ru"))?.name === "Попова Наталья Сергеевна");
+
+    // Консервативный режим: не отбирать классы у ручных
+    await prisma.class.update({ where: { id: manualClass.id }, data: { ownerId: manualOwner.id } });
+    const keepRun = runSync("teachers-manual-class.json", { args: ["--keep-manual-classes"] });
+    const kept = await classByName("8Б");
+    check("с --keep-manual-classes класс остался за ручным", kept?.owner?.email === "popova@school1298.ru", kept?.owner?.email);
+    check("в отчёте есть предупреждение о пропуске", keepRun.report.warnings.some(item => item.includes("ручным сотрудником")), JSON.stringify(keepRun.report.warnings.slice(0, 2)));
+
+    /* ---------------------------------- 9. Dry-run --------------------------------- */
+    console.log("\n9) Проверка без записи (dry-run)");
     await reset();
     runSync("teachers-initial.json");
     const before = await prisma.user.count();
@@ -238,7 +274,7 @@ async function main() {
     check("ФИО не обновилось без --apply", (await userByEmail("m.ivanova@school1298.ru"))?.name === "Иванова Мария Петровна");
 
     /* ------------------------------- 9. Конфликт email ------------------------------ */
-    console.log("\n9) Email из источника занят другим сотрудником");
+    console.log("\n10) Email из источника занят другим сотрудником");
     await reset();
     await prisma.user.create({ data: { email: "taken@school1298.ru", name: "Занятый", syncEnabled: true } });
     await prisma.user.create({ data: { email: "mover@school1298.ru", name: "Переезжающий Старый", externalId: "302", syncEnabled: true } });

@@ -31,6 +31,9 @@ const SOURCE = args.source ?? SOURCE_DEFAULT;
 const APPLY = Boolean(args.apply);
 const REPORT_PATH = args.report ?? "sync-teachers-report.json";
 const VERBOSE = Boolean(args.verbose);
+// По умолчанию классы переходят к тому, кто указан в источнике. С флагом
+// --keep-manual-classes классы ручных сотрудников не трогаем вовсе.
+const KEEP_MANUAL_CLASSES = Boolean(args.keepManualClasses);
 const FETCH_TIMEOUT_MS = 45_000;
 const FETCH_RETRIES = 2;
 
@@ -500,13 +503,33 @@ async function main() {
                     ? claims.get(classInfo.name)?.some(item => item.email === owner.email.toLowerCase())
                     : false;
 
-                // Класс за ручным сотрудником или охраной — синхронизация не отбирает
-                if (owner && (!owner.syncEnabled || (securityRoleId && rolesByUser.get(owner.id)?.has(securityRoleId)))) {
+                // Охрану не трогаем никогда: её классы ведёт администратор вручную
+                const ownerIsSecurity = Boolean(
+                    owner && securityRoleId && rolesByUser.get(owner.id)?.has(securityRoleId),
+                );
+
+                if (owner && ownerIsSecurity) {
                     report.classes.conflicts++;
                     report.warnings.push(
-                        `Класс ${classInfo.name} закреплён за ${owner.name} (ручной/охрана) — ${record.name} не назначен`,
+                        `Класс ${classInfo.name} закреплён за охраной (${owner.name}) — ${record.name} не назначен`,
                     );
                     continue;
+                }
+
+                // Ручной сотрудник (syncEnabled=false): профиль не меняем, но класс
+                // передаём по источнику — классное руководство ведёт внешняя система
+                if (owner && !owner.syncEnabled) {
+                    if (KEEP_MANUAL_CLASSES) {
+                        report.classes.conflicts++;
+                        report.warnings.push(
+                            `Класс ${classInfo.name} закреплён за ручным сотрудником ${owner.name} — ${record.name} не назначен`,
+                        );
+                        continue;
+                    }
+
+                    report.warnings.push(
+                        `Класс ${classInfo.name}: был за ручным сотрудником ${owner.name}, передан ${record.name}`,
+                    );
                 }
 
                 if (ownerClaims && !winnerEmail) {

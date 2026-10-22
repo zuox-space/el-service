@@ -1,0 +1,16 @@
+{
+  "value": [
+    {
+      "Id": "401",
+      "name": "Филиппова Ангелина Валерьевна",
+      "email": "a.filippova@school1298.ru",
+      "classStr": "8-Б"
+    },
+    {
+      "Id": "402",
+      "name": "Кто-то С Классом",
+      "email": "someone@school1298.ru",
+      "classStr": "4-А"
+    }
+  ]
+}
