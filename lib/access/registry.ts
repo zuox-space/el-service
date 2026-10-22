@@ -150,7 +150,7 @@ export const ACCESS_SECTIONS: AccessSection[] = [
         description: "Добавление сотрудников, роли и выдача доступов к разделам",
         group: "admin",
         href: "/admin/users",
-        extraPaths: ["/admin/roles"],
+        extraPaths: ["/admin/roles", "/admin/sync"],
         adminOnly: true,
     },
 ];

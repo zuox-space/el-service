@@ -1,6 +1,7 @@
 import type { AccessSectionId } from "@/lib/access/registry";
 import {
     AlertTriangle,
+    RefreshCw,
     Shirt,
     ShieldCheck,
     BarChart3,
@@ -118,6 +119,7 @@ export const NAV_GROUPS: NavGroup[] = [
         items: [
             { id: "users", label: "Персонал", href: "/admin/users", icon: Users, section: "users" },
             { id: "roles", label: "Роли и доступы", href: "/admin/roles", icon: ShieldCheck, section: "users" },
+            { id: "sync", label: "Синхронизация", href: "/admin/sync", icon: RefreshCw, section: "users" },
         ],
     },
 
