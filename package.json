@@ -10,6 +10,7 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
+    "db:preflight": "node scripts/db-preflight.mjs",
     "postinstall": "prisma generate",
     "devdb": "node scripts/devdb.mjs",
     "devdb:bootstrap": "node scripts/devdb.mjs bootstrap",
