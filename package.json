@@ -22,6 +22,7 @@
     "devdb:test": "node scripts/devdb-test.mjs",
     "sync:teachers": "node scripts/sync-teachers.mjs",
     "sync:teachers:apply": "node scripts/sync-teachers.mjs --apply",
+    "sync:teachers:adopt": "node scripts/sync-teachers.mjs --adopt --apply",
     "sync:teachers:test": "node scripts/sync-teachers.test.mjs",
     "classes:normalize": "node scripts/normalize-class-names.mjs",
     "classes:normalize:apply": "node scripts/normalize-class-names.mjs --apply"

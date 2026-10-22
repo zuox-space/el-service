@@ -285,6 +285,34 @@ async function main() {
     check("занятый email не перезаписан", Boolean(owner), "taken@school1298.ru");
     check("ошибка про занятый email в отчёте", collision.report.skipped.emailTaken >= 1, collision.report.skipped.emailTaken);
 
+    /* --------------------------- 11. Первый запуск --adopt --------------------------- */
+    console.log("\n11) --adopt: существующие сотрудники берутся под синхронизацию");
+    await reset();
+
+    const legacyUser = await prisma.user.create({
+        data: { email: "manual@school1298.ru", name: "Старое Имя", syncEnabled: false },
+    });
+    const securityRole2 = await prisma.role.create({ data: { name: "SECURITY", description: "Охрана" } });
+    const guard2 = await prisma.user.create({
+        data: { email: "guard@school1298.ru", name: "Охранник", syncEnabled: false },
+    });
+    await prisma.userRole.create({ data: { userId: guard2.id, roleId: securityRole2.id } });
+
+    // без --adopt сотрудник ручной и не меняется
+    const withoutAdopt = runSync("teachers-special.json");
+    check("без --adopt ручной пропущен", withoutAdopt.report.skipped.manual >= 1, withoutAdopt.report.skipped.manual);
+    check("ФИО не изменилось без --adopt", (await userByEmail("manual@school1298.ru"))?.name === "Старое Имя");
+
+    // с --adopt — берём под управление
+    const withAdopt = runSync("teachers-special.json", { args: ["--adopt"] });
+    const adopted = await userByEmail("manual@school1298.ru");
+    check("сотрудник взят под синхронизацию", withAdopt.report.adopted >= 1, withAdopt.report.adopted);
+    check("флаг syncEnabled включён", adopted?.syncEnabled === true, adopted?.syncEnabled);
+    check("ФИО обновилось после adopt", adopted?.name === "Ручной Изменённый", adopted?.name);
+    check("роль EMPLOYEE выдана", roleNames(adopted).includes("EMPLOYEE"), roleNames(adopted));
+    check("класс 5Г закреплён", (await classByName("5Г"))?.owner?.email === "manual@school1298.ru");
+    check("охрана даже с --adopt не усыновлена", (await userByEmail("guard@school1298.ru"))?.syncEnabled === false);
+    check("охрана не получила ролей", JSON.stringify(roleNames(await userByEmail("guard@school1298.ru"))) === JSON.stringify(["SECURITY"]));
     console.log(`\n=== Итог: успешно ${passed}, провалено ${failed} ===`);
     if (existsSync(join(here, "fixtures", ".report.json"))) rmSync(join(here, "fixtures", ".report.json"));
 

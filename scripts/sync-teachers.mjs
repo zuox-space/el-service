@@ -34,6 +34,10 @@ const VERBOSE = Boolean(args.verbose);
 // По умолчанию классы переходят к тому, кто указан в источнике. С флагом
 // --keep-manual-classes классы ручных сотрудников не трогаем вовсе.
 const KEEP_MANUAL_CLASSES = Boolean(args.keepManualClasses);
+// Первый запуск на существующей базе: сотрудники, созданные старым импортом,
+// помечены как ручные. С флагом --adopt мы «усыновляем» их: включаем
+// синхронизацию, чтобы не создавать дубли и начать управлять данными.
+const ADOPT_MANUAL = Boolean(args.adopt);
 const FETCH_TIMEOUT_MS = 45_000;
 const FETCH_RETRIES = 2;
 
@@ -56,6 +60,7 @@ const report = {
     updated: 0,
     archived: 0,
     restored: 0,
+    adopted: 0,
     skipped: { invalid: 0, security: 0, manual: 0, emailTaken: 0 },
     classes: { created: 0, assigned: 0, reassigned: 0, released: 0, conflicts: 0 },
     roles: { added: 0, removed: 0 },
@@ -365,11 +370,20 @@ async function main() {
             continue;
         }
 
-        // Созданные вручную (флаг выключен) не трогаем
+        // Созданные вручную (флаг выключен) не трогаем — если не включён --adopt
         if (user && !user.syncEnabled) {
-            report.skipped.manual++;
-            detail("skip", `ручной сотрудник, syncEnabled=false: ${user.name}`, { userId: user.id });
-            continue;
+            if (!ADOPT_MANUAL) {
+                report.skipped.manual++;
+                detail("skip", `ручной сотрудник, syncEnabled=false: ${user.name}`, { userId: user.id });
+                continue;
+            }
+
+            report.adopted++;
+            detail("user*", `взят под синхронизацию: ${user.name} (${user.email})`, { userId: user.id });
+            if (APPLY) {
+                await prisma.user.update({ where: { id: user.id }, data: { syncEnabled: true } });
+            }
+            user.syncEnabled = true;
         }
 
         let created = false;
@@ -600,6 +614,7 @@ function printSummary() {
     log(`  создано пользователей:      ${report.created}`);
     log(`  обновлено (ФИО/email):      ${report.updated}`);
     log(`  восстановлено из архива:    ${report.restored}`);
+    log(`  взято под синхронизацию:    ${report.adopted ?? 0}`);
     log(`  архивировано (уволены):     ${report.archived}`);
     log(`  пропущено:                  ${report.skipped.invalid} без данных, ${report.skipped.manual} ручных, ${report.skipped.security} охрана`);
     log(`  классы:                     +${report.classes.created} создано, ${report.classes.assigned} закреплено, ${report.classes.reassigned} перезакреплено, −${report.classes.released} освобождено`);
