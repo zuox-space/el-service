@@ -1,5 +1,8 @@
-# Аудит миграции сотрудников (`scripts/migrate-teachers-full.js`)
+# Аудит миграции сотрудников (scripts/migrate-teachers-full.js)
 
+> **Обновление:** скрипт переписан в scripts/sync-teachers.mjs (ветка el-service-teachers-sync).
+> Актуальное поведение и запуск описаны в [TEACHERS-SYNC.md](./TEACHERS-SYNC.md).
+> Этот документ остаётся как история аудита.
 Дата: проверка выполнена на текущей ветке `el-service-v2-test`, данные источника
 запрошены вживую, состояние БД — моковая PostgreSQL на `127.0.0.1:55432`.
 

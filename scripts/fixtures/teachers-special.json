@@ -1,0 +1,22 @@
+{
+  "value": [
+    {
+      "Id": "901",
+      "name": "Охранник Изменённый",
+      "email": "guard@school1298.ru",
+      "classStr": "4-А"
+    },
+    {
+      "Id": "902",
+      "name": "Новый Учитель",
+      "email": "new.teacher@school1298.ru",
+      "classStr": "1-Б"
+    },
+    {
+      "Id": "903",
+      "name": "Ручной Изменённый",
+      "email": "manual@school1298.ru",
+      "classStr": "5-Г"
+    }
+  ]
+}

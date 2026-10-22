@@ -1,0 +1,34 @@
+{
+  "value": [
+    {
+      "Id": "101",
+      "name": "Иванова Мария Сергеевна",
+      "email": "m.s.ivanova@school1298.ru",
+      "classStr": "6-А"
+    },
+    {
+      "Id": "102",
+      "name": "Петров Сергей Александрович",
+      "email": "s.petrov@school1298.ru",
+      "classStr": "2-А"
+    },
+    {
+      "Id": "103",
+      "name": "Смирнова Ольга Викторовна",
+      "email": "o.smirnova@school1298.ru",
+      "classStr": "9-Б, 9-В"
+    },
+    {
+      "Id": "105",
+      "name": "Кривой Класс",
+      "email": "bad.class@school1298.ru",
+      "classStr": "3-А"
+    },
+    {
+      "Id": "106",
+      "name": "Новиков Илья Андреевич",
+      "email": "i.novikov@school1298.ru",
+      "classStr": "7-Г"
+    }
+  ]
+}

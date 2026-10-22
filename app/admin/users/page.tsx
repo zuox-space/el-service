@@ -50,6 +50,10 @@ interface StaffUser {
     email: string;
     name: string;
     createdAt: string;
+    externalId?: string | null;
+    syncEnabled?: boolean;
+    archived?: boolean;
+    archivedAt?: string | null;
     userRoles?: Array<{ role: RoleInfo }>;
 }
 
@@ -90,6 +94,8 @@ export default function AdminUsersPage() {
 
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [createForm, setCreateForm] = useState({ name: "", email: "" });
+    const [createSyncEnabled, setCreateSyncEnabled] = useState(false);
+    const [syncBusy, setSyncBusy] = useState(false);
     const [createRoles, setCreateRoles] = useState<string[]>([]);
     const [isCreating, setIsCreating] = useState(false);
     const [createError, setCreateError] = useState<string | null>(null);
@@ -303,6 +309,31 @@ export default function AdminUsersPage() {
         void saveAccess(enabled, enabled ? accessInfo.roleDefaults : []);
     };
 
+    const toggleSync = async (user: StaffUser, enabled: boolean) => {
+        setSyncBusy(true);
+        try {
+            const response = await fetch(`/api/admin/users/${user.id}/sync`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ syncEnabled: enabled }),
+            });
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.error || "Не удалось изменить флаг синхронизации");
+            }
+            await fetchData();
+            toast.show({
+                title: enabled ? "Синхронизация включена" : "Синхронизация выключена",
+                description: user.name,
+                tone: "success",
+            });
+        } catch (e) {
+            toast.show({ title: e instanceof Error ? e.message : "Ошибка", tone: "danger" });
+        } finally {
+            setSyncBusy(false);
+        }
+    };
+
     const createUser = async () => {
         setCreateError(null);
 
@@ -327,7 +358,7 @@ export default function AdminUsersPage() {
             const response = await fetch("/api/admin/users", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name, email, role: first?.name }),
+                body: JSON.stringify({ name, email, role: first?.name, syncEnabled: createSyncEnabled }),
             });
 
             if (!response.ok) {
@@ -357,6 +388,7 @@ export default function AdminUsersPage() {
 
             setIsCreateOpen(false);
             setCreateForm({ name: "", email: "" });
+            setCreateSyncEnabled(false);
             setCreateRoles([]);
         } catch (e) {
             setCreateError(e instanceof Error ? e.message : "Не удалось добавить сотрудника");
@@ -371,7 +403,11 @@ export default function AdminUsersPage() {
             header: "Сотрудник",
             render: user => (
                 <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-fg">{user.name}</p>
+                    <p className="flex items-center gap-1.5 truncate text-sm font-medium text-fg">
+                        <span className="truncate">{user.name}</span>
+                        {user.archived && <Badge tone="warning">архив</Badge>}
+                        {user.syncEnabled && !user.archived && <Badge tone="info">АИС</Badge>}
+                    </p>
                     <p className="truncate text-xs text-fg-subtle">{user.email}</p>
                 </div>
             ),
@@ -558,6 +594,28 @@ export default function AdminUsersPage() {
                             </Button>
                         </div>
 
+                        <div className="rounded-card border border-dashed border-border p-2">
+                            <Switch
+                                checked={Boolean(editingUser.syncEnabled)}
+                                onChange={checked => void toggleSync(editingUser, checked)}
+                                disabled={syncBusy}
+                                label="Синхронизация с АИС"
+                                description={
+                                    editingUser.syncEnabled
+                                        ? "ФИО, почта и классы обновляются из внешней системы"
+                                        : "Сотрудник ведётся вручную — синхронизация его не трогает"
+                                }
+                            />
+                            {editingUser.archived && (
+                                <p className="mt-2 px-1 text-xs text-warning">
+                                    В архиве: сотрудник исчез из источника синхронизации. Данные и история сохранены.
+                                </p>
+                            )}
+                            {editingUser.externalId && (
+                                <p className="mt-1 px-1 text-xs text-fg-subtle">ID в АИС: {editingUser.externalId}</p>
+                            )}
+                        </div>
+
                         <div>
                             <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-fg-subtle">
                                 Роли и права
@@ -742,6 +800,15 @@ export default function AdminUsersPage() {
                             <ShieldCheck size={12} aria-hidden />
                             Можно выбрать несколько ролей сразу
                         </p>
+                    </div>
+
+                    <div className="rounded-card border border-dashed border-border p-1">
+                        <Checkbox
+                            checked={createSyncEnabled}
+                            onChange={setCreateSyncEnabled}
+                            label="Синхронизировать с АИС"
+                            description="ФИО, почта и классы будут обновляться из внешней системы. Ручные сотрудники (охрана) — без флага"
+                        />
                     </div>
                 </div>
             </Sheet>

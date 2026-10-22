@@ -1,0 +1,16 @@
+{
+  "value": [
+    {
+      "Id": "201",
+      "name": "Конфликтова Первый",
+      "email": "first@school1298.ru",
+      "classStr": "8-Д"
+    },
+    {
+      "Id": "202",
+      "name": "Конфликтова Вторая",
+      "email": "second@school1298.ru",
+      "classStr": "8-Д"
+    }
+  ]
+}

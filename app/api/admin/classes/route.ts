@@ -33,7 +33,7 @@ export async function GET() {
     });
 
     // Владельцы классов — одним запросом вместо запроса на каждый класс (был N+1)
-    const ownerIds = [...new Set(classes.map(cls => cls.ownerId))];
+    const ownerIds = [...new Set(classes.map(cls => cls.ownerId).filter((id): id is string => Boolean(id)))];
     const owners = await prisma.user.findMany({
       where: { id: { in: ownerIds } },
       select: { id: true, name: true, email: true },
@@ -61,7 +61,7 @@ export async function GET() {
     const schoolDays = countSchoolDays(academicYearStart, new Date());
 
     const parsedClasses = classes.map((cls) => {
-      const owner = ownerById.get(cls.ownerId) || null;
+      const owner = cls.ownerId ? ownerById.get(cls.ownerId) ?? null : null;
       const students = (studentsByClass.get(cls.name) || []).map((student) => ({
         id: student.aisId,
         name: student.name

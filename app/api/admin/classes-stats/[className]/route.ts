@@ -50,10 +50,12 @@ export async function GET(
         }
 
         // 2. Владелец класса
-        const owner = await prisma.user.findUnique({
+        const owner = classData.ownerId
+            ? await prisma.user.findUnique({
             where: { id: classData.ownerId },
             select: { id: true, name: true, email: true },
-        });
+        })
+            : null;
 
         // 3. Список учеников класса из MySQL
         const students = await query<StudentInfo>(`

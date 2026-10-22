@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { email, name, role } = body;
+    const { email, name, role, syncEnabled } = body;
 
     if (!email || !name) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -67,6 +67,8 @@ export async function POST(req: NextRequest) {
       data: {
         email,
         name,
+        // Создан вручную: по умолчанию синхронизацией не управляется
+        syncEnabled: syncEnabled === true,
       }
     });
 

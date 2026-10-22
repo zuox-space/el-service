@@ -18,6 +18,15 @@ model User {
   // true — действует только то, что явно отмечено в SectionAccess.
   accessOverride Boolean @default(false)
 
+  // Синхронизация с АИС (portal workers). externalId — стабильный Id записи,
+  // syncEnabled — участвует ли сотрудник в синхронизации (у созданных вручную false).
+  externalId  String?   @unique
+  syncEnabled Boolean   @default(false)
+
+  // Уволенные не удаляются: аккаунт архивируется, история остаётся
+  archived   Boolean   @default(false)
+  archivedAt DateTime?
+
   // Обратные связи
   ownedClasses  Class[]         @relation("Owner")
   classShares   ClassShare[]    // Классы, которыми поделились с пользователем
@@ -74,12 +83,15 @@ model Class {
   name      String
   grade     Int
   letter    String
-  ownerId   String
+  ownerId   String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  owner User @relation("Owner", fields: [ownerId], references: [id])
+  owner User? @relation("Owner", fields: [ownerId], references: [id])
+
+  /// Имя класса — каноническое («5А»); дубли недопустимы
+  @@unique([name])
   
   // Обратная связь для шарингов
   sharedWith ClassShare[]
