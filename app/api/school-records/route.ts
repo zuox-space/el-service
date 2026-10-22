@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from "next/server";
+import { normalizeClassName } from "@/lib/class-name";
 
 import { requireAnySection } from "@/lib/access/server";
 import { getServerSession } from "next-auth";
@@ -83,7 +84,7 @@ export async function POST(req: NextRequest) {
             data: {
                 studentId: String(studentId),
                 studentName,
-                className: className || "",
+                className: normalizeClassName(className),
                 registeredAt: registeredAt ? new Date(registeredAt) : new Date(),
                 registeredBy: session.user.id,
                 registeredByName: session.user.name || "Неизвестно",

@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from "next/server";
+import { normalizeClassName } from "@/lib/class-name";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -42,7 +43,7 @@ export async function GET(
 
         // 1. Информация о классе
         const classData = await prisma.class.findFirst({
-            where: { name: className },
+            where: { name: normalizeClassName(className) },
         });
 
         if (!classData) {
@@ -64,9 +65,9 @@ export async function GET(
         CONCAT(lastName, ' ', firstName) AS name,
         className 
       FROM students 
-      WHERE archive = 0 AND className = ?
+      WHERE archive = 0 AND REPLACE(REPLACE(UPPER(className), '-', ''), ' ', '') = ?
       ORDER BY lastName, firstName
-    `, [className]);
+    `, [normalizeClassName(className)]);
 
         // 4. Активные самовыходы класса
         const today = new Date();
@@ -90,7 +91,7 @@ export async function GET(
         // 6. Активные доверенности класса
         const activeAuthorizations = await prisma.authorization.findMany({
             where: {
-                className: className,
+                className: normalizeClassName(className),
                 isActive: true,
             },
             orderBy: { createdAt: 'desc' },
@@ -98,7 +99,7 @@ export async function GET(
 
         // 7. Все доверенности (включая архивные)
         const allAuthorizations = await prisma.authorization.findMany({
-            where: { className: className },
+            where: { className: normalizeClassName(className) },
         });
 
         // 8. Формируем список учеников с флагами

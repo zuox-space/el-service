@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from "next/server";
+import { normalizeClassName } from "@/lib/class-name";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
 
     try {
         const { searchParams } = new URL(req.url);
-        const className = searchParams.get("className");
+        const className = normalizeClassName(searchParams.get("className"));
 
         if (!className) {
             return NextResponse.json([]);

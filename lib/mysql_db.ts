@@ -1,5 +1,6 @@
 // lib/db.ts
 import { Student } from '@/types';
+import { normalizeClassName } from "./class-name";
 import mysql from 'mysql2/promise';
 
 // ============================================================================
@@ -169,12 +170,16 @@ export async function getStudentsGroupedByClass(options: { force?: boolean } = {
     const byClass = new Map<string, Student[]>();
     for (const student of all) {
         if (!student.className) continue;
-        const list = byClass.get(student.className);
+        // В АИС бывает «5-А», у нас канонический «5А» — ключ всегда без дефиса
+        const key = normalizeClassName(student.className);
+        const normalized = { ...student, className: key };
+        const list = byClass.get(key);
         if (list) {
-            list.push(student);
+            list.push(normalized);
         } else {
-            byClass.set(student.className, [student]);
+            byClass.set(key, [normalized]);
         }
+
     }
     return byClass;
 }

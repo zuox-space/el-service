@@ -168,7 +168,8 @@ async function loadSource(source) {
         throw new Error(`Не удалось загрузить источник: ${lastError?.message ?? "unknown"}`);
     }
 
-    const payload = JSON.parse(readFileSync(source, "utf8"));
+    // BOM в начале файла ломает JSON.parse — убираем
+    const payload = JSON.parse(readFileSync(source, "utf8").replace(/^\uFEFF/, ""));
     const list = Array.isArray(payload) ? payload : Array.isArray(payload?.value) ? payload.value : null;
     if (!list) throw new Error("В файле нет массива записей (value)");
     return list;

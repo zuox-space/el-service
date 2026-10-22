@@ -25,6 +25,8 @@ const devProvider = CredentialsProvider({
       include: { userRoles: { include: { role: true } } },
     });
     if (!user) return null;
+    // Уволенные (архив) не входят; при возврате синхронизация снимет архив
+    if (user.archived) return null;
 
     return {
       id: user.id,
@@ -64,6 +66,11 @@ export const authOptions: NextAuthOptions = {
         return false;
       }
 
+      if (existingUser.archived) {
+        console.warn("Вход отклонён: сотрудник в архиве:", user.email);
+        return false;
+      }
+
       return true;
     },
     async jwt({ token, user, trigger }) {
@@ -88,6 +95,8 @@ export const authOptions: NextAuthOptions = {
         });
         if (userWithRoles) {
           token.roles = userWithRoles.userRoles.map(ur => ur.role.name);
+          // Архивированный сотрудник теряет сессию; вернётся — архив снимет синхронизация
+          token.archived = userWithRoles.archived;
           // Если имя в БД отличается от того, что в токене - обновляем
           if (userWithRoles.name !== token.name) {
             token.name = userWithRoles.name;
@@ -98,6 +107,7 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
+      if (token.archived) return null as unknown as typeof session;
       if (session.user) {
         session.user.id = token.id as string;
         session.user.name = token.name as string; // Используем имя из БД

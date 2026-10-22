@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 
 import { requireAnySection, requireSection } from "@/lib/access/server";
 import { getDayRange, parseLocalDate } from "@/lib/date";
+import { normalizeClassName } from "@/lib/class-name";
 
 
 const MAX_PAGE_SIZE = 100;
@@ -71,7 +72,7 @@ export async function GET(req: NextRequest) {
             if (endDate) where.date.lte = getDayRange(endDate).end;
         }
 
-        if (className) where.className = className;
+        if (className) where.className = normalizeClassName(className);
 
         // Фильтр по корпусу: у нарушения нет поля «параллель», поэтому берём классы
         // нужных параллелей и фильтруем по их названиям.
@@ -218,7 +219,7 @@ export async function POST(req: NextRequest) {
             data: {
                 studentId: String(studentId),
                 studentName,
-                className: className || "",
+                className: normalizeClassName(className),
                 violationType,
                 comment: comment || "",
                 teacherId: session.user.id,

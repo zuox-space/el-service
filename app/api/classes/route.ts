@@ -6,6 +6,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getStudentsGroupedByClass } from "@/lib/mysql_db";
+import { normalizeClassName } from "@/lib/class-name";
 
 import { requireSection } from "@/lib/access/server";
 import { withDbMetrics, startDbMetrics } from "@/lib/dev-metrics";
@@ -51,7 +52,7 @@ export async function GET() {
 
     const parsedClasses = myClasses.map((cls) => {
       const isOwner = cls.ownerId === userId;
-      const students = (studentsByClass.get(cls.name) || []).map((student) => ({
+      const students = (studentsByClass.get(normalizeClassName(cls.name)) || []).map((student) => ({
         id: student.aisId,
         name: student.name,
       }));
