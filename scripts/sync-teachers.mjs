@@ -61,7 +61,7 @@ const report = {
     archived: 0,
     restored: 0,
     adopted: 0,
-    skipped: { invalid: 0, security: 0, manual: 0, emailTaken: 0 },
+    skipped: { invalid: 0, security: 0, manual: 0, admin: 0, emailTaken: 0 },
     classes: { created: 0, assigned: 0, reassigned: 0, released: 0, conflicts: 0 },
     roles: { added: 0, removed: 0 },
     errors: [],
@@ -284,6 +284,8 @@ async function main() {
 
     const securityRole = await prisma.role.findUnique({ where: { name: SKIP_ROLE } });
     const securityRoleId = securityRole?.id ?? null;
+    const adminRole = await prisma.role.findUnique({ where: { name: "ADMIN" } });
+    const adminRoleId = adminRole?.id ?? null;
 
     const users = await prisma.user.findMany({
         include: { userRoles: true, ownedClasses: true },
@@ -582,6 +584,18 @@ async function main() {
         if (!user.syncEnabled) continue;
         if (seenUserIds.has(user.id)) continue;
         if (await isSecurity(user, securityRoleId, rolesByUser)) continue;
+
+        // Администратора не архивируем автоматически: иначе можно потерять доступ
+        // к управлению системой. Такие случаи — только вручную.
+        if (adminRoleId && rolesByUser.get(user.id)?.has(adminRoleId)) {
+            report.skipped.admin++;
+            report.warnings.push(
+                `Администратор ${user.name} (${user.email}) отсутствует в источнике — не архивирован, проверьте вручную`,
+            );
+            detail("skip", `админ вне источника: ${user.name}`, { userId: user.id });
+            continue;
+        }
+
         if (user.archived) continue;
 
         report.archived++;
@@ -616,7 +630,7 @@ function printSummary() {
     log(`  восстановлено из архива:    ${report.restored}`);
     log(`  взято под синхронизацию:    ${report.adopted ?? 0}`);
     log(`  архивировано (уволены):     ${report.archived}`);
-    log(`  пропущено:                  ${report.skipped.invalid} без данных, ${report.skipped.manual} ручных, ${report.skipped.security} охрана`);
+    log(`  пропущено:                  ${report.skipped.invalid} без данных, ${report.skipped.manual} ручных, ${report.skipped.security} охрана, ${report.skipped.admin ?? 0} админов`);
     log(`  классы:                     +${report.classes.created} создано, ${report.classes.assigned} закреплено, ${report.classes.reassigned} перезакреплено, −${report.classes.released} освобождено`);
     log(`  конфликты классов:          ${report.classes.conflicts}`);
     log(`  роли:                       +${report.roles.added} / −${report.roles.removed}`);

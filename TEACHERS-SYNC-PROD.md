@@ -42,6 +42,11 @@ pnpm build
 
 ## 3. Миграция схемы
 
+> Нужны права **владельца таблиц** или суперпользователя: `ALTER TABLE` и `CREATE INDEX`
+> не выполняются ролью с обычными DML-правами. Если приложение ходит под `nextapp`,
+> миграцию запускайте под `nextapp` (или попросите DBA).
+
+
 Нужны четыре поля у `User` (`externalId`, `syncEnabled`, `archived`, `archivedAt`),
 nullable `Class.ownerId` и два уникальных индекса.
 

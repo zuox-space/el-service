@@ -313,6 +313,20 @@ async function main() {
     check("класс 5Г закреплён", (await classByName("5Г"))?.owner?.email === "manual@school1298.ru");
     check("охрана даже с --adopt не усыновлена", (await userByEmail("guard@school1298.ru"))?.syncEnabled === false);
     check("охрана не получила ролей", JSON.stringify(roleNames(await userByEmail("guard@school1298.ru"))) === JSON.stringify(["SECURITY"]));
+    /* ------------------- 12. Администратор вне источника не архивируется ------------------- */
+    console.log("\n12) Администратор вне источника — не архивируется");
+    await reset();
+    const adminRole = await prisma.role.create({ data: { name: "ADMIN", description: "Администратор" } });
+    const adminUser = await prisma.user.create({
+        data: { email: "admin@school1298.ru", name: "Админ", syncEnabled: true },
+    });
+    await prisma.userRole.create({ data: { userId: adminUser.id, roleId: adminRole.id } });
+
+    const adminRun = runSync("teachers-special.json");
+    const adminAfter = await userByEmail("admin@school1298.ru");
+    check("админ не архивирован", adminAfter?.archived === false, adminAfter?.archived);
+    check("счётчик админов в отчёте", adminRun.report.skipped.admin >= 1, adminRun.report.skipped.admin);
+    check("есть предупреждение про админа", adminRun.report.warnings.some(item => item.includes("Администратор")), JSON.stringify(adminRun.report.warnings.slice(0, 2)));
     console.log(`\n=== Итог: успешно ${passed}, провалено ${failed} ===`);
     if (existsSync(join(here, "fixtures", ".report.json"))) rmSync(join(here, "fixtures", ".report.json"));
 
