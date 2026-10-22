@@ -359,6 +359,9 @@ async function main() {
 
     const seenUserIds = new Set();
 
+    // Сколько классов реально закреплено за сотрудником (для роли CLASS_TEACHER)
+    const assignedClassCount = new Map();
+
     for (const record of records) {
         let user =
             (record.externalId ? userByExternalId.get(record.externalId) : null) ??
@@ -508,10 +511,14 @@ async function main() {
                     classByName.set(row.name, row);
                 }
                 await setClassOwner(createdClass, user.id, { created: true });
+                assignedClassCount.set(user.id, (assignedClassCount.get(user.id) ?? 0) + 1);
                 continue;
             }
 
-            if (existing.ownerId === user.id) continue;
+            if (existing.ownerId === user.id) {
+                assignedClassCount.set(user.id, (assignedClassCount.get(user.id) ?? 0) + 1);
+                continue;
+            }
 
             if (existing.ownerId && existing.ownerId !== user.id) {
                 const owner = users.find(item => item.id === existing.ownerId);
@@ -558,6 +565,7 @@ async function main() {
             }
 
             await setClassOwner(existing, user.id, { reassigned: Boolean(existing.ownerId && existing.ownerId !== user.id) });
+            assignedClassCount.set(user.id, (assignedClassCount.get(user.id) ?? 0) + 1);
         }
 
         // Классы, которые сотрудник вёл раньше, но в источнике их больше нет
@@ -572,9 +580,7 @@ async function main() {
         }
 
         // Роль классного руководителя — только если после синхронизации есть класс
-        const ownedCount = APPLY
-            ? await prisma.class.count({ where: { ownerId: user.id } })
-            : record.desired.length;
+        const ownedCount = assignedClassCount.get(user.id) ?? 0;
 
         await ensureRole(user.id, CLASS_TEACHER, ownedCount > 0);
     }

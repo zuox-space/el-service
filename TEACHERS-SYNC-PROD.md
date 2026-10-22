@@ -56,6 +56,17 @@ nullable `Class.ownerId` и два уникальных индекса.
 pnpm db:push
 ```
 
+`db push` приводит схему к текущему коду целиком: не только поля синхронизации,
+но и `Role.defaultSections`, `User.accessOverride`, `SectionAccess`, поля
+`Violation.resolved*`. Именно этого не хватало на `el_pass_copy` — одного SQL
+из `scripts/sql` мало, если база отстала от кода.
+
+Проверить, чего не хватает, можно diff-ом:
+
+```bash
+npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --script
+```
+
 `prisma db push` добавит колонки и индексы. Если в `Class` есть дубли имён —
 он остановится на предупреждении: переходите к варианту Б.
 
