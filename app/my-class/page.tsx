@@ -819,18 +819,16 @@ export default function HomePage() {
     /* ----------------------------- Рабочий экран ----------------------------- */
     return (
         <div className="min-h-full bg-bg pb-24 md:pb-8">
-            <main className="mx-auto w-full max-w-3xl space-y-3 px-4 py-4">
-                {/* Мобильный хэдер: профиль как на главной, ниже название со стрелкой */}
-                <div className="-mx-4">
-                    <MobilePageHeader
-                        title="Мой класс"
-                        userName={safeFormatShortName(session.user.name)}
-                        userEmail={session.user.email ?? null}
-                        roles={roles}
-                        onLogout={() => void handleLogout()}
-                    />
-                </div>
+            {/* Мобильный хэдер закреплён сверху страницы, а не внутри контента */}
+            <MobilePageHeader
+                title="Мой класс"
+                userName={safeFormatShortName(session.user.name)}
+                userEmail={session.user.email ?? null}
+                roles={roles}
+                onLogout={() => void handleLogout()}
+            />
 
+            <main className="mx-auto w-full max-w-3xl space-y-3 px-4 py-4">
                 {/* Десктоп: профиль и переход к сервисам, как раньше */}
                 <div className="sticky top-0 z-20 -mx-4 hidden border-b border-border bg-bg/95 px-4 py-2 backdrop-blur-sm md:block">
                     <div className="flex items-center justify-between gap-2">
@@ -857,17 +855,12 @@ export default function HomePage() {
                 </div>
 
                 {/* Класс */}
-                <div className="flex items-center justify-between gap-3">
-                    <h2 className="shrink-0 text-base font-semibold text-fg">Мой класс</h2>
-                    <div className="flex min-w-0 flex-1 items-center justify-end gap-2 border-l border-border pl-3">
-                        <ClassSelector
-                            selectedClass={selectedClass}
-                            onClassChange={handleClassChange}
-                            classes={classes}
-                            currentTeacherId={session.user?.id}
-                        />
-                    </div>
-                </div>
+                <ClassSelector
+                    selectedClass={selectedClass}
+                    onClassChange={handleClassChange}
+                    classes={classes}
+                    currentTeacherId={session.user?.id}
+                />
 
                 {/* Дата: компактная лента дней без подписи «Сегодня» и месяца */}
                 <WeekListScrollable selectedDate={selectedDate} setSelectedDate={setSelectedDate} />
@@ -881,7 +874,7 @@ export default function HomePage() {
                         aria-expanded={isTabMenuOpen}
                         rightIcon={isTabMenuOpen ? ChevronUp : ChevronDown}
                     >
-                        Меню · {tabItems.find(item => item.id === activeTab)?.label ?? "Посещаемость"}
+                        Меню · {tabItems.find(item => item.id === activeTab)?.label ?? "Главная"}
                     </Button>
 
                     {isTabMenuOpen && (
@@ -927,6 +920,11 @@ export default function HomePage() {
                     />
                 </div>
 
+                {/* Календарь — только на «Главной» */}
+                {activeTab === "attendance" && (
+                    <WeekListScrollable selectedDate={selectedDate} setSelectedDate={setSelectedDate} />
+                )}
+
                 {/* -------------------------- Посещаемость -------------------------- */}
                 {activeTab === "attendance" && (
                     <div className="space-y-3">
@@ -971,10 +969,16 @@ export default function HomePage() {
                                         compact
                                     />
                                 ) : (
-                                    <Card
-                                        title={`Отсутствуют ${absentStudentsList.length} из ${studentsList.length}`}
-                                        padding="none"
-                                    >
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between gap-2 px-1">
+                                            <p className="text-xs font-medium uppercase tracking-wide text-fg-subtle">
+                                                Отсутствуют
+                                            </p>
+                                            <span className="text-xs text-fg-subtle">
+                                                {absentStudentsList.length} из {studentsList.length}
+                                            </span>
+                                        </div>
+                                        <Card padding="none">
                                         <List className="rounded-none border-0">
                                             {absentStudentsList.map(student => (
                                                 <li key={student.id}>
@@ -990,6 +994,7 @@ export default function HomePage() {
                                             ))}
                                         </List>
                                     </Card>
+                                    </div>
                                 )}
                             </>
                         ) : (
@@ -1004,8 +1009,49 @@ export default function HomePage() {
                             />
                         )}
 
-                        {passesForSelectedDate.length > 0 && (
-                            <Card title={`Пропуска · ${passesForSelectedDate.length}`} padding="none">
+                    </div>
+                )}
+
+                {/* Нарушения за выбранный день — на главной вкладке, с отработкой */}
+                {activeTab === "attendance" && (
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2 px-1">
+                            <p className="text-xs font-medium uppercase tracking-wide text-fg-subtle">
+                                {isSelectedDateToday ? "Нарушения за сегодня" : `Нарушения за ${formatDateLocal(selectedDate)}`}
+                            </p>
+                            <span className="text-xs text-fg-subtle">{todayViolations.length}</span>
+                        </div>
+
+                        <ViolationAccordion
+                            items={todayViolations}
+                            isLoading={isLoadingViolations}
+                            canResolve={isClassTeacher}
+                            onResolve={violation => setResolveTargets([violation])}
+                            emptyTitle={
+                                isSelectedDateToday ? "Сегодня нарушений нет" : "Нарушений за выбранную дату нет"
+                            }
+                        />
+                    </div>
+                )}
+
+                {/* Пропуска за выбранный день — после нарушений */}
+                {activeTab === "attendance" && (
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2 px-1">
+                            <p className="text-xs font-medium uppercase tracking-wide text-fg-subtle">
+                                Пропуска
+                            </p>
+                            <span className="text-xs text-fg-subtle">{passesForSelectedDate.length}</span>
+                        </div>
+
+                        {passesForSelectedDate.length === 0 ? (
+                            <EmptyState
+                                title="Пропусков нет"
+                                description="На этот день пропуска не оформляли"
+                                compact
+                            />
+                        ) : (
+                            <Card padding="none">
                                 <List className="rounded-none border-0">
                                     {passesForSelectedDate.map(pass => {
                                         const canDelete = canDeletePass(new Date(pass.date));
@@ -1032,28 +1078,6 @@ export default function HomePage() {
                                 </List>
                             </Card>
                         )}
-                    </div>
-                )}
-
-                {/* Нарушения за выбранный день — на главной вкладке, с отработкой */}
-                {activeTab === "attendance" && (
-                    <div className="space-y-2">
-                        <div className="flex items-center justify-between gap-2 px-1">
-                            <p className="text-xs font-medium uppercase tracking-wide text-fg-subtle">
-                                {isSelectedDateToday ? "Нарушения за сегодня" : `Нарушения за ${formatDateLocal(selectedDate)}`}
-                            </p>
-                            <span className="text-xs text-fg-subtle">{todayViolations.length}</span>
-                        </div>
-
-                        <ViolationAccordion
-                            items={todayViolations}
-                            isLoading={isLoadingViolations}
-                            canResolve={isClassTeacher}
-                            onResolve={violation => setResolveTargets([violation])}
-                            emptyTitle={
-                                isSelectedDateToday ? "Сегодня нарушений нет" : "Нарушений за выбранную дату нет"
-                            }
-                        />
                     </div>
                 )}
 

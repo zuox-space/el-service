@@ -28,7 +28,7 @@ export function MobilePageHeader({
     onLogout: () => void;
 }) {
     return (
-        <header className="sticky top-0 z-20 border-b border-border bg-bg/95 backdrop-blur-sm md:hidden">
+        <header className="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-sm md:hidden">
             <div className="px-3 pt-2">
                 <ProfileMenu
                     userName={userName}
