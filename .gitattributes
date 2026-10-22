@@ -1,0 +1,4 @@
+# Linux-скрипты и Dockerfile должны иметь LF, иначе shebang ломается в контейнере
+*.sh text eol=lf
+Dockerfile text eol=lf
+docker-compose.yml text eol=lf

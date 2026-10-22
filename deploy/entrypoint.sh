@@ -39,7 +39,7 @@ fi
 
 if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
     echo "[entrypoint] применяем схему (prisma db push)"
-    npx prisma db push --skip-generate --accept-data-loss
+    ./node_modules/.bin/prisma db push --skip-generate --accept-data-loss
 fi
 
 if [ "${RUN_NORMALIZE:-false}" = "true" ]; then

@@ -53,7 +53,7 @@ for (const table of TABLES) {
 }
 
 mkdirSync(dirname(out), { recursive: true });
-writeFileSync(out, JSON.stringify(dump, (key, val) => (val instanceof Date ? val.toISOString() : val), "utf8"));
+writeFileSync(out, JSON.stringify(dump, (key, val) => (val instanceof Date ? val.toISOString() : val), 2));
 console.log(`\nдамп: ${out}`);
 
 await client.end();
