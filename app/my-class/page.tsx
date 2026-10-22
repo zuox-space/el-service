@@ -4,7 +4,7 @@
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
     AlertTriangle,
     Archive,
@@ -141,6 +141,25 @@ export default function HomePage() {
     const [classRange, setClassRange] = useState<"all" | "today" | "week" | "month">("all");
     // На мобильном вкладки живут в раскрывающемся меню — как панель фиксаций
     const [isTabMenuOpen, setIsTabMenuOpen] = useState(false);
+    const tabMenuRef = useRef<HTMLDivElement | null>(null);
+
+    // Меню закрывается по нажатию вне его
+    useEffect(() => {
+        if (!isTabMenuOpen) return;
+
+        const onPointerDown = (event: MouseEvent | TouchEvent) => {
+            if (tabMenuRef.current && !tabMenuRef.current.contains(event.target as Node)) {
+                setIsTabMenuOpen(false);
+            }
+        };
+
+        document.addEventListener("mousedown", onPointerDown);
+        document.addEventListener("touchstart", onPointerDown);
+        return () => {
+            document.removeEventListener("mousedown", onPointerDown);
+            document.removeEventListener("touchstart", onPointerDown);
+        };
+    }, [isTabMenuOpen]);
     // Нарушения класса: поиск по фамилии и постраничная загрузка по 5
     const [classSearch, setClassSearch] = useState("");
     const [classSearchQuery, setClassSearchQuery] = useState("");
@@ -862,11 +881,8 @@ export default function HomePage() {
                     currentTeacherId={session.user?.id}
                 />
 
-                {/* Дата: компактная лента дней без подписи «Сегодня» и месяца */}
-                <WeekListScrollable selectedDate={selectedDate} setSelectedDate={setSelectedDate} />
-
                 {/* Мобильный: вкладки в раскрывающемся меню */}
-                <div className="relative md:hidden">
+                <div ref={tabMenuRef} className="relative md:hidden">
                     <Button
                         fullWidth
                         variant="secondary"
