@@ -12,6 +12,49 @@ const { Client } = require("pg");
 
 const url = process.env.DATABASE_URL;
 if (!url) {
+    console.error("[entrypoint] DATABASE_URL не задан");
+    process.exit(1);
+}
+
+let host = "?";
+try {
+    host = new URL(url).hostname;
+} catch {
+    console.error("[entrypoint] DATABASE_URL не похож на URL");
+    process.exit(1);
+}
+
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+(async () => {
+    for (let attempt = 1; attempt <= 30; attempt++) {
+        // Новый клиент на каждую попытку: после ошибки соединения клиент непригоден
+        const client = new Client({ connectionString: url, connectionTimeoutMillis: 3000 });
+        try {
+            await client.connect();
+            await client.query("SELECT 1");
+            await client.end();
+            console.log(`[entrypoint] база доступна (${host})`);
+            return;
+        } catch (error) {
+            await client.end().catch(() => {});
+            const code = error.code || error.message;
+            console.log(`[entrypoint] попытка ${attempt}/30: ${code} (host ${host})`);
+            if (code === "EAI_AGAIN" || code === "ENOTFOUND") {
+                console.log(`[entrypoint] имя "${host}" не резолвится — проверьте Internal Connection URL базы в Dokploy`);
+            }
+            await sleep(2000);
+        }
+    }
+
+    console.error("[entrypoint] база недоступна, выходим");
+    process.exit(1);
+})();
+NODENODE'
+const { Client } = require("pg");
+
+const url = process.env.DATABASE_URL;
+if (!url) {
     console.error("DATABASE_URL не задан");
     process.exit(1);
 }
