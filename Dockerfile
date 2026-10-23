@@ -30,7 +30,7 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 # на этапе сборки база не нужна, но Prisma любит видеть переменную
 ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build"
-RUN pnpm prisma generate && pnpm build
+RUN pnpm exec prisma generate && pnpm run build
 
 # --- рантайм ---------------------------------------------------------------
 FROM base AS runner
