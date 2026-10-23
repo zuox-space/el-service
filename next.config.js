@@ -8,7 +8,6 @@ const withPWA = require('next-pwa')({
 
 const nextConfig = withPWA({
   reactStrictMode: true,
-    output: 'standalone',
 
   images: {
     domains: ['avatars.yandex.net'],
