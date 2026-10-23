@@ -94,6 +94,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                                 <h1 className="min-w-0 flex-1 truncate text-lg font-semibold text-fg">{title}</h1>
                                 <div className="flex shrink-0 items-center gap-1">
                                     {headerActions}
+                                    <div className="min-w-0 text-right">
+                                        <p className="max-w-[104px] truncate text-xs font-semibold text-fg sm:max-w-[180px]">
+                                            {userName ?? "Сотрудник"}
+                                        </p>
+                                        {session?.user?.email && (
+                                            <p className="hidden max-w-[180px] truncate text-[11px] text-fg-subtle sm:block">
+                                                {session.user.email}
+                                            </p>
+                                        )}
+                                    </div>
                                     <ProfileMenu
                                         userName={userName}
                                         userEmail={session?.user?.email ?? null}

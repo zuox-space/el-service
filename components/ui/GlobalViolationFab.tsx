@@ -79,7 +79,7 @@ export function GlobalViolationFab() {
         <>
             <div
                 ref={rootRef}
-                className="fixed bottom-20 right-4 z-40 flex flex-col items-center gap-2 sm:bottom-6 sm:right-6"
+                className="fixed bottom-[4.5rem] right-4 z-40 flex flex-col items-center gap-2 sm:bottom-6 sm:right-6"
             >
                 {expanded && (
                     <div className="flex flex-col items-center gap-2 rounded-full border border-border bg-surface p-1.5 shadow-raised">

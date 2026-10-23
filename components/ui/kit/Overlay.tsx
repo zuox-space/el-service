@@ -167,12 +167,12 @@ export function Overlay({
             {confirming && (
                 <div className="border-t border-warning/30 bg-warning-soft px-4 py-3">
                     <p className="text-sm text-fg">Закрыть без сохранения? Введённые данные будут потеряны.</p>
-                    <div className="mt-2 flex gap-2">
-                        <Button size="sm" variant="danger" onClick={onClose}>
-                            Закрыть без сохранения
+                    <div className="mt-2 grid gap-2 sm:flex sm:justify-end">
+                        <Button size="sm" variant="danger" className="w-full sm:w-auto" onClick={onClose}>
+                            Закрыть
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>
-                            Продолжить редактирование
+                        <Button size="sm" variant="ghost" className="w-full sm:w-auto" onClick={() => setConfirming(false)}>
+                            Продолжить
                         </Button>
                     </div>
                 </div>

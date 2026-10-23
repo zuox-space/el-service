@@ -52,9 +52,8 @@ import {
     Tabs,
     useToast,
 } from "@/components/ui/kit";
-import { ProfileMenu } from "@/components/shell/ProfileMenu";
+import { EmployeeHeader } from "@/components/shell/EmployeeHeader";
 import { useAccess } from "@/components/access/AccessProvider";
-import { MobilePageHeader } from "@/components/shell/MobilePageHeader";
 import { NoAccess } from "@/components/access/NoAccess";
 import { formatDateRu } from "@/lib/date";
 import { safeFormatShortName } from "@/lib/utils";
@@ -133,6 +132,16 @@ export default function HomePage() {
     const [studentsList, setStudentsList] = useState<any[]>([]);
     const [selfExits, setSelfExits] = useState<any[]>([]);
     const [todayViolations, setTodayViolations] = useState<any[]>([]);
+    // На главной показываем по 3 записи, остальное — по кнопке «Показать ещё»
+    const [absentLimit, setAbsentLimit] = useState(3);
+    const [violationsLimit, setViolationsLimit] = useState(3);
+    const [passesLimit, setPassesLimit] = useState(3);
+
+    useEffect(() => {
+        setAbsentLimit(3);
+        setViolationsLimit(3);
+        setPassesLimit(3);
+    }, [selectedClass?.id, selectedDate]);
     // Все нарушения класса — ниже сегодняшних, со статусами и отработкой
     const [classViolations, setClassViolations] = useState<any[]>([]);
     const [isLoadingClassViolations, setIsLoadingClassViolations] = useState(false);
@@ -146,7 +155,6 @@ export default function HomePage() {
     // Меню закрывается по нажатию вне его
     useEffect(() => {
         if (!isTabMenuOpen) return;
-
         const onPointerDown = (event: MouseEvent | TouchEvent) => {
             if (tabMenuRef.current && !tabMenuRef.current.contains(event.target as Node)) {
                 setIsTabMenuOpen(false);
@@ -762,13 +770,16 @@ export default function HomePage() {
     if (!showWorkInterface) {
         return (
             <div className="min-h-full bg-bg">
+                <EmployeeHeader
+                    title="Мой класс"
+                    backHref="/"
+                    userName={safeFormatShortName(session.user.name)}
+                    userEmail={session.user.email ?? null}
+                    roles={roles}
+                    onLogout={() => void handleLogout()}
+                />
+
                 <main className="mx-auto w-full max-w-3xl space-y-3 px-4 py-4">
-                    <ProfileMenu
-                        userName={safeFormatShortName(session.user.name)}
-                        userEmail={session.user.email ?? null}
-                        onLogout={() => void handleLogout()}
-                        variant="full"
-                    />
 
                     <Card padding="md" className="text-center">
                         <span
@@ -838,9 +849,9 @@ export default function HomePage() {
     /* ----------------------------- Рабочий экран ----------------------------- */
     return (
         <div className="min-h-full bg-bg pb-24 md:pb-8">
-            {/* Мобильный хэдер закреплён сверху страницы, а не внутри контента */}
-            <MobilePageHeader
+            <EmployeeHeader
                 title="Мой класс"
+                backHref="/"
                 userName={safeFormatShortName(session.user.name)}
                 userEmail={session.user.email ?? null}
                 roles={roles}
@@ -848,31 +859,7 @@ export default function HomePage() {
             />
 
             <main className="mx-auto w-full max-w-3xl space-y-3 px-4 py-4">
-                {/* Десктоп: профиль и переход к сервисам, как раньше */}
-                <div className="sticky top-0 z-20 -mx-4 hidden border-b border-border bg-bg/95 px-4 py-2 backdrop-blur-sm md:block">
-                    <div className="flex items-center justify-between gap-2">
-                        <ProfileMenu
-                            userName={safeFormatShortName(session.user.name)}
-                            userEmail={session.user.email ?? null}
-                            onLogout={() => void handleLogout()}
-                            variant="full"
-                        />
-                        <div className="flex shrink-0 items-center gap-2">
-                            <span className="text-xs text-fg-subtle">
-                                {isClassTeacher ? "Классный руководитель" : "Преподаватель"}
-                            </span>
-                            <Link
-                                href="/"
-                                className="inline-flex items-center gap-1 rounded-control border border-dashed border-border px-2 py-1 text-xs text-fg-muted transition-colors hover:bg-surface-hover hover:text-fg"
-                                aria-label="Все сервисы"
-                            >
-                                <ArrowLeft size={14} aria-hidden />
-                                <span className="hidden sm:inline">Сервисы</span>
-                            </Link>
-                        </div>
-                    </div>
-                </div>
-
+                <div className="sticky top-14 z-30 -mx-4 space-y-2 border-b border-border bg-bg/95 px-4 py-2 backdrop-blur-sm md:static md:mx-0 md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none">
                 {/* Класс */}
                 <ClassSelector
                     selectedClass={selectedClass}
@@ -935,6 +922,7 @@ export default function HomePage() {
                         ariaLabel="Разделы класса"
                     />
                 </div>
+                </div>
 
                 {/* Календарь — только на «Главной» */}
                 {activeTab === "attendance" && (
@@ -996,7 +984,7 @@ export default function HomePage() {
                                         </div>
                                         <Card padding="none">
                                         <List className="rounded-none border-0">
-                                            {absentStudentsList.map(student => (
+                                            {absentStudentsList.slice(0, absentLimit).map(student => (
                                                 <li key={student.id}>
                                                     <ListItem
                                                         leading={student.Icon}
@@ -1010,6 +998,22 @@ export default function HomePage() {
                                             ))}
                                         </List>
                                     </Card>
+                                        {absentStudentsList.length > 3 && (
+                                            <Button
+                                                fullWidth
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() =>
+                                                    setAbsentLimit(current =>
+                                                        current >= absentStudentsList.length ? 3 : absentStudentsList.length,
+                                                    )
+                                                }
+                                            >
+                                                {absentLimit >= absentStudentsList.length
+                                                    ? "Свернуть"
+                                                    : `Показать ещё · ${absentStudentsList.length - 3}`}
+                                            </Button>
+                                        )}
                                     </div>
                                 )}
                             </>
@@ -1039,7 +1043,7 @@ export default function HomePage() {
                         </div>
 
                         <ViolationAccordion
-                            items={todayViolations}
+                            items={todayViolations.slice(0, violationsLimit)}
                             isLoading={isLoadingViolations}
                             canResolve={isClassTeacher}
                             onResolve={violation => setResolveTargets([violation])}
@@ -1047,6 +1051,22 @@ export default function HomePage() {
                                 isSelectedDateToday ? "Сегодня нарушений нет" : "Нарушений за выбранную дату нет"
                             }
                         />
+                        {todayViolations.length > 3 && (
+                            <Button
+                                fullWidth
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                    setViolationsLimit(current =>
+                                        current >= todayViolations.length ? 3 : todayViolations.length,
+                                    )
+                                }
+                            >
+                                {violationsLimit >= todayViolations.length
+                                    ? "Свернуть"
+                                    : `Показать ещё · ${todayViolations.length - 3}`}
+                            </Button>
+                        )}
                     </div>
                 )}
 
@@ -1069,7 +1089,7 @@ export default function HomePage() {
                         ) : (
                             <Card padding="none">
                                 <List className="rounded-none border-0">
-                                    {passesForSelectedDate.map(pass => {
+                                    {passesForSelectedDate.slice(0, passesLimit).map(pass => {
                                         const canDelete = canDeletePass(new Date(pass.date));
                                         const names = (pass.students ?? [])
                                             .map((student: any) => student.name)
@@ -1093,6 +1113,22 @@ export default function HomePage() {
                                     })}
                                 </List>
                             </Card>
+                        )}
+                        {passesForSelectedDate.length > 3 && (
+                            <Button
+                                fullWidth
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                    setPassesLimit(current =>
+                                        current >= passesForSelectedDate.length ? 3 : passesForSelectedDate.length,
+                                    )
+                                }
+                            >
+                                {passesLimit >= passesForSelectedDate.length
+                                    ? "Свернуть"
+                                    : `Показать ещё · ${passesForSelectedDate.length - 3}`}
+                            </Button>
                         )}
                     </div>
                 )}

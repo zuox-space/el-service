@@ -1,15 +1,13 @@
 "use client";
 
 // app/my-violations/page.tsx
-import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
+import { useCallback, useDeferredValue, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { ArrowLeft } from "lucide-react";
 import { signOut } from "next-auth/react";
-import { Card, Chip, PageHeader, Skeleton } from "@/components/ui/kit";
+import { Card, Chip, SearchInput, Skeleton } from "@/components/ui/kit";
 import { ViolationAccordion } from "@/components/ui/ViolationAccordion";
-import { MobilePageHeader } from "@/components/shell/MobilePageHeader";
+import { EmployeeHeader } from "@/components/shell/EmployeeHeader";
 
 /**
  * «Мои фиксации» — история замечаний, которые сотрудник зафиксировал сам.
@@ -51,6 +49,8 @@ export default function MyViolationsPage() {
     const [violations, setViolations] = useState<MineViolation[]>([]);
     const [stats, setStats] = useState<MineStats>(EMPTY_STATS);
     const [resolution, setResolution] = useState("");
+    const [search, setSearch] = useState("");
+    const deferredSearch = useDeferredValue(search);
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -67,6 +67,7 @@ export default function MyViolationsPage() {
         try {
             const params = new URLSearchParams();
             if (resolution) params.set("resolution", resolution);
+            if (deferredSearch.trim()) params.set("search", deferredSearch.trim());
 
             const response = await fetch(`/api/violations/mine?${params.toString()}`);
             if (!response.ok) throw new Error(`Сервер вернул ошибку ${response.status}`);
@@ -81,7 +82,7 @@ export default function MyViolationsPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [resolution]);
+    }, [resolution, deferredSearch]);
 
     useEffect(() => {
         if (status === "authenticated") void load();
@@ -109,23 +110,14 @@ export default function MyViolationsPage() {
 
     return (
         <div className="min-h-full bg-bg">
-            {/* Мобильный хэдер — как на главной, ниже название со стрелкой назад */}
-            <MobilePageHeader
+            <EmployeeHeader
                 title="Мои фиксации"
+                backHref="/"
                 userName={session.user.name}
                 userEmail={session.user.email ?? null}
                 roles={(session.user.roles as string[]) ?? []}
                 onLogout={() => void handleLogout()}
             />
-
-            {/* Десктоп: обычный заголовок раздела */}
-            <div className="hidden md:block">
-                <PageHeader
-                    title="Мои фиксации"
-                    subtitle="Замечания, которые вы зафиксировали, и их отработка"
-                    onBack={() => router.push("/")}
-                />
-            </div>
 
             <main className="mx-auto w-full max-w-3xl space-y-3 px-4 py-4">
                 <section className="grid grid-cols-3 gap-2">
@@ -143,7 +135,13 @@ export default function MyViolationsPage() {
                     </Card>
                 </section>
 
-                <Card padding="sm">
+                <Card padding="sm" className="space-y-2">
+                    <SearchInput
+                        value={search}
+                        onChange={setSearch}
+                        placeholder="Фамилия или имя ученика"
+                        label="Поиск"
+                    />
                     <div className="flex flex-wrap items-center gap-1.5">
                         <Chip selected={resolution === ""} onClick={() => setResolution("")}>
                             Все

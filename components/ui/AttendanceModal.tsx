@@ -173,11 +173,13 @@ export default function AttendanceModal({
             <div className="space-y-3">
                 <FormError message={error} />
 
-                <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs text-fg-subtle">
-                        Присутствуют {presentCount} · отсутствуют {absentIds.length}
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-[11px] tabular-nums text-fg-subtle sm:text-xs">
+                        <span className="whitespace-nowrap">Присутствуют {presentCount}</span>
+                        <span className="mx-1">·</span>
+                        <span className="whitespace-nowrap">отсутствуют {absentIds.length}</span>
                     </p>
-                    <div className="flex gap-1">
+                    <div className="flex flex-wrap gap-1">
                         <Button size="sm" variant="ghost" onClick={markAllPresent} disabled={absentIds.length === 0}>
                             Все на месте
                         </Button>
@@ -212,32 +214,34 @@ export default function AttendanceModal({
                             const key = String(student.id);
 
                             return (
-                                <li key={key} className="flex items-center gap-2 px-3">
-                                    <div className="min-w-0 flex-1">
-                                        <Checkbox
-                                            checked={!absent}
-                                            onChange={() => toggle(student.id)}
-                                            label={student.name}
-                                            description={absent ? "Отсутствует" : undefined}
-                                        />
-                                    </div>
-
-                                    {absent && (
-                                        <div className="w-40 shrink-0">
-                                            <Select
-                                                aria-label={`Причина отсутствия: ${student.name}`}
-                                                placeholder="Причина"
-                                                value={reasons[key] ?? ""}
-                                                onChange={value => setReasons(prev => ({ ...prev, [key]: value }))}
-                                                options={ABSENCE_REASONS}
-                                                error={
-                                                    missingReasons.includes(key) && absentIds.length > 0
-                                                        ? "Укажите причину"
-                                                        : undefined
-                                                }
+                                <li key={key} className="px-3 py-2">
+                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+                                        <div className="min-w-0 flex-1">
+                                            <Checkbox
+                                                checked={!absent}
+                                                onChange={() => toggle(student.id)}
+                                                label={student.name}
+                                                description={absent ? "Отсутствует" : undefined}
                                             />
                                         </div>
-                                    )}
+
+                                        {absent && (
+                                            <div className="w-full shrink-0 sm:w-48">
+                                                <Select
+                                                    aria-label={`Причина отсутствия: ${student.name}`}
+                                                    placeholder="Причина"
+                                                    value={reasons[key] ?? ""}
+                                                    onChange={value => setReasons(prev => ({ ...prev, [key]: value }))}
+                                                    options={ABSENCE_REASONS}
+                                                    error={
+                                                        missingReasons.includes(key) && absentIds.length > 0
+                                                            ? "Укажите причину"
+                                                            : undefined
+                                                    }
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
                                 </li>
                             );
                         })}

@@ -80,6 +80,8 @@ export default function SchoolRecordsPage() {
     const [endDate, setEndDate] = useState(() => toLocalISODate());
     const [search, setSearch] = useState("");
     const [className, setClassName] = useState("");
+    // На мобильном карточка раскрывается, на десктопе — переход в портфолио
+    const [expandedRecord, setExpandedRecord] = useState<string | null>(null);
 
     useEffect(() => {
         setMounted(true);
@@ -249,8 +251,51 @@ export default function SchoolRecordsPage() {
                             <Badge tone="neutral">на учёте</Badge>
                         )
                     }
-                    onClick={() => router.push(`/admin/students/${record.studentId}`)}
+                    onClick={() => {
+                        const mobile =
+                            typeof window !== "undefined" &&
+                            window.matchMedia("(max-width: 767px)").matches;
+
+                        if (mobile) {
+                            setExpandedRecord(current => (current === record.id ? null : record.id));
+                            return;
+                        }
+
+                        router.push(`/admin/students/${record.studentId}`);
+                    }}
                 />
+
+                {expandedRecord === record.id && (
+                    <div className="space-y-1 border-t border-border bg-surface-2 px-3 py-2.5 text-xs md:hidden">
+                        <p className="text-fg-muted">
+                            <span className="text-fg-subtle">Причина: </span>
+                            {record.reason || "—"}
+                        </p>
+                        <p className="text-fg-muted">
+                            <span className="text-fg-subtle">Поставил: </span>
+                            {record.registeredByName || "—"} · {formatDateRu(record.registeredAt)}
+                        </p>
+                        <p className="text-fg-muted">
+                            <span className="text-fg-subtle">План. снятие: </span>
+                            {record.plannedReleaseAt ? formatDateRu(record.plannedReleaseAt) : "—"}
+                        </p>
+                        {showRelease && (
+                            <p className="text-fg-muted">
+                                <span className="text-fg-subtle">Снят: </span>
+                                {formatDateRu(record.releasedAt ?? record.registeredAt)}
+                                {record.releaseReason ? ` · ${record.releaseReason}` : ""}
+                            </p>
+                        )}
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            className="mt-1"
+                            onClick={() => router.push(`/admin/students/${record.studentId}`)}
+                        >
+                            Открыть портфолио
+                        </Button>
+                    </div>
+                )}
             </li>
         );
     };

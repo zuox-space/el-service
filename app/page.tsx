@@ -11,8 +11,7 @@ import {
     ShieldCheck,
 } from "lucide-react";
 import { Badge, Button, Card, EmptyState, Skeleton } from "@/components/ui/kit";
-import { ProfileMenu } from "@/components/shell/ProfileMenu";
-import { roleLabel, roleTone } from "@/lib/roles";
+import { EmployeeHeader } from "@/components/shell/EmployeeHeader";
 
 /**
  * Стартовая страница-портал.
@@ -114,25 +113,15 @@ export default function PortalPage() {
 
     return (
         <div className="min-h-full bg-bg">
-            <main className="mx-auto w-full max-w-5xl space-y-4 px-4 py-5">
-                {/* Профиль */}
-                <div className="flex items-center justify-between gap-3">
-                    <ProfileMenu
-                        userName={shortName(data?.user.name ?? session.user.name)}
-                        userEmail={data?.user.email ?? session.user.email ?? null}
-                        roles={roles}
-                        onLogout={() => void handleLogout()}
-                        variant="full"
-                    />
-                    <div className="hidden flex-wrap items-center justify-end gap-1.5 sm:flex">
-                        {roles.slice(0, 3).map(role => (
-                            <Badge key={role} tone={roleTone(role)}>
-                                {roleLabel(role)}
-                            </Badge>
-                        ))}
-                    </div>
-                </div>
+            <EmployeeHeader
+                home
+                userName={shortName(data?.user.name ?? session.user.name)}
+                userEmail={data?.user.email ?? session.user.email ?? null}
+                roles={roles}
+                onLogout={() => void handleLogout()}
+            />
 
+            <main className="mx-auto w-full max-w-5xl space-y-4 px-4 py-5">
                 {/* Приветствие */}
                 <Card padding="md" className="relative overflow-hidden">
                     <div
@@ -186,10 +175,7 @@ export default function PortalPage() {
                                         ))}
                                     </div>
                                     <p className="mt-1 text-sm text-fg-muted">
-                                        Посещаемость, пропуска, нарушения, самовыходы и доверенности
-                                        {data && data.myClass.studentsCount > 0
-                                            ? ` · ${data.myClass.studentsCount} учеников`
-                                            : ""}
+                                        Посещаемость, нарушения, выход из школы и др.
                                     </p>
                                 </div>
                                 <ArrowRight
@@ -228,7 +214,7 @@ export default function PortalPage() {
                                         </Badge>
                                     </div>
                                     <p className="mt-1 text-sm text-fg-muted">
-                                        Контроль выхода, нарушения, аналитика и другие разделы, которые вам выданы
+                                        Администрирование и аналитика
                                     </p>
                                 </div>
                                 <ArrowRight

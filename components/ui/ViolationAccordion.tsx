@@ -151,14 +151,19 @@ export function ViolationAccordion({
                                             </p>
                                         </>
                                     ) : (
-                                        <>
+                                        <div className="flex items-center justify-between gap-2">
                                             <p className="text-warning">Ждёт отработки.</p>
                                             {canResolve && onResolve && (
-                                                <Button size="sm" variant="secondary" onClick={() => onResolve(item)}>
+                                                <Button
+                                                    size="sm"
+                                                    variant="secondary"
+                                                    className="ml-auto shrink-0"
+                                                    onClick={() => onResolve(item)}
+                                                >
                                                     Отработать
                                                 </Button>
                                             )}
-                                        </>
+                                        </div>
                                     )}
                                 </div>
                             )}
