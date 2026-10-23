@@ -50,33 +50,6 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     console.error("[entrypoint] база недоступна, выходим");
     process.exit(1);
 })();
-NODENODE'
-const { Client } = require("pg");
-
-const url = process.env.DATABASE_URL;
-if (!url) {
-    console.error("DATABASE_URL не задан");
-    process.exit(1);
-}
-
-const client = new Client({ connectionString: url, connectionTimeoutMillis: 3000 });
-
-(async () => {
-    for (let attempt = 1; attempt <= 30; attempt++) {
-        try {
-            await client.connect();
-            await client.query("SELECT 1");
-            await client.end();
-            console.log("[entrypoint] база доступна");
-            return;
-        } catch (error) {
-            console.log(`[entrypoint] попытка ${attempt}/30: ${error.code || error.message}`);
-            await new Promise(resolve => setTimeout(resolve, 2000));
-        }
-    }
-    console.error("[entrypoint] база недоступна, выходим");
-    process.exit(1);
-})();
 NODE
 fi
 
