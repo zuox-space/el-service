@@ -19,7 +19,7 @@ import {
     useToast,
 } from "@/components/ui/kit";
 import { KeysProvider, useKeys } from "@/components/keys/KeysProvider";
-import { KeyHistoryDrawer } from "@/components/keys/KeyHistoryDrawer";
+import { AdminKeyHistorySheet } from "@/components/keys/AdminKeyHistorySheet";
 import type { KeyItemDto } from "@/lib/keys/queries";
 
 export default function AdminKeysPage() {
@@ -40,7 +40,7 @@ function AdminKeysScreen() {
     const [createOpen, setCreateOpen] = useState(false);
     const [importOpen, setImportOpen] = useState(false);
     const [accessKey, setAccessKey] = useState<KeyItemDto | null>(null);
-    const [historyKeyId, setHistoryKeyId] = useState<string | null>(null);
+    const [historyKey, setHistoryKey] = useState<KeyItemDto | null>(null);
     const [deleteKey, setDeleteKey] = useState<KeyItemDto | null>(null);
 
     const keys = state?.keys ?? [];
@@ -171,7 +171,7 @@ function AdminKeysScreen() {
                                             </td>
                                             <td className="py-2">
                                                 <div className="flex justify-end gap-1">
-                                                    <Button size="sm" variant="ghost" leftIcon={History} onClick={() => setHistoryKeyId(key.id)}>
+                                                    <Button size="sm" variant="ghost" leftIcon={History} onClick={() => setHistoryKey(key)}>
                                                         История
                                                     </Button>
                                                     <Button size="sm" variant="ghost" leftIcon={Pencil} onClick={() => { setAccessKey(key); void loadUsers(); }}>
@@ -195,7 +195,7 @@ function AdminKeysScreen() {
             <ImportKeysModal open={importOpen} onClose={() => setImportOpen(false)} onImported={refresh} />
             <KeyAccessModal keyItem={accessKey} users={users} onClose={() => setAccessKey(null)} onSaved={refresh} />
             <DeleteKeyModal keyItem={deleteKey} onClose={() => setDeleteKey(null)} onConfirm={() => void removeKey()} />
-            <KeyHistoryDrawer keyId={historyKeyId} onClose={() => setHistoryKeyId(null)} />
+            <AdminKeyHistorySheet keyItem={historyKey} onClose={() => setHistoryKey(null)} />
         </div>
     );
 }
