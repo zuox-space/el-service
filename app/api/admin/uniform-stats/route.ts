@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 
 import { requireSection } from "@/lib/access/server";
 import { getAcademicYearStart, getDayRange, parseLocalDate, toLocalISODate } from "@/lib/date";
+import { classNamesForBuilding } from "@/lib/buildings";
 
 
 /**
@@ -34,6 +35,7 @@ export async function GET(request: NextRequest) {
         const startParam = searchParams.get("startDate");
         const endParam = searchParams.get("endDate");
         const gradeGroup = searchParams.get("gradeGroup") || "";
+        const buildingId = searchParams.get("buildingId") || "";
 
         const startDate = startParam ? parseLocalDate(startParam) : getAcademicYearStart();
         const endDate = endParam ? parseLocalDate(endParam) : new Date();
@@ -62,6 +64,10 @@ export async function GET(request: NextRequest) {
                 });
                 classNames = classes.map(cls => cls.name);
             }
+        }
+
+        if (buildingId) {
+            classNames = await classNamesForBuilding(buildingId);
         }
 
         const baseWhere = classNames ? { className: { in: classNames } } : {};

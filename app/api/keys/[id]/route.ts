@@ -16,6 +16,7 @@ export async function PATCH(
     const body = await request.json().catch(() => null);
     try {
         await updateKey(params.id, {
+            buildingId: body?.buildingId ? String(body.buildingId) : undefined,
             roomNumber: body?.roomNumber ? String(body.roomNumber) : undefined,
             roomName: body?.roomName !== undefined ? String(body.roomName) : undefined,
             floor: body?.floor !== undefined ? Number(body.floor) : undefined,

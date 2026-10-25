@@ -1,6 +1,6 @@
 "use client";
 
-// app/admin/keys/buildings/page.tsx
+// app/admin/buildings/page.tsx
 import { useEffect, useMemo, useState } from "react";
 import { Building2, Check, Pencil, Plus, Trash2 } from "lucide-react";
 import {
@@ -223,9 +223,35 @@ function BuildingsScreen() {
                             <p className="text-xs font-medium uppercase tracking-wide text-fg-subtle">
                                 Классы в здании · {selectedClasses.length}
                             </p>
-                            <Button size="sm" variant="ghost" onClick={() => setSelectedClasses([])} disabled={selectedClasses.length === 0}>
-                                Снять все
-                            </Button>
+                            <div className="flex flex-wrap justify-end gap-1">
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setSelectedClasses(classes.map(item => item.id))}
+                                    disabled={classes.length === 0}
+                                >
+                                    Все
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setSelectedClasses(classes.filter(item => item.grade <= 4).map(item => item.id))}
+                                    disabled={classes.length === 0}
+                                >
+                                    1–4
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setSelectedClasses(classes.filter(item => item.grade >= 5).map(item => item.id))}
+                                    disabled={classes.length === 0}
+                                >
+                                    5–11
+                                </Button>
+                                <Button size="sm" variant="ghost" onClick={() => setSelectedClasses([])} disabled={selectedClasses.length === 0}>
+                                    Снять
+                                </Button>
+                            </div>
                         </div>
                         <Input
                             value={classQuery}

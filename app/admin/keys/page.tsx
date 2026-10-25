@@ -175,7 +175,7 @@ function AdminKeysScreen() {
                                                         История
                                                     </Button>
                                                     <Button size="sm" variant="ghost" leftIcon={Pencil} onClick={() => { setAccessKey(key); void loadUsers(); }}>
-                                                        Права
+                                                        Изменить
                                                     </Button>
                                                     <Button size="sm" variant="ghost" leftIcon={Trash2} onClick={() => setDeleteKey(key)}>
                                                         Удалить
@@ -193,7 +193,7 @@ function AdminKeysScreen() {
 
             <CreateKeyModal open={createOpen} buildings={buildings} onClose={() => setCreateOpen(false)} onCreated={refresh} />
             <ImportKeysModal open={importOpen} onClose={() => setImportOpen(false)} onImported={refresh} />
-            <KeyAccessModal keyItem={accessKey} users={users} onClose={() => setAccessKey(null)} onSaved={refresh} />
+            <KeyAccessModal keyItem={accessKey} users={users} buildings={buildings} onClose={() => setAccessKey(null)} onSaved={refresh} />
             <DeleteKeyModal keyItem={deleteKey} onClose={() => setDeleteKey(null)} onConfirm={() => void removeKey()} />
             <AdminKeyHistorySheet keyItem={historyKey} onClose={() => setHistoryKey(null)} />
         </div>
@@ -322,16 +322,19 @@ function ImportKeysModal({
 function KeyAccessModal({
     keyItem,
     users,
+    buildings,
     onClose,
     onSaved,
 }: {
     keyItem: KeyItemDto | null;
     users: Array<{ id: string; name: string }>;
+    buildings: Array<{ id: string; name: string }>;
     onClose: () => void;
     onSaved: () => Promise<void>;
 }) {
     const toast = useToast();
     const [scope, setScope] = useState<"ALL" | "RESTRICTED">("ALL");
+    const [buildingId, setBuildingId] = useState("");
     const [selected, setSelected] = useState<string[]>([]);
     const [userQuery, setUserQuery] = useState("");
     const [loading, setLoading] = useState(false);
@@ -344,6 +347,7 @@ function KeyAccessModal({
         }
 
         setLoading(true);
+        setBuildingId(keyItem.buildingId);
         fetch(`/api/keys/${keyItem.id}/permissions`, { cache: "no-store" })
             .then(response => response.json())
             .then(data => {
@@ -355,6 +359,20 @@ function KeyAccessModal({
 
     const save = async () => {
         if (!keyItem) return;
+
+        if (buildingId && buildingId !== keyItem.buildingId) {
+            const moved = await fetch(`/api/keys/${keyItem.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ buildingId }),
+            });
+            const movedData = await moved.json().catch(() => ({}));
+            if (!moved.ok) {
+                toast.show({ title: "Ошибка", description: movedData.error, tone: "danger" });
+                return;
+            }
+        }
+
         const response = await fetch(`/api/keys/${keyItem.id}/permissions`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -365,7 +383,7 @@ function KeyAccessModal({
             toast.show({ title: "Ошибка", description: data.error, tone: "danger" });
             return;
         }
-        toast.show({ title: "Доступ обновлён", tone: "success" });
+        toast.show({ title: "Ключ обновлён", tone: "success" });
         onClose();
         await onSaved();
     };
@@ -374,11 +392,17 @@ function KeyAccessModal({
         <Sheet
             open={Boolean(keyItem)}
             onClose={onClose}
-            title={keyItem ? `Доступ к ключу ${keyItem.roomNumber}` : "Доступ"}
-            description="Кому разрешён этот ключ"
+            title={keyItem ? `Изменить ключ ${keyItem.roomNumber}` : "Изменить ключ"}
+            description="Здание и права доступа"
             footer={<ModalFooter onCancel={onClose} onSubmit={() => void save()} submitLabel="Сохранить" loading={loading} />}
         >
             <div className="space-y-3">
+                <Select
+                    label="Здание"
+                    value={buildingId}
+                    onChange={setBuildingId}
+                    options={buildings.map(building => ({ value: building.id, label: building.name }))}
+                />
                 <Select
                     label="Кто может брать"
                     value={scope}

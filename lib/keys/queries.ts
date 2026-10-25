@@ -603,21 +603,26 @@ export async function createKey(input: {
 
 export async function updateKey(
     id: string,
-    input: { roomNumber?: string; roomName?: string; floor?: number; accessScope?: KeyAccessScope },
+    input: { buildingId?: string; roomNumber?: string; roomName?: string; floor?: number; accessScope?: KeyAccessScope },
 ): Promise<void> {
     const key = await prisma.keyItem.findUnique({ where: { id } });
     if (!key) throw new KeysConflictError("Ключ не найден");
 
-    if (input.roomNumber && input.roomNumber !== key.roomNumber) {
+    const targetBuildingId = input.buildingId ?? key.buildingId;
+    const targetRoomNumber = input.roomNumber?.trim() || key.roomNumber;
+    const movingOrRenaming = targetBuildingId !== key.buildingId || targetRoomNumber !== key.roomNumber;
+
+    if (movingOrRenaming) {
         const conflict = await prisma.keyItem.findFirst({
-            where: { buildingId: key.buildingId, roomNumber: input.roomNumber, NOT: { id } },
+            where: { buildingId: targetBuildingId, roomNumber: targetRoomNumber, NOT: { id } },
         });
-        if (conflict) throw new KeysConflictError("Ключ с таким номером уже есть");
+        if (conflict) throw new KeysConflictError("Ключ с таким номером уже есть в этом здании");
     }
 
     await prisma.keyItem.update({
         where: { id },
         data: {
+            buildingId: input.buildingId,
             roomNumber: input.roomNumber?.trim(),
             roomName: input.roomName?.trim(),
             floor: input.floor,

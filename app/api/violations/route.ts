@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAnySection, requireSection } from "@/lib/access/server";
 import { getDayRange, parseLocalDate } from "@/lib/date";
 import { normalizeClassName } from "@/lib/class-name";
+import { classNamesForBuilding } from "@/lib/buildings";
 
 
 const MAX_PAGE_SIZE = 100;
@@ -40,6 +41,7 @@ export async function GET(req: NextRequest) {
         const endDate = searchParams.get("endDate");      // конец периода YYYY-MM-DD
         const className = searchParams.get("className");  // фильтр по классу
         const gradeGroup = searchParams.get("gradeGroup"); // 1-3 | 4-6 | 7-11 (корпус)
+        const buildingId = searchParams.get("buildingId");
         const violationType = searchParams.get("type");   // фильтр по типу нарушения
         const studentId = searchParams.get("studentId");  // для одного ученика
         const teacherId = searchParams.get("teacherId");  // для учителя
@@ -76,7 +78,10 @@ export async function GET(req: NextRequest) {
 
         // Фильтр по корпусу: у нарушения нет поля «параллель», поэтому берём классы
         // нужных параллелей и фильтруем по их названиям.
-        if (gradeGroup && !className) {
+        if (buildingId && !className) {
+            const buildingClasses = await classNamesForBuilding(buildingId);
+            where.className = { in: buildingClasses };
+        } else if (gradeGroup && !className) {
             const grades =
                 gradeGroup === "1-3" ? [1, 2, 3]
                     : gradeGroup === "4-6" ? [4, 5, 6]

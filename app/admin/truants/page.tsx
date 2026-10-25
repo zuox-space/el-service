@@ -98,6 +98,8 @@ export default function TruantsPage() {
 
     const [search, setSearch] = useState("");
     const [gradeGroup, setGradeGroup] = useState("");
+    const [buildingId, setBuildingId] = useState("");
+    const [buildings, setBuildings] = useState<Array<{ id: string; name: string; classes: Array<{ id: string; name: string }> }>>([]);
     const [className, setClassName] = useState("");
     const [letter, setLetter] = useState("");
     const [minAbsences, setMinAbsences] = useState("1");
@@ -151,6 +153,14 @@ export default function TruantsPage() {
         }
     }, [session, fetchTruants]);
 
+    useEffect(() => {
+        if (!session?.user?.roles?.includes("ADMIN")) return;
+        fetch("/api/buildings", { cache: "no-store" })
+            .then(response => response.json())
+            .then(data => setBuildings(Array.isArray(data.buildings) ? data.buildings : []))
+            .catch(() => setBuildings([]));
+    }, [session]);
+
     const classOptions = useMemo(() => {
         const unique = [...new Set(truants.map(truant => truant.className).filter(Boolean))];
         return unique.sort((a, b) => a.localeCompare(b, "ru")).map(value => ({ value, label: value }));
@@ -159,12 +169,16 @@ export default function TruantsPage() {
     const rows = useMemo(() => {
         const query = search.trim().toLowerCase();
         const group = GRADE_GROUPS.find(item => item.id === gradeGroup);
+        const buildingClassNames = buildingId
+            ? new Set((buildings.find(item => item.id === buildingId)?.classes ?? []).map(item => item.name))
+            : null;
         const min = Number.parseInt(minAbsences, 10) || 1;
 
         const filtered = truants.filter(truant => {
             if (query && !truant.name.toLowerCase().includes(query)) return false;
             if (group && !group.grades.includes(truant.grade)) return false;
             if (className && truant.className !== className) return false;
+            if (buildingClassNames && !buildingClassNames.has(truant.className)) return false;
             if (letter && truant.name.charAt(0).toUpperCase() !== letter) return false;
             if (truant.totalAbsences < min) return false;
 
@@ -188,7 +202,7 @@ export default function TruantsPage() {
             }
             return (a.totalAbsences - b.totalAbsences) * direction;
         });
-    }, [truants, search, gradeGroup, className, letter, minAbsences, selectedReasons, sort]);
+    }, [truants, search, gradeGroup, className, letter, minAbsences, selectedReasons, sort, buildingId, buildings]);
 
     const columns: Column<Truant>[] = [
         { key: "name", header: "Ученик", sortable: true },
@@ -255,6 +269,7 @@ export default function TruantsPage() {
         setSearch("");
         setGradeGroup("");
         setClassName("");
+        setBuildingId("");
         setLetter("");
         setMinAbsences("1");
         setSelectedReasons(REASONS.map(reason => reason.id));
@@ -363,7 +378,7 @@ export default function TruantsPage() {
                             </div>
                         </div>
 
-                        <div className="grid gap-2 sm:grid-cols-4">
+                        <div className="grid gap-2 sm:grid-cols-5">
                             <Select
                                 aria-label="Параллель"
                                 placeholder="Все параллели"
@@ -373,6 +388,16 @@ export default function TruantsPage() {
                                     setClassName("");
                                 }}
                                 options={GRADE_GROUPS.map(group => ({ value: group.id, label: group.label }))}
+                            />
+                            <Select
+                                aria-label="Здание"
+                                placeholder="Все здания"
+                                value={buildingId}
+                                onChange={value => {
+                                    setBuildingId(value);
+                                    setClassName("");
+                                }}
+                                options={buildings.map(building => ({ value: building.id, label: building.name }))}
                             />
                             <Select
                                 aria-label="Класс"

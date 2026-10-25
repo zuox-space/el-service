@@ -45,12 +45,11 @@ const REASONS = [
 const reasonLabel = (id: string) => REASONS.find(reason => reason.id === id)?.label ?? id;
 const reasonTone = (id: string) => REASONS.find(reason => reason.id === id)?.tone ?? "neutral";
 
-const BUILDINGS = [
-    { id: "all", label: "Все корпуса", grades: [] as number[] },
-    { id: "tiger", label: "1–3 классы", grades: [1, 2, 3] },
-    { id: "turtle", label: "4–6 классы", grades: [4, 5, 6] },
-    { id: "crocodile", label: "7–11 классы", grades: [7, 8, 9, 10, 11] },
-];
+interface BuildingOption {
+    id: string;
+    name: string;
+    classes: Array<{ id: string; name: string }>;
+}
 
 interface AbsentStudent {
     id: string | number;
@@ -87,6 +86,7 @@ export default function AbsentPage() {
     const [error, setError] = useState<string | null>(null);
 
     const [building, setBuilding] = useState("all");
+    const [buildings, setBuildings] = useState<BuildingOption[]>([]);
     const [search, setSearch] = useState("");
     const [onlyMarked, setOnlyMarked] = useState(false);
     const [unmarkedFirst, setUnmarkedFirst] = useState(true);
@@ -129,12 +129,22 @@ export default function AbsentPage() {
         }
     }, [session, fetchData]);
 
+    useEffect(() => {
+        if (!session?.user?.roles?.includes("ADMIN")) return;
+        fetch("/api/buildings", { cache: "no-store" })
+            .then(response => response.json())
+            .then(data => setBuildings(Array.isArray(data.buildings) ? data.buildings : []))
+            .catch(() => setBuildings([]));
+    }, [session]);
+
     const rows = useMemo(() => {
         const query = search.trim().toLowerCase();
-        const grades = BUILDINGS.find(item => item.id === building)?.grades ?? [];
+        const buildingClassNames = building === "all"
+            ? null
+            : new Set((buildings.find(item => item.id === building)?.classes ?? []).map(item => item.name));
 
         const filtered = classes.filter(cls => {
-            if (grades.length > 0 && !grades.includes(cls.grade)) return false;
+            if (buildingClassNames && !buildingClassNames.has(cls.name)) return false;
             if (query && !cls.name.toLowerCase().includes(query)) return false;
             if (onlyMarked && !cls.isMarked) return false;
             return true;
@@ -151,7 +161,7 @@ export default function AbsentPage() {
         }
 
         return filtered;
-    }, [classes, building, search, onlyMarked, unmarkedFirst]);
+    }, [classes, building, buildings, search, onlyMarked, unmarkedFirst]);
 
     const columns: Column<ClassAttendance>[] = [
         { key: "name", header: "Класс", width: "110px" },
@@ -353,16 +363,16 @@ export default function AbsentPage() {
 
                     <div className="mt-3">
                         <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-fg-subtle">
-                            Корпус
+                            Здание
                         </p>
                         <div className="flex flex-wrap gap-1.5">
-                            {BUILDINGS.map(item => (
+                            {[{ id: "all", name: "Все здания" }, ...buildings].map(item => (
                                 <Chip
                                     key={item.id}
                                     selected={building === item.id}
                                     onClick={() => setBuilding(item.id)}
                                 >
-                                    {item.label}
+                                    {item.name}
                                 </Chip>
                             ))}
                         </div>
@@ -388,7 +398,7 @@ export default function AbsentPage() {
                         }
                         description={
                             search || onlyMarked || building !== "all"
-                                ? "Измените фильтры или выберите другой корпус"
+                                ? "Измените фильтры или выберите другое здание"
                                 : "Классы не загрузились или за этот день отметок нет"
                         }
                     />
