@@ -34,7 +34,7 @@ export function GuardSelfExitsTab({ items }: { items: GuardSelfExit[] }) {
     );
 
     return (
-        <Card padding="sm" className="flex h-full min-h-0 flex-col">
+        <Card padding="sm" className="flex h-full min-h-0 flex-col overflow-hidden">
             <div className="mb-2 flex flex-wrap items-center gap-2">
                 <div>
                     <p className="text-sm font-semibold text-fg">Самовыходы</p>
@@ -56,7 +56,7 @@ export function GuardSelfExitsTab({ items }: { items: GuardSelfExit[] }) {
                 <AlphabetFilter value={letter} onChange={setLetter} />
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="min-h-0 max-h-[60vh] flex-1 overflow-y-auto overscroll-contain lg:max-h-[calc(100dvh-18rem)]">
                 {filtered.length === 0 ? (
                     <EmptyState
                         icon={CalendarCheck}

@@ -161,6 +161,7 @@ export const ACCESS_SECTIONS: AccessSection[] = [
         description: "Ключи, здания, заявки, журнал операций и права на ключи",
         group: "admin",
         href: "/admin/keys",
+        extraPaths: ["/admin/buildings"],
         defaultRoles: ["ADMIN"],
     },
     {

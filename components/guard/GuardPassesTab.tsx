@@ -150,7 +150,7 @@ function PassColumn({
                 </div>
                 <Badge tone={title === "Активные" ? "info" : "neutral"}>{count}</Badge>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="min-h-0 max-h-[60vh] flex-1 overflow-y-auto overscroll-contain lg:max-h-[calc(100dvh-18rem)]">
                 {count === 0 ? (
                     <EmptyState compact icon={Clock} title={empty} description="Список обновится автоматически" />
                 ) : (
