@@ -93,14 +93,18 @@ model Class {
   grade     Int
   letter    String
   ownerId   String?
+  /// Здание, в котором учится класс — для фильтров пропусков и самовыходов
+  buildingId String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   owner User? @relation("Owner", fields: [ownerId], references: [id])
+  building KeyBuilding? @relation("BuildingClasses", fields: [buildingId], references: [id], onDelete: SetNull)
 
   /// Имя класса — каноническое («5А»); дубли недопустимы
   @@unique([name])
+  @@index([buildingId])
   
   // Обратная связь для шарингов
   sharedWith ClassShare[]
@@ -307,7 +311,8 @@ model KeyBuilding {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  keys KeyItem[]
+  keys    KeyItem[]
+  classes Class[]   @relation("BuildingClasses")
 }
 
 model KeyItem {

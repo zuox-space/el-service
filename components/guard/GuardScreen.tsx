@@ -110,6 +110,19 @@ export function GuardScreen() {
     const issued = filteredKeys.filter(key => key.status === "ISSUED");
     const free = filteredKeys.filter(key => key.status === "FREE" && !key.pending);
 
+    const buildingClassIds = useMemo(() => {
+        if (buildingId === "all") return null;
+        const building = buildings.find(item => item.id === buildingId);
+        return new Set((building?.classes ?? []).map(item => item.id));
+    }, [buildingId, buildings]);
+
+    const filteredPasses = buildingClassIds
+        ? (state?.passes ?? []).filter(pass => buildingClassIds.has(pass.classId))
+        : (state?.passes ?? []);
+    const filteredSelfExits = buildingClassIds
+        ? (state?.selfExits ?? []).filter(item => buildingClassIds.has(item.classId))
+        : (state?.selfExits ?? []);
+
     const floors = [...new Set(filteredKeys.map(key => key.floor))].sort((a, b) => a - b);
     const keysForGrid = filteredKeys.filter(key => {
         if (floor !== "all" && String(key.floor) !== floor) return false;
@@ -232,8 +245,8 @@ export function GuardScreen() {
                         items={[
                             { id: "requests", label: "Заявки", count: pending.length },
                             { id: "keys", label: "Ключи", count: filteredKeys.length },
-                            { id: "passes", label: "Пропуска", count: state?.passes.length ?? 0 },
-                            { id: "selfExits", label: "Самовыходы", count: state?.selfExits.length ?? 0 },
+                            { id: "passes", label: "Пропуска", count: filteredPasses.length },
+                            { id: "selfExits", label: "Самовыходы", count: filteredSelfExits.length },
                         ]}
                     />
                 </div>
@@ -247,7 +260,7 @@ export function GuardScreen() {
                 )}
 
                 {tab === "requests" && (
-                    <div className="flex h-full min-h-0 flex-col gap-2 lg:flex-1">
+                    <div className="flex h-full min-h-0 flex-col gap-2 lg:h-[calc(100dvh-8.75rem)] lg:overflow-hidden">
                         <div className="flex flex-wrap items-center gap-2">
 
                             <div className="ml-auto flex flex-wrap gap-1.5">
@@ -294,7 +307,7 @@ export function GuardScreen() {
                 )}
 
                 {tab === "keys" && (
-                    <div className="flex h-full min-h-0 flex-col gap-2 lg:flex-1">
+                    <div className="flex h-full min-h-0 flex-col gap-2 lg:h-[calc(100dvh-8.75rem)] lg:overflow-hidden">
                         <div className="flex flex-wrap items-end gap-2">
 
                             <Input
@@ -337,9 +350,9 @@ export function GuardScreen() {
                 )}
 
                 {tab === "passes" && (
-                    <div className="h-full min-h-[60vh] lg:min-h-0 lg:flex-1">
+                    <div className="h-full min-h-[60vh] lg:h-[calc(100dvh-8.75rem)] lg:min-h-0 lg:overflow-hidden">
                         <GuardPassesTab
-                            passes={state?.passes ?? []}
+                            passes={filteredPasses}
                             busyId={busyPassId}
                             onMarkUsed={markPassUsed}
                             onUndo={undoPass}
@@ -347,8 +360,8 @@ export function GuardScreen() {
                     </div>
                 )}
                 {tab === "selfExits" && (
-                    <div className="h-full min-h-[60vh] lg:min-h-0 lg:flex-1">
-                        <GuardSelfExitsTab items={state?.selfExits ?? []} />
+                    <div className="h-full min-h-[60vh] lg:h-[calc(100dvh-8.75rem)] lg:min-h-0 lg:overflow-hidden">
+                        <GuardSelfExitsTab items={filteredSelfExits} />
                     </div>
                 )}            </main>
 

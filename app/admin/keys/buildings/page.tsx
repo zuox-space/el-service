@@ -1,11 +1,13 @@
 "use client";
 
 // app/admin/keys/buildings/page.tsx
-import { useState } from "react";
-import { Building2, Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Building2, Check, Pencil, Plus, Trash2 } from "lucide-react";
 import {
+    Badge,
     Button,
     Card,
+    Checkbox,
     EmptyState,
     Input,
     Modal,
@@ -15,6 +17,20 @@ import {
     useToast,
 } from "@/components/ui/kit";
 import { KeysProvider, useKeys } from "@/components/keys/KeysProvider";
+
+interface ClassOption {
+    id: string;
+    name: string;
+    grade: number;
+    buildingId: string | null;
+}
+
+interface BuildingDto {
+    id: string;
+    name: string;
+    address: string;
+    classes: Array<{ id: string; name: string }>;
+}
 
 export default function AdminBuildingsPage() {
     return (
@@ -27,28 +43,72 @@ export default function AdminBuildingsPage() {
 function BuildingsScreen() {
     const { state, loading, refresh } = useKeys();
     const toast = useToast();
-    const [createOpen, setCreateOpen] = useState(false);
+
+    const [classes, setClasses] = useState<ClassOption[]>([]);
+    const [formOpen, setFormOpen] = useState(false);
+    const [editing, setEditing] = useState<BuildingDto | null>(null);
     const [name, setName] = useState("");
     const [address, setAddress] = useState("");
+    const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
+    const [classQuery, setClassQuery] = useState("");
     const [saving, setSaving] = useState(false);
-    const [deleting, setDeleting] = useState<{ id: string; name: string } | null>(null);
+    const [deleting, setDeleting] = useState<BuildingDto | null>(null);
 
-    const buildings = state?.buildings ?? [];
+    const buildings = (state?.buildings ?? []) as BuildingDto[];
 
-    const create = async () => {
+    useEffect(() => {
+        fetch("/api/keys/classes", { cache: "no-store" })
+            .then(response => response.json())
+            .then(data => setClasses(Array.isArray(data.classes) ? data.classes : []))
+            .catch(() => setClasses([]));
+    }, []);
+
+    const visibleClasses = useMemo(() => {
+        const q = classQuery.trim().toLowerCase();
+        if (!q) return classes;
+        return classes.filter(item => item.name.toLowerCase().includes(q));
+    }, [classes, classQuery]);
+
+    const openCreate = () => {
+        setEditing(null);
+        setName("");
+        setAddress("");
+        setSelectedClasses([]);
+        setClassQuery("");
+        setFormOpen(true);
+    };
+
+    const openEdit = (building: BuildingDto) => {
+        setEditing(building);
+        setName(building.name);
+        setAddress(building.address);
+        setSelectedClasses(building.classes.map(item => item.id));
+        setClassQuery("");
+        setFormOpen(true);
+    };
+
+    const save = async () => {
         setSaving(true);
         try {
-            const response = await fetch("/api/keys/buildings", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name, address }),
-            });
+            const response = await fetch(
+                editing ? `/api/keys/buildings/${editing.id}` : "/api/keys/buildings",
+                {
+                    method: editing ? "PATCH" : "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name, address, classIds: selectedClasses }),
+                },
+            );
             const data = await response.json().catch(() => ({}));
-            if (!response.ok) throw new Error(data.error || "Не удалось создать здание");
-            toast.show({ title: "Здание добавлено", tone: "success" });
-            setName("");
-            setAddress("");
-            setCreateOpen(false);
+            if (!response.ok) throw new Error(data.error || "Не удалось сохранить здание");
+
+            toast.show({
+                title: editing ? "Здание обновлено" : "Здание добавлено",
+                description: selectedClasses.length
+                    ? `Классов: ${selectedClasses.length}`
+                    : "Классы можно привязать позже",
+                tone: "success",
+            });
+            setFormOpen(false);
             await refresh();
         } catch (e) {
             toast.show({ title: "Ошибка", description: e instanceof Error ? e.message : undefined, tone: "danger" });
@@ -70,16 +130,22 @@ function BuildingsScreen() {
         await refresh();
     };
 
+    const toggleClass = (classId: string) => {
+        setSelectedClasses(current =>
+            current.includes(classId) ? current.filter(id => id !== classId) : [...current, classId],
+        );
+    };
+
     if (loading && !state) return <Skeleton height={220} radius="card" />;
 
     return (
         <div className="min-h-full bg-bg">
             <PageHeader
                 title="Здания"
-                subtitle="Каждый ключ принадлежит зданию. Выбранное здание фильтрует ключи и историю."
+                subtitle="Ключи и классы привязаны к зданию — по нему фильтруются пульт охраны и ключи."
                 onBack={() => (window.location.href = "/admin/keys")}
                 actions={
-                    <Button size="sm" leftIcon={Plus} onClick={() => setCreateOpen(true)}>
+                    <Button size="sm" leftIcon={Plus} onClick={openCreate}>
                         Добавить здание
                     </Button>
                 }
@@ -87,36 +153,114 @@ function BuildingsScreen() {
 
             <main className="mx-auto w-full max-w-[1200px] space-y-3 px-4 py-4">
                 {buildings.length === 0 ? (
-                    <EmptyState icon={Building2} title="Зданий нет" description="Добавьте здание, чтобы создавать ключи" />
+                    <EmptyState
+                        icon={Building2}
+                        title="Зданий нет"
+                        description="Добавьте здание и отметьте, какие классы в нём учатся"
+                    />
                 ) : (
-                    <Card padding="none">
-                        <ul className="divide-y divide-border">
-                            {buildings.map(building => (
-                                <li key={building.id} className="flex items-center gap-2 px-3 py-3">
+                    <div className="space-y-2">
+                        {buildings.map(building => (
+                            <Card key={building.id} padding="sm">
+                                <div className="flex flex-wrap items-start gap-3">
                                     <div className="min-w-0 flex-1">
-                                        <p className="text-sm font-medium text-fg">{building.name}</p>
-                                        <p className="truncate text-xs text-fg-muted">{building.address || "Адрес не указан"}</p>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <p className="text-sm font-semibold text-fg">{building.name}</p>
+                                            <Badge tone="neutral">классов: {building.classes.length}</Badge>
+                                        </div>
+                                        <p className="mt-0.5 text-xs text-fg-muted">
+                                            {building.address || "Адрес не указан"}
+                                        </p>
+                                        <div className="mt-2 flex flex-wrap gap-1">
+                                            {building.classes.length === 0 ? (
+                                                <span className="text-xs text-fg-subtle">Классы не привязаны</span>
+                                            ) : (
+                                                building.classes.map(item => (
+                                                    <Badge key={item.id} tone="info">
+                                                        {item.name}
+                                                    </Badge>
+                                                ))
+                                            )}
+                                        </div>
                                     </div>
-                                    <Button size="sm" variant="ghost" leftIcon={Trash2} onClick={() => setDeleting(building)}>
-                                        Удалить
-                                    </Button>
-                                </li>
-                            ))}
-                        </ul>
-                    </Card>
+                                    <div className="flex gap-1.5">
+                                        <Button size="sm" variant="ghost" leftIcon={Pencil} onClick={() => openEdit(building)}>
+                                            Изменить
+                                        </Button>
+                                        <Button size="sm" variant="ghost" leftIcon={Trash2} onClick={() => setDeleting(building)}>
+                                            Удалить
+                                        </Button>
+                                    </div>
+                                </div>
+                            </Card>
+                        ))}
+                    </div>
                 )}
             </main>
 
             <Modal
-                open={createOpen}
-                onClose={() => setCreateOpen(false)}
-                title="Новое здание"
-                size="sm"
-                footer={<ModalFooter onCancel={() => setCreateOpen(false)} onSubmit={() => void create()} submitLabel="Добавить" loading={saving} disabled={!name.trim()} />}
+                open={formOpen}
+                onClose={() => setFormOpen(false)}
+                title={editing ? "Изменить здание" : "Новое здание"}
+                description="Отметьте классы, которые учатся в этом здании"
+                size="md"
+                footer={
+                    <ModalFooter
+                        onCancel={() => setFormOpen(false)}
+                        onSubmit={() => void save()}
+                        submitLabel={editing ? "Сохранить" : "Добавить"}
+                        loading={saving}
+                        disabled={!name.trim()}
+                    />
+                }
             >
-                <div className="space-y-2">
+                <div className="space-y-3">
                     <Input label="Название" value={name} onChange={event => setName(event.target.value)} />
                     <Input label="Адрес" value={address} onChange={event => setAddress(event.target.value)} />
+
+                    <div>
+                        <div className="mb-1.5 flex items-center justify-between gap-2">
+                            <p className="text-xs font-medium uppercase tracking-wide text-fg-subtle">
+                                Классы в здании · {selectedClasses.length}
+                            </p>
+                            <Button size="sm" variant="ghost" onClick={() => setSelectedClasses([])} disabled={selectedClasses.length === 0}>
+                                Снять все
+                            </Button>
+                        </div>
+                        <Input
+                            value={classQuery}
+                            onChange={event => setClassQuery(event.target.value)}
+                            placeholder="Поиск класса, например 5А"
+                            wrapperClassName="mb-2"
+                        />
+                        <div className="max-h-56 overflow-y-auto rounded-card border border-border p-2">
+                            {visibleClasses.length === 0 ? (
+                                <p className="px-1 py-3 text-xs text-fg-muted">Классы не найдены</p>
+                            ) : (
+                                <div className="grid gap-1 sm:grid-cols-2">
+                                    {visibleClasses.map(item => (
+                                        <div
+                                            key={item.id}
+                                            className="flex items-center gap-2 rounded-control px-1.5 py-1 text-sm text-fg hover:bg-surface-hover"
+                                        >
+                                            <Checkbox
+                                                checked={selectedClasses.includes(item.id)}
+                                                onChange={() => toggleClass(item.id)}
+                                                label={item.name}
+                                            />
+                                            {item.buildingId && item.buildingId !== editing?.id && (
+                                                <span className="ml-auto text-[10px] text-fg-subtle">в другом здании</span>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        <p className="mt-1.5 flex items-center gap-1 text-[11px] text-fg-subtle">
+                            <Check size={12} aria-hidden />
+                            Класс может быть только в одном здании — при сохранении он перенесётся сюда.
+                        </p>
+                    </div>
                 </div>
             </Modal>
 
@@ -128,7 +272,9 @@ function BuildingsScreen() {
                 size="sm"
                 footer={<ModalFooter onCancel={() => setDeleting(null)} onSubmit={() => void remove()} submitLabel="Удалить" tone="danger" />}
             >
-                <p className="text-sm text-fg-muted">Удалить можно только здание без ключей.</p>
+                <p className="text-sm text-fg-muted">
+                    Удалить можно только здание без ключей. Классы останутся без здания.
+                </p>
             </Modal>
         </div>
     );

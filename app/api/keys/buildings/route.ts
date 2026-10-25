@@ -10,7 +10,10 @@ export async function GET() {
     const guard = await requireSection("keysAdmin");
     if (!guard.ok) return guard.response;
 
-    const buildings = await prisma.keyBuilding.findMany({ orderBy: { name: "asc" } });
+    const buildings = await prisma.keyBuilding.findMany({
+        orderBy: { name: "asc" },
+        include: { classes: { select: { id: true, name: true }, orderBy: { name: "asc" } } },
+    });
     return NextResponse.json({ success: true, buildings });
 }
 
@@ -23,6 +26,7 @@ export async function POST(request: NextRequest) {
         const result = await createBuilding({
             name: String(body?.name ?? ""),
             address: body?.address ? String(body.address) : "",
+            classIds: body?.classIds,
         });
         return NextResponse.json({ success: true, ...result }, { status: 201 });
     } catch (error) {

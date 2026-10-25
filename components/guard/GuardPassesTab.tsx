@@ -8,6 +8,7 @@ import { AlphabetFilter, surnameLetter } from "./AlphabetFilter";
 
 export interface GuardPass {
     id: string;
+    classId: string;
     className: string;
     exitTime: string;
     reason: string;

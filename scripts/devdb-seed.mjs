@@ -531,6 +531,16 @@ async function main() {
         data: { name: 'Начальная школа', address: 'ул. Школьная, 12, корпус Б' },
     });
 
+    // Классы 1–4 — начальная школа, 5–11 — основной корпус.
+    await prisma.class.updateMany({
+        where: { id: { in: classes.filter(cls => cls.grade >= 5).map(cls => cls.id) } },
+        data: { buildingId: mainBuilding.id },
+    });
+    await prisma.class.updateMany({
+        where: { id: { in: classes.filter(cls => cls.grade <= 4).map(cls => cls.id) } },
+        data: { buildingId: juniorBuilding.id },
+    });
+
     const byName = (name) => userByName.get(name);
     const petrov = byName('Петров Сергей Александрович');
     const smirnova = byName('Смирнова Ольга Викторовна');

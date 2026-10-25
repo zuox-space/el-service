@@ -8,6 +8,7 @@ import { AlphabetFilter, surnameLetter } from "./AlphabetFilter";
 
 export interface GuardSelfExit {
     id: string;
+    classId: string;
     studentName: string;
     className: string;
     reason: string | null;

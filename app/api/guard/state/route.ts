@@ -56,6 +56,7 @@ export async function GET() {
         keys,
         passes: passes.map(item => ({
             id: item.id,
+            classId: item.classId,
             className: className.get(item.classId) ?? "",
             exitTime: item.exitTime,
             reason: item.reason,
@@ -66,6 +67,7 @@ export async function GET() {
         selfExits: visibleSelfExits.map(item => ({
             id: item.id,
             studentName: item.studentName,
+            classId: item.classId,
             className: className.get(item.classId) ?? "",
             reason: item.reason,
             startDate: item.startDate.toISOString(),

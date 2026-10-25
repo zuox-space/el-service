@@ -47,7 +47,7 @@ export interface KeyItemDto {
 }
 
 export interface KeysState {
-    buildings: Array<{ id: string; name: string; address: string }>;
+    buildings: Array<{ id: string; name: string; address: string; classes: Array<{ id: string; name: string }> }>;
     keys: KeyItemDto[];
     requests: KeyRequestDto[];
     favorites: string[];
@@ -165,7 +165,10 @@ export async function buildKeysState(access: AccessInfo): Promise<KeysState> {
         : { OR: [{ requestedById: access.userId }, { targetUserId: access.userId }] };
 
     const [buildings, keyRows, pendingRows, requestRows, favorites, me] = await Promise.all([
-        prisma.keyBuilding.findMany({ orderBy: { name: "asc" } }),
+        prisma.keyBuilding.findMany({
+            orderBy: { name: "asc" },
+            include: { classes: { select: { id: true, name: true }, orderBy: { name: "asc" } } },
+        }),
         prisma.keyItem.findMany({ where: employeeKeyFilter, include: keyInclude }),
         prisma.keyRequest.findMany({ where: { status: "PENDING" }, include: requestInclude }),
         prisma.keyRequest.findMany({
@@ -639,24 +642,61 @@ export async function deleteKey(id: string): Promise<void> {
     broadcastKeys("update", { at: new Date().toISOString() });
 }
 
-export async function createBuilding(input: { name: string; address?: string }): Promise<{ id: string }> {
+function normalizeClassIds(value: unknown): string[] {
+    return Array.isArray(value) ? [...new Set(value.filter((item): item is string => typeof item === "string"))] : [];
+}
+
+export async function createBuilding(input: {
+    name: string;
+    address?: string;
+    classIds?: unknown;
+}): Promise<{ id: string }> {
     const name = input.name.trim();
     if (!name) throw new KeysConflictError("Укажите название здания");
     const existing = await prisma.keyBuilding.findUnique({ where: { name } });
     if (existing) throw new KeysConflictError("Здание с таким названием уже есть");
-    const row = await prisma.keyBuilding.create({ data: { name, address: input.address?.trim() ?? "" } });
+
+    const classIds = normalizeClassIds(input.classIds);
+    const row = await prisma.keyBuilding.create({
+        data: { name, address: input.address?.trim() ?? "" },
+    });
+
+    if (classIds.length > 0) {
+        await prisma.class.updateMany({
+            where: { id: { in: classIds } },
+            data: { buildingId: row.id },
+        });
+    }
+
     broadcastKeys("update", { at: new Date().toISOString() });
     return { id: row.id };
 }
 
 export async function updateBuilding(
     id: string,
-    input: { name?: string; address?: string },
+    input: { name?: string; address?: string; classIds?: unknown },
 ): Promise<void> {
     await prisma.keyBuilding.update({
         where: { id },
         data: { name: input.name?.trim(), address: input.address?.trim() },
     });
+
+    // Классы могут учиться только в одном здании: переносим выбранные сюда,
+    // а снятые с здания — отвязываем.
+    if (input.classIds !== undefined) {
+        const classIds = normalizeClassIds(input.classIds);
+        await prisma.class.updateMany({
+            where: { buildingId: id, id: { notIn: classIds } },
+            data: { buildingId: null },
+        });
+        if (classIds.length > 0) {
+            await prisma.class.updateMany({
+                where: { id: { in: classIds } },
+                data: { buildingId: id },
+            });
+        }
+    }
+
     broadcastKeys("update", { at: new Date().toISOString() });
 }
 

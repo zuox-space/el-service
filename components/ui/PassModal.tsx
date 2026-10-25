@@ -81,6 +81,7 @@ export default function PassModal({
     const [searchQuery, setSearchQuery] = useState("");
 
     const students = useMemo(() => normalizeStudents(studentsList), [studentsList]);
+    const safeDate = Number.isNaN(new Date(selectedDate).getTime()) ? new Date() : selectedDate;
     const { submitting, error, run } = useSubmit(() => {
         reset();
         onClose();
@@ -137,9 +138,9 @@ export default function PassModal({
 
         void run(async () => {
             await onSubmit({
-                date: toLocalISODate(selectedDate),
+                date: toLocalISODate(safeDate),
                 students: chosenStudents,
-                exitTime: exitTime || DEFAULT_TIME,
+                exitTime: /^\d{2}:\d{2}$/.test(exitTime) ? exitTime : DEFAULT_TIME,
                 reason: DEFAULT_REASON,
             });
         });
@@ -152,7 +153,7 @@ export default function PassModal({
             open={isOpen}
             onClose={onClose}
             title="Пропуск"
-            description={`${formatDateRu(selectedDate, { day: "numeric", month: "long", year: "numeric" })} · ${stepLabel}`}
+            description={`${formatDateRu(safeDate, { day: "numeric", month: "long", year: "numeric" })} · ${stepLabel}`}
             size="md"
             confirmOnClose
             isDirty={selected.length > 0 || exitTime !== DEFAULT_TIME}

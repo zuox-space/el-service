@@ -17,6 +17,7 @@ export async function PATCH(
         await updateBuilding(params.id, {
             name: body?.name !== undefined ? String(body.name) : undefined,
             address: body?.address !== undefined ? String(body.address) : undefined,
+            classIds: body?.classIds,
         });
         return NextResponse.json({ success: true });
     } catch (error) {

@@ -68,7 +68,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { date, classId, students, exitTime, reason } = body;
 
-    const passDate = new Date(date);
+    const parsedDate = date ? new Date(date) : new Date();
+    const passDate = Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
     passDate.setHours(0, 0, 0, 0);
 
     // Каждому выбранному ребёнку — отдельный пропуск, а не одна запись на всех.
@@ -85,8 +86,8 @@ export async function POST(req: NextRequest) {
             classId: classId,
             teacherId: session.user.id,
             students: JSON.stringify([student]),
-            exitTime: exitTime,
-            reason: reason,
+            exitTime: typeof exitTime === "string" && /^\d{2}:\d{2}$/.test(exitTime) ? exitTime : "13:00",
+            reason: typeof reason === "string" && reason.trim() ? reason : "По заявлению родителей",
           },
         }),
       ),
