@@ -74,6 +74,12 @@ DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DBNAME"
 NEXTAUTH_URL="https://school.example.ru"
 NEXTAUTH_SECRET="длинная случайная строка"
 
+# Планшет охраны (свой вход, без Яндекса)
+GUARD_LOGIN=guard-tablet
+GUARD_PASSWORD=сложный-пароль
+GUARD_EMAIL=guard-tablet@school.local
+GUARD_SESSION_SECRET=отдельная-случайная-строка
+
 # Вход через Яндекс
 YANDEX_CLIENT_ID="..."
 YANDEX_CLIENT_SECRET="..."
@@ -283,6 +289,7 @@ curl -I https://school.example.ru/login
 9. `/admin/users` — роли и флаги синхронизации отображаются.
 10. `/admin/keys` — ключница: создайте здание и ключ, проверьте заявку.
 11. `/keys` и кнопка с ключом слева — сотрудник может взять/сдать/передать ключ.
+12. `/guard` — планшет охраны: вход по `GUARD_LOGIN`/`GUARD_PASSWORD`, пропуска, самовыходы, ключи.
 
 Если что-то не так — смотрите `pm2 logs` / `journalctl` / `docker logs`.
 

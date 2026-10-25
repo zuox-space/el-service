@@ -30,7 +30,8 @@
     "classes:normalize:apply": "node scripts/normalize-class-names.mjs --apply",
     "keys:access": "node scripts/keys-role-access.mjs",
     "keys:access:apply": "node scripts/keys-role-access.mjs --apply",
-    "keys:test": "node scripts/keys-test.mjs"
+    "keys:test": "node scripts/keys-test.mjs",
+    "guard:test": "node --env-file=.env.local scripts/guard-test.mjs"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

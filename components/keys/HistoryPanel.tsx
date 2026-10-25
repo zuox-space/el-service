@@ -38,12 +38,16 @@ export function HistoryPanel({
     defaultToday = false,
     pageSize = 30,
     onOpenKey,
+    endpoint = "/api/keys/history",
+    buildingId = "",
 }: {
     type?: "all" | "key";
     keyId?: string | null;
     defaultToday?: boolean;
     pageSize?: number;
     onOpenKey?: (keyId: string) => void;
+    endpoint?: string;
+    buildingId?: string;
 }) {
     const [q, setQ] = useState("");
     const [requestType, setRequestType] = useState("all");
@@ -59,13 +63,14 @@ export function HistoryPanel({
         const search = new URLSearchParams();
         search.set("limit", String(pageSize));
         if (keyId) search.set("keyId", keyId);
+        if (buildingId && buildingId !== "all") search.set("buildingId", buildingId);
         if (q.trim()) search.set("q", q.trim());
         if (requestType !== "all") search.set("type", requestType);
         if (status !== "all") search.set("status", status);
         if (dateFrom) search.set("dateFrom", dateFrom);
         if (dateTo) search.set("dateTo", dateTo);
         return search;
-    }, [keyId, q, requestType, status, dateFrom, dateTo, pageSize]);
+    }, [keyId, q, requestType, status, dateFrom, dateTo, pageSize, buildingId]);
 
     const load = useCallback(
         async (offset = 0) => {
@@ -73,7 +78,7 @@ export function HistoryPanel({
             try {
                 const search = new URLSearchParams(params);
                 search.set("offset", String(offset));
-                const response = await fetch(`/api/keys/history?${search.toString()}`, { cache: "no-store" });
+                const response = await fetch(`${endpoint}?${search.toString()}`, { cache: "no-store" });
                 const data = await response.json();
                 const next = Array.isArray(data.items) ? data.items : [];
                 setItems(current => (offset === 0 ? next : [...current, ...next]));
@@ -83,7 +88,7 @@ export function HistoryPanel({
                 setLoading(false);
             }
         },
-        [params],
+        [params, endpoint],
     );
 
     useEffect(() => {

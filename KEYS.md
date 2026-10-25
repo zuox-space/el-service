@@ -15,6 +15,25 @@
 - импорт ключей из CSV;
 - SSE-обновления: новые заявки и изменения приходят сразу.
 
+## Планшет охраны
+
+Отдельный контур для планшета:
+
+- `/guard` — страница охраны, `/guard/login` — свой вход по логину и паролю;
+- логин/пароль задаются в `GUARD_LOGIN` / `GUARD_PASSWORD`, cookie подписана
+  `GUARD_SESSION_SECRET` (fallback — `NEXTAUTH_SECRET`);
+- Яндекс и NextAuth не используются;
+- на планшете: пропуска, самовыходы, выдача/сдача ключей, история и состояние
+  ключей; фильтр по зданию хранится в `localStorage` (`guard-building-id`);
+- подтверждения пишутся в журнал от системного пользователя «Охрана».
+
+API планшета: `/api/guard/login`, `/api/guard/state`, `/api/guard/events`,
+`/api/guard/history`, `/api/guard/requests/[id]/decision`,
+`/api/guard/passes/[id]/use`.
+
+Доступ к администрированию ключей (`/admin/keys`, здания, история) — только у
+роли с разделом `keysAdmin`.
+
 ## Доступы
 
 Два раздела в реестре (`lib/access/registry.ts`):

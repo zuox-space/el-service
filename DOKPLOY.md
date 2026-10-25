@@ -33,6 +33,12 @@ DB_USER=...
 DB_PASSWORD=...
 DB_NAME=...
 
+# Планшет охраны (свой вход)
+GUARD_LOGIN=guard-tablet
+GUARD_PASSWORD=...
+GUARD_EMAIL=guard-tablet@school.local
+GUARD_SESSION_SECRET=...
+
 PORT=3000
 WAIT_FOR_DB=true
 RUN_MIGRATIONS=true
@@ -89,6 +95,26 @@ node scripts/import-db.mjs \
 ```bash
 node scripts/keys-role-access.mjs --apply
 ```
+
+## 3.2. Планшет охраны
+
+Отдельная страница `/guard` — без Яндекса, со своим логином и паролем из env:
+
+```ini
+GUARD_LOGIN=guard-tablet
+GUARD_PASSWORD=сложный-пароль
+GUARD_EMAIL=guard-tablet@school.local
+GUARD_SESSION_SECRET=отдельная-случайная-строка
+```
+
+- вход: `https://домен/guard` → `/guard/login`;
+- сессия — подписанная HttpOnly-cookie на 12 часов;
+- на странице: пропуска, самовыходы, выдача/сдача ключей и история;
+- фильтр по зданию запоминается в `localStorage`;
+- доступ к админке ключей (`/admin/keys`, здания, история) — только у роли
+  с разделом `keysAdmin`.
+
+`GUARD_SESSION_SECRET` можно не задавать — тогда используется `NEXTAUTH_SECRET`.
 
 ## 4. Первая синхронизация сотрудников
 
