@@ -3,7 +3,7 @@
 // components/ui/GlobalKeysFab.tsx
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Inbox, KeyRound, Undo2, X } from "lucide-react";
+import { Inbox, KeyRound, Send, Undo2, X } from "lucide-react";
 import { useAccess } from "@/components/access/AccessProvider";
 import { KeysProvider, useKeys } from "@/components/keys/KeysProvider";
 import {
@@ -87,6 +87,12 @@ function KeysFabInner() {
                             onClick={() => openMode("my")}
                             className="border-success/40 bg-success-soft text-success hover:bg-success/20"
                         />
+                        <IconAction
+                            icon={Send}
+                            label="Передать ключ"
+                            onClick={() => openMode("transfer")}
+                            className="border-accent/40 bg-accent-soft text-accent-text hover:bg-accent/20"
+                        />
                         {incoming.length > 0 && (
                             <IconAction
                                 icon={Inbox}
@@ -102,7 +108,7 @@ function KeysFabInner() {
                 <button
                     type="button"
                     onClick={() => setExpanded(open => !open)}
-                    aria-label={expanded ? "Свернуть меню ключей" : "Ключи: взять, сдать, принять"}
+                    aria-label={expanded ? "Свернуть меню ключей" : "Ключи: взять, сдать, передать, принять"}
                     aria-expanded={expanded}
                     title={expanded ? "Свернуть" : "Ключи"}
                     className="flex h-14 w-14 items-center justify-center rounded-full border border-accent/40 bg-accent-soft text-accent-text shadow-raised transition-all hover:scale-105 hover:bg-accent/20 active:scale-95"

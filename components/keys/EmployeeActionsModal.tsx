@@ -309,9 +309,19 @@ export function EmployeeActionsModal({
                                     {key.pending ? (
                                         <Badge tone="warning">заявка</Badge>
                                     ) : (
-                                        <Button size="sm" onClick={() => returnKey(key)} disabled={busy === "action"}>
-                                            Сдать
-                                        </Button>
+                                        <div className="flex gap-1.5">
+                                            <Button size="sm" onClick={() => returnKey(key)} disabled={busy === "action"}>
+                                                Сдать
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                variant="secondary"
+                                                onClick={() => setTransferKey(key)}
+                                                disabled={busy === "action"}
+                                            >
+                                                Передать…
+                                            </Button>
+                                        </div>
                                     )}
                                 </li>
                             ))}
