@@ -1,0 +1,31 @@
+"use client";
+
+// components/keys/KeyHistoryDrawer.tsx
+import { Sheet } from "@/components/ui/kit";
+import { HistoryPanel } from "./HistoryPanel";
+
+/** История одного ключа — как KeyHistoryDrawer в keys-app. */
+export function KeyHistoryDrawer({
+    keyId,
+    onClose,
+    limit = 20,
+    endpoint = "/api/keys/history",
+    defaultToday = true,
+}: {
+    keyId: string | null;
+    onClose: () => void;
+    limit?: number;
+    endpoint?: string;
+    defaultToday?: boolean;
+}) {
+    return (
+        <Sheet
+            open={Boolean(keyId)}
+            onClose={onClose}
+            title="История ключа"
+            description="Выдачи, сдачи и передачи"
+        >
+            {keyId && <HistoryPanel type="key" keyId={keyId} pageSize={limit} endpoint={endpoint} defaultToday={defaultToday} />}
+        </Sheet>
+    );
+}

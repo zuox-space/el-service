@@ -7,6 +7,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
 import { requireSection } from "@/lib/access/server";
+import { canAccessClass } from "@/lib/access/classes";
 import { prisma } from "@/lib/prisma";
 
 
@@ -24,6 +25,9 @@ export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
         const className = normalizeClassName(searchParams.get("className"));
+        if (!(await canAccessClass(accessGuard.access, className))) {
+            return NextResponse.json({ error: "Нет доступа к классу" }, { status: 403 });
+        }
         const isActive = searchParams.get("active");
         const studentId = searchParams.get("studentId");
 
@@ -67,6 +71,10 @@ export async function POST(req: NextRequest) {
             phone,
             comment,
         } = body;
+
+        if (!(await canAccessClass(accessGuard.access, className))) {
+            return NextResponse.json({ error: "Нет доступа к классу" }, { status: 403 });
+        }
 
         if (!studentId || !studentName || !trustedName || !relation) {
             return NextResponse.json(

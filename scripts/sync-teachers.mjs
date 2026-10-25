@@ -103,7 +103,9 @@ function normalizeName(value) {
 }
 
 function normalizeEmail(value) {
-    return String(value ?? "").trim().toLowerCase();
+    const normalized = String(value ?? "").trim().toLowerCase();
+    // В источнике вместо email встречаются заглушки «нет», «no», «-».
+    return ["", "нет", "no", "-", "—"].includes(normalized) ? "" : normalized;
 }
 
 function isValidEmail(email) {
@@ -310,7 +312,7 @@ async function main() {
 
         if (!name || !isValidEmail(email)) {
             report.skipped.invalid++;
-            detail("skip", `пропуск записи без email/ФИО: ${name || "?"} (${email || "нет email"})`);
+            detail("skip", !name ? "пропуск: нет ФИО" : !email ? `пропуск: ${name} — нет email` : `пропуск: ${name} — некорректный email ${email}`);
             continue;
         }
 

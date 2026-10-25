@@ -55,7 +55,7 @@ function FieldShell({ id, label, hint, error, required, children, className, lab
 }
 
 const controlBase =
-    "w-full rounded-control border bg-surface-2 text-base text-fg placeholder:text-fg-subtle " +
+    "w-full rounded-control border border-border bg-surface-2 text-base text-fg placeholder:text-fg-subtle " +
     "transition-colors duration-150 outline-none " +
     // Кольцо фокуса задаётся в globals.css (зелёное, из токена): утилита ring
     // брала цвет по умолчанию из currentColor и в тёмной теме давала белую обводку

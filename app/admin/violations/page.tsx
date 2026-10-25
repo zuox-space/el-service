@@ -99,7 +99,8 @@ function ViolationsContent() {
     const [endDate, setEndDate] = useState(() => searchParams.get('endDate') || getDefaultRange().end);
     const [selectedType, setSelectedType] = useState(() => searchParams.get('type') || "");
     const [selectedClass, setSelectedClass] = useState(() => searchParams.get('className') || "");
-    const [gradeGroup, setGradeGroup] = useState(() => searchParams.get('gradeGroup') || "");
+    const [buildingId, setBuildingId] = useState(() => searchParams.get('buildingId') || "");
+    const [buildings, setBuildings] = useState<Array<{ id: string; name: string }>>([]);
     const [searchInput, setSearchInput] = useState(() => searchParams.get('search') || "");
     const [searchQuery, setSearchQuery] = useState(() => searchParams.get('search') || "");
     // Отработка: пусто — все, unresolved — ждут администрацию, resolved — разобраны
@@ -139,6 +140,14 @@ function ViolationsContent() {
         }
     }, [session, status, router]);
 
+    useEffect(() => {
+        if (status !== "authenticated") return;
+        fetch("/api/buildings", { cache: "no-store" })
+            .then(response => response.json())
+            .then(data => setBuildings(Array.isArray(data.buildings) ? data.buildings : []))
+            .catch(() => setBuildings([]));
+    }, [status]);
+
     const isAdmin = status === "authenticated" && (((session?.user?.roles as string[]) || []).includes("ADMIN"));
 
     // Ввод в поиске не должен дёргать сервер на каждую букву
@@ -158,12 +167,12 @@ function ViolationsContent() {
         params.set('endDate', endDate);
         if (selectedType) params.set('type', selectedType);
         if (selectedClass) params.set('className', selectedClass);
-        if (gradeGroup) params.set('gradeGroup', gradeGroup);
+        if (buildingId) params.set('buildingId', buildingId);
         if (searchQuery) params.set('search', searchQuery);
         if (resolution) params.set('resolution', resolution);
         if (page > 1) params.set('page', String(page));
         router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-    }, [mounted, startDate, endDate, selectedType, selectedClass, gradeGroup, searchQuery, resolution, page, pathname, router]);
+    }, [mounted, startDate, endDate, selectedType, selectedClass, buildingId, searchQuery, resolution, page, pathname, router]);
 
     const fetchViolations = useCallback(async () => {
         try {
@@ -178,7 +187,7 @@ function ViolationsContent() {
             });
             if (selectedType) params.set('type', selectedType);
             if (selectedClass) params.set('className', selectedClass);
-            if (gradeGroup) params.set('gradeGroup', gradeGroup);
+            if (buildingId) params.set('buildingId', buildingId);
             if (searchQuery) params.set('search', searchQuery);
             if (resolution) params.set('resolution', resolution);
 
@@ -234,7 +243,7 @@ function ViolationsContent() {
         } finally {
             setIsLoading(false);
         }
-    }, [startDate, endDate, page, selectedType, selectedClass, gradeGroup, searchQuery, resolution]);
+    }, [startDate, endDate, page, selectedType, selectedClass, buildingId, searchQuery, resolution]);
 
     useEffect(() => {
         if (isAdmin) {
@@ -390,13 +399,13 @@ function ViolationsContent() {
         },
     ]), []);
 
-    const hasActiveFilters = Boolean(selectedType || selectedClass || gradeGroup || searchQuery || resolution);
+    const hasActiveFilters = Boolean(selectedType || selectedClass || buildingId || searchQuery || resolution);
     const rangeInvalid = startDate > endDate;
     const firstShown = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
     const lastShown = Math.min(page * PAGE_SIZE, total);
 
     const resetFilters = () => {
-        setGradeGroup("");
+        setBuildingId("");
         const { start, end } = getDefaultRange();
         setStartDate(start);
         setEndDate(end);
@@ -522,19 +531,15 @@ function ViolationsContent() {
 
                                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                                     <Select
-                                        aria-label="Корпус"
-                                        placeholder="Все корпуса"
-                                        value={gradeGroup}
+                                        aria-label="Здание"
+                                        placeholder="Все здания"
+                                        value={buildingId}
                                         onChange={value => {
-                                            setGradeGroup(value);
+                                            setBuildingId(value);
                                             setSelectedClass("");
                                             setPage(1);
                                         }}
-                                        options={[
-                                            { value: "1-3", label: "1–3 классы" },
-                                            { value: "4-6", label: "4–6 классы" },
-                                            { value: "7-11", label: "7–11 классы" },
-                                        ]}
+                                        options={buildings.map(building => ({ value: building.id, label: building.name }))}
                                     />
                                     <Select
                                         aria-label="Класс"

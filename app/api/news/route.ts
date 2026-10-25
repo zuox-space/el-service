@@ -8,6 +8,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
 import { prisma } from "@/lib/prisma";
+import { canAccessClass } from "@/lib/access/classes";
+import { getDayRange } from "@/lib/date";
 
 
 // GET: Получить новости для класса на дату
@@ -29,12 +31,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json([]);
   }
 
+  if (!(await canAccessClass(accessGuard.access, classId))) {
+    return NextResponse.json({ error: "Нет доступа к классу" }, { status: 403 });
+  }
+
   try {
-    const startDate = new Date(date);
-    startDate.setHours(0, 0, 0, 0);
-    
-    const endDate = new Date(date);
-    endDate.setHours(23, 59, 59, 999);
+    const { start: startDate, end: endDate } = getDayRange(date);
 
     const news = await prisma.news.findMany({
       where: {
@@ -70,6 +72,10 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { title, content, classId, date } = body;
+
+    if (!(await canAccessClass(accessGuard.access, classId))) {
+      return NextResponse.json({ error: "Нет доступа к классу" }, { status: 403 });
+    }
 
     if (!title || !content || !classId || !date) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });

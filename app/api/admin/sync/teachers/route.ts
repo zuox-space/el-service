@@ -4,6 +4,7 @@ export const maxDuration = 120;
 
 import { spawn } from "node:child_process";
 import { readFile, rm, stat, writeFile } from "node:fs/promises";
+import { closeSync, openSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { NextRequest, NextResponse } from "next/server";
@@ -22,6 +23,7 @@ import { requireSection } from "@/lib/access/server";
 const REPORT_PATH = join(tmpdir(), "el-service-sync-report.json");
 const SCRIPT = join(process.cwd(), "scripts", "sync-teachers.mjs");
 const LAST_RUN_PATH = join(tmpdir(), "el-service-sync-last.json");
+const LOG_PATH = join(tmpdir(), "el-service-sync.log");
 
 interface SyncReport {
     startedAt?: string;
@@ -72,29 +74,53 @@ async function resolveSource(raw: unknown): Promise<string | null> {
 
 function runScript(args: string[]): Promise<void> {
     return new Promise((resolve, reject) => {
-        // stdio: ignore — не держим пайпы: в песочнице это единственный рабочий режим
+        // Пишем stdout/stderr в файл, а не в pipe: в песочнице pipe может быть
+        // недоступен, но диагностика не должна теряться.
+        writeFileSync(LOG_PATH, "", "utf8");
+        const logFd = openSync(LOG_PATH, "a");
+
         const child = spawn(process.execPath, args, {
             cwd: process.cwd(),
-            stdio: "ignore",
+            stdio: ["ignore", logFd, logFd],
             env: process.env,
         });
 
+        const closeLog = () => {
+            try {
+                closeSync(logFd);
+            } catch {
+                // уже закрыт
+            }
+        };
+
         const timer = setTimeout(() => {
             child.kill();
+            closeLog();
             reject(new Error("Синхронизация заняла слишком много времени"));
         }, 110_000);
 
         child.on("error", error => {
             clearTimeout(timer);
+            closeLog();
             reject(error);
         });
 
         child.on("exit", code => {
             clearTimeout(timer);
+            closeLog();
             if (code === 0) resolve();
             else reject(new Error(`Скрипт синхронизации завершился с кодом ${code}`));
         });
     });
+}
+
+function logTail(maxLength = 4000): string {
+    try {
+        const text = readFileSync(LOG_PATH, "utf8");
+        return text.length > maxLength ? `…${text.slice(-maxLength)}` : text;
+    } catch {
+        return "";
+    }
 }
 
 export async function GET() {
@@ -114,7 +140,7 @@ export async function POST(request: NextRequest) {
 
     const customSource = await resolveSource(body?.source);
 
-    const args = [SCRIPT, "--report", REPORT_PATH];
+    const args = [SCRIPT, "--report", REPORT_PATH, "--verbose"];
     if (apply) args.push("--apply");
     if (customSource) args.push("--source", customSource);
 
@@ -127,7 +153,9 @@ export async function POST(request: NextRequest) {
                     error instanceof Error
                         ? error.message
                         : "Не удалось выполнить синхронизацию",
-                hint: "Подробный лог доступен при запуске скрипта из консоли",
+                hint: "Хвост лога синхронизации",
+                log: logTail(),
+                logPath: LOG_PATH,
             },
             { status: 500 },
         );

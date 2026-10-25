@@ -7,6 +7,7 @@ import { getStudentsGroupedByClass } from "@/lib/mysql_db";
 
 import { requireSection } from "@/lib/access/server";
 import { withDbMetrics, startDbMetrics } from "@/lib/dev-metrics";
+import { accessibleClassNames } from "@/lib/access/classes";
 
 
 export const dynamic = 'force-dynamic';
@@ -34,7 +35,8 @@ export async function GET(req: NextRequest) {
         tomorrow.setDate(tomorrow.getDate() + 1);
 
         // Все классы и все записи посещаемости за день — по одному запросу на каждый источник
-        const [classes, allAttendance, studentsByClass] = await Promise.all([
+        const allowedClassNames = await accessibleClassNames(accessGuard.access);
+        const [classesRaw, allAttendance, studentsByClass] = await Promise.all([
             prisma.class.findMany({ orderBy: { name: 'asc' } }),
             prisma.attendance.findMany({
                 where: {
@@ -47,6 +49,10 @@ export async function GET(req: NextRequest) {
             // 🔥 Один запрос ко всем ученикам вместо запроса на каждый класс (был N+1)
             getStudentsGroupedByClass(),
         ]);
+
+        const classes = allowedClassNames
+            ? classesRaw.filter(cls => allowedClassNames.has(cls.name))
+            : classesRaw;
 
         // Создаем карту посещаемости по classId
         const attendanceMap = new Map();

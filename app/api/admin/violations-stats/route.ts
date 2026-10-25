@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 
 import { requireSection } from "@/lib/access/server";
 import { getAcademicYearStart, getDayRange, parseLocalDate, toLocalISODate } from "@/lib/date";
+import { classNamesForBuilding } from "@/lib/buildings";
 
 
 /**
@@ -38,6 +39,7 @@ export async function GET(request: NextRequest) {
         const startParam = searchParams.get("startDate");
         const endParam = searchParams.get("endDate");
         const gradeGroup = searchParams.get("gradeGroup"); // 1-3 | 4-6 | 7-11
+        const buildingId = searchParams.get("buildingId");
 
         const startDate = startParam ? parseLocalDate(startParam) : getAcademicYearStart();
         const endDate = endParam ? parseLocalDate(endParam) : new Date();
@@ -52,7 +54,10 @@ export async function GET(request: NextRequest) {
         const where: Record<string, unknown> = { date: { gte: start, lte: end } };
 
         // Корпус: отбираем классы нужных параллелей и фильтруем по их названиям
-        if (gradeGroup) {
+        if (buildingId) {
+            const buildingClasses = await classNamesForBuilding(buildingId);
+            where.className = { in: buildingClasses };
+        } else if (gradeGroup) {
             const grades =
                 gradeGroup === "1-3" ? [1, 2, 3]
                     : gradeGroup === "4-6" ? [4, 5, 6]

@@ -12,6 +12,12 @@ const nextConfig = withPWA({
   images: {
     domains: ['avatars.yandex.net'],
   },
+
+  async redirects() {
+    return [
+      { source: '/admin/keys/buildings', destination: '/admin/buildings', permanent: false },
+    ];
+  },
 });
 
 module.exports = nextConfig;  

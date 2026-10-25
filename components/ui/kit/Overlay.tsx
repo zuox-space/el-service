@@ -214,7 +214,7 @@ export function Overlay({
                     className={cn(
                         "relative ml-auto flex h-[100dvh] w-full flex-col overflow-hidden",
                         "border-l border-border bg-surface shadow-overlay",
-                        "sm:max-w-[460px]",
+                        size === "lg" ? "sm:max-w-[720px]" : size === "sm" ? "sm:max-w-[400px]" : "sm:max-w-[460px]",
                         "animate-[slideInRight_200ms_cubic-bezier(.2,.8,.2,1)]",
                         className,
                     )}
@@ -278,7 +278,9 @@ export interface ModalProps extends Omit<OverlayProps, "variant"> {
 }
 
 export function Modal({ forceModal = false, ...props }: ModalProps) {
-    return <Overlay {...props} variant={forceModal ? "modal" : "auto"} />;
+    // На десктопе все модалки — правой панелью; на телефоне Overlay сам
+    // превращает side в нижнюю шторку.
+    return <Overlay {...props} variant={forceModal ? "modal" : "side"} />;
 }
 
 export function BottomSheet(props: Omit<OverlayProps, "variant">) {

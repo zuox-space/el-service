@@ -62,7 +62,8 @@ export default function ViolationsStatsPage() {
     const [startDate, setStartDate] = useState(academicStart);
     const [endDate, setEndDate] = useState(() => toLocalISODate());
 
-    const [gradeGroup, setGradeGroup] = useState<string>("");
+    const [buildingId, setBuildingId] = useState<string>("");
+    const [buildings, setBuildings] = useState<Array<{ id: string; name: string; classes: Array<{ id: string; name: string }> }>>([]);
     const [selectedType, setSelectedType] = useState<string | null>(null);
     const [selectedClass, setSelectedClass] = useState<string | null>(null);
 
@@ -81,7 +82,7 @@ export default function ViolationsStatsPage() {
 
         try {
             const response = await fetch(
-                `/api/admin/violations-stats?startDate=${startDate}&endDate=${endDate}&gradeGroup=${gradeGroup}`,
+                `/api/admin/violations-stats?startDate=${startDate}&endDate=${endDate}&buildingId=${buildingId}`,
             );
             if (!response.ok) throw new Error(`Сервер вернул ошибку ${response.status}`);
 
@@ -95,13 +96,21 @@ export default function ViolationsStatsPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [startDate, endDate, gradeGroup]);
+    }, [startDate, endDate, buildingId]);
 
     useEffect(() => {
         if (session?.user?.roles?.includes("ADMIN")) {
             void fetchStats();
         }
     }, [session, fetchStats]);
+
+    useEffect(() => {
+        if (!session?.user?.roles?.includes("ADMIN")) return;
+        fetch("/api/buildings", { cache: "no-store" })
+            .then(response => response.json())
+            .then(data => setBuildings(Array.isArray(data.buildings) ? data.buildings : []))
+            .catch(() => setBuildings([]));
+    }, [session]);
 
     const typeSlices: ChartSlice[] = useMemo(() => {
         if (!stats) return [];
@@ -235,23 +244,19 @@ export default function ViolationsStatsPage() {
 
                     <div className="mt-3">
                         <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-fg-subtle">
-                            Корпус
+                            Здание
                         </p>
                         <div className="flex flex-wrap gap-1.5">
-                            <Chip selected={gradeGroup === ""} onClick={() => setGradeGroup("")}>
-                                Все
+                            <Chip selected={buildingId === ""} onClick={() => setBuildingId("")}>
+                                Все здания
                             </Chip>
-                            {[
-                                { id: "1-3", label: "1–3 классы" },
-                                { id: "4-6", label: "4–6 классы" },
-                                { id: "7-11", label: "7–11 классы" },
-                            ].map(building => (
+                            {buildings.map(building => (
                                 <Chip
                                     key={building.id}
-                                    selected={gradeGroup === building.id}
-                                    onClick={() => setGradeGroup(gradeGroup === building.id ? "" : building.id)}
+                                    selected={buildingId === building.id}
+                                    onClick={() => setBuildingId(buildingId === building.id ? "" : building.id)}
                                 >
-                                    {building.label}
+                                    {building.name}
                                 </Chip>
                             ))}
                         </div>

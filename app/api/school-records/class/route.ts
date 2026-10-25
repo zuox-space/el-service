@@ -8,6 +8,7 @@ import { authOptions } from "@/lib/auth";
 
 import { requireAnySection } from "@/lib/access/server";
 import { prisma } from "@/lib/prisma";
+import { canAccessClass } from "@/lib/access/classes";
 
 
 export async function GET(req: NextRequest) {

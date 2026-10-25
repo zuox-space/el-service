@@ -9,6 +9,8 @@ import { prisma } from "@/lib/prisma";
 import { requireAnySection, requireSection } from "@/lib/access/server";
 import { getDayRange, parseLocalDate } from "@/lib/date";
 import { normalizeClassName } from "@/lib/class-name";
+import { classNamesForBuilding } from "@/lib/buildings";
+import { accessibleClassNames, canAccessClass } from "@/lib/access/classes";
 
 
 const MAX_PAGE_SIZE = 100;
@@ -40,6 +42,7 @@ export async function GET(req: NextRequest) {
         const endDate = searchParams.get("endDate");      // конец периода YYYY-MM-DD
         const className = searchParams.get("className");  // фильтр по классу
         const gradeGroup = searchParams.get("gradeGroup"); // 1-3 | 4-6 | 7-11 (корпус)
+        const buildingId = searchParams.get("buildingId");
         const violationType = searchParams.get("type");   // фильтр по типу нарушения
         const studentId = searchParams.get("studentId");  // для одного ученика
         const teacherId = searchParams.get("teacherId");  // для учителя
@@ -76,7 +79,10 @@ export async function GET(req: NextRequest) {
 
         // Фильтр по корпусу: у нарушения нет поля «параллель», поэтому берём классы
         // нужных параллелей и фильтруем по их названиям.
-        if (gradeGroup && !className) {
+        if (buildingId && !className) {
+            const buildingClasses = await classNamesForBuilding(buildingId);
+            where.className = { in: buildingClasses };
+        } else if (gradeGroup && !className) {
             const grades =
                 gradeGroup === "1-3" ? [1, 2, 3]
                     : gradeGroup === "4-6" ? [4, 5, 6]
@@ -91,6 +97,22 @@ export async function GET(req: NextRequest) {
                 where.className = { in: classesInGroup.map(cls => cls.name) };
             }
         }
+        // Учитель с myClass видит только свои/расшаренные классы.
+        // Администратор и школьные разделы (нарушения/портфолио/ВШУ) — все.
+        const allowedClassNames = await accessibleClassNames(accessGuard.access);
+        if (allowedClassNames) {
+            if (typeof where.className === "string" && !allowedClassNames.has(where.className)) {
+                return NextResponse.json({ error: "Нет доступа к классу" }, { status: 403 });
+            }
+            if (where.className && typeof where.className === "object" && Array.isArray(where.className.in)) {
+                where.className = {
+                    in: where.className.in.filter((name: string) => allowedClassNames.has(name)),
+                };
+            } else if (!where.className) {
+                where.className = { in: [...allowedClassNames] };
+            }
+        }
+
         if (violationType) where.violationType = violationType;
 
         // Фильтр по отработке: администрация отмечает, что замечание разобрано
@@ -206,6 +228,10 @@ export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
         const { studentId, studentName, className, violationType, comment } = body;
+
+        if (!(await canAccessClass(accessGuard.access, className))) {
+            return NextResponse.json({ error: "Нет доступа к классу" }, { status: 403 });
+        }
 
         if (!studentId || !studentName || !violationType) {
             return NextResponse.json({

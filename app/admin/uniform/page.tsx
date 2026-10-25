@@ -61,12 +61,11 @@ const GRADE_LABELS: Record<string, string> = {
     "7-11": "7–11 классы",
 };
 
-const BUILDINGS = [
-    { id: "", label: "Все" },
-    { id: "1-3", label: "1–3" },
-    { id: "4-6", label: "4–6" },
-    { id: "7-11", label: "7–11" },
-];
+interface BuildingOption {
+    id: string;
+    name: string;
+    classes: Array<{ id: string; name: string }>;
+}
 
 const monthLabel = (key: string) => {
     const [year, month] = key.split("-").map(Number);
@@ -94,7 +93,8 @@ export default function UniformStatsPage() {
     const [period, setPeriod] = useState<PeriodKind>("month");
     const [startDate, setStartDate] = useState(() => toLocalISODate(addMonths(new Date(), -1)));
     const [endDate, setEndDate] = useState(() => toLocalISODate());
-    const [gradeGroup, setGradeGroup] = useState("");
+    const [buildingId, setBuildingId] = useState("");
+    const [buildings, setBuildings] = useState<BuildingOption[]>([]);
 
     useEffect(() => {
         setMounted(true);
@@ -111,7 +111,7 @@ export default function UniformStatsPage() {
 
         try {
             const response = await fetch(
-                `/api/admin/uniform-stats?startDate=${startDate}&endDate=${endDate}&gradeGroup=${gradeGroup}`,
+                `/api/admin/uniform-stats?startDate=${startDate}&endDate=${endDate}&buildingId=${buildingId}`,
             );
             if (!response.ok) throw new Error(`Сервер вернул ошибку ${response.status}`);
 
@@ -125,13 +125,21 @@ export default function UniformStatsPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [startDate, endDate, gradeGroup]);
+    }, [startDate, endDate, buildingId]);
 
     useEffect(() => {
         if (session?.user?.roles?.includes("ADMIN")) {
             void fetchStats();
         }
     }, [session, fetchStats]);
+
+    useEffect(() => {
+        if (!session?.user?.roles?.includes("ADMIN")) return;
+        fetch("/api/buildings", { cache: "no-store" })
+            .then(response => response.json())
+            .then(data => setBuildings(Array.isArray(data.buildings) ? data.buildings : []))
+            .catch(() => setBuildings([]));
+    }, [session]);
 
     const applyPeriod = (kind: PeriodKind) => {
         const today = new Date();
@@ -329,16 +337,16 @@ export default function UniformStatsPage() {
 
                     <div className="mt-3">
                         <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-fg-subtle">
-                            Корпус
+                            Здание
                         </p>
                         <div className="flex flex-wrap gap-1.5">
-                            {BUILDINGS.map(building => (
+                            {[{ id: "", name: "Все здания" }, ...buildings].map(building => (
                                 <Chip
                                     key={building.id || "all"}
-                                    selected={gradeGroup === building.id}
-                                    onClick={() => setGradeGroup(building.id)}
+                                    selected={buildingId === building.id}
+                                    onClick={() => setBuildingId(building.id)}
                                 >
-                                    {building.label}
+                                    {building.name}
                                 </Chip>
                             ))}
                         </div>

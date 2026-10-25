@@ -4,6 +4,9 @@ import { authOptions } from "@/lib/auth";
 
 import { requireAnySection } from "@/lib/access/server";
 import { prisma } from "@/lib/prisma";
+import { broadcastKeys } from "@/lib/keys/bus";
+import { canAccessClass } from "@/lib/access/classes";
+import { getDayRange } from "@/lib/date";
 
 
 export const dynamic = 'force-dynamic';
@@ -27,11 +30,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json([]);
   }
 
+  if (!(await canAccessClass(accessGuard.access, classId))) {
+    return NextResponse.json({ error: "Нет доступа к классу" }, { status: 403 });
+  }
+
   try {
-    const startDate = new Date(date);
-    startDate.setHours(0, 0, 0, 0);
-    const endDate = new Date(date);
-    endDate.setHours(23, 59, 59, 999);
+    const { start: startDate, end: endDate } = getDayRange(date);
 
     const passes = await prisma.pass.findMany({
       where: {
@@ -68,21 +72,37 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { date, classId, students, exitTime, reason } = body;
 
-    const passDate = new Date(date);
-    passDate.setHours(0, 0, 0, 0);
+    if (!(await canAccessClass(accessGuard.access, classId))) {
+      return NextResponse.json({ error: "Нет доступа к классу" }, { status: 403 });
+    }
 
-    const pass = await prisma.pass.create({
-      data: {
-        date: passDate,
-        classId: classId,
-        teacherId: session.user.id,
-        students: JSON.stringify(students),
-        exitTime: exitTime,
-        reason: reason,
-      },
-    });
+    const passDate = date ? getDayRange(date).start : getDayRange(new Date()).start;
 
-    return NextResponse.json({ ...pass, students: students });
+    // Каждому выбранному ребёнку — отдельный пропуск, а не одна запись на всех.
+    const studentList = Array.isArray(students) ? students.filter(Boolean) : [];
+    if (studentList.length === 0) {
+      return NextResponse.json({ error: "Выберите хотя бы одного ученика" }, { status: 400 });
+    }
+
+    const created = await prisma.$transaction(
+      studentList.map((student) =>
+        prisma.pass.create({
+          data: {
+            date: passDate,
+            classId: classId,
+            teacherId: session.user.id,
+            students: JSON.stringify([student]),
+            exitTime: typeof exitTime === "string" && /^\d{2}:\d{2}$/.test(exitTime) ? exitTime : "13:00",
+            reason: typeof reason === "string" && reason.trim() ? reason : "По заявлению родителей",
+          },
+        }),
+      ),
+    );
+
+    broadcastKeys("update", { at: new Date().toISOString() });
+    return NextResponse.json(
+      created.map((pass, index) => ({ ...pass, students: [studentList[index]] })),
+    );
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Failed to create pass" }, { status: 500 });
@@ -108,6 +128,14 @@ export async function PUT(req: NextRequest) {
   }
 
   try {
+    const existing = await prisma.pass.findUnique({ where: { id }, select: { classId: true } });
+    if (!existing) {
+      return NextResponse.json({ error: "Пропуск не найден" }, { status: 404 });
+    }
+    if (!(await canAccessClass(accessGuard.access, existing.classId))) {
+      return NextResponse.json({ error: "Нет доступа к классу" }, { status: 403 });
+    }
+
     const pass = await prisma.pass.update({
       where: { id },
       data: {
@@ -116,6 +144,7 @@ export async function PUT(req: NextRequest) {
       }
     });
 
+    broadcastKeys("update", { at: new Date().toISOString() });
     return NextResponse.json({ success: true, pass });
   } catch (error) {
     console.error("Error marking pass as used:", error);
@@ -142,7 +171,16 @@ export async function DELETE(req: NextRequest) {
   }
 
   try {
+    const existing = await prisma.pass.findUnique({ where: { id }, select: { classId: true } });
+    if (!existing) {
+      return NextResponse.json({ error: "Пропуск не найден" }, { status: 404 });
+    }
+    if (!(await canAccessClass(accessGuard.access, existing.classId))) {
+      return NextResponse.json({ error: "Нет доступа к классу" }, { status: 403 });
+    }
+
     await prisma.pass.delete({ where: { id } });
+    broadcastKeys("update", { at: new Date().toISOString() });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error(error);

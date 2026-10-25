@@ -100,7 +100,10 @@ export default function SyncTeachersPage() {
             });
 
             const data = await response.json().catch(() => ({}));
-            if (!response.ok) throw new Error(data.error || "Не удалось выполнить синхронизацию");
+            if (!response.ok) {
+                const details = [data.error, data.hint, data.log].filter(Boolean).join("\n\n");
+                throw new Error(details || "Не удалось выполнить синхронизацию");
+            }
 
             setLastReport(data.report);
             toast.show({
@@ -228,9 +231,26 @@ export default function SyncTeachersPage() {
                             Классы: +{lastReport.classes?.created ?? 0} · закреплено {lastReport.classes?.assigned ?? 0} ·
                             перезакреплено {lastReport.classes?.reassigned ?? 0} · освобождено{" "}
                             {lastReport.classes?.released ?? 0}. Роли: +{lastReport.roles?.added ?? 0} / −
-                            {lastReport.roles?.removed ?? 0}. Пропущено: {lastReport.skipped?.invalid ?? 0} без данных,{" "}
+                            {lastReport.roles?.removed ?? 0}. Пропущено: {lastReport.skipped?.invalid ?? 0} без email/ФИО,{" "}
                             {lastReport.skipped?.manual ?? 0} ручных, {lastReport.skipped?.security ?? 0} охрана.
                         </p>
+
+                        {(() => {
+                            const skipped = (lastReport.details ?? []).filter(item => item.kind === "skip");
+                            if (skipped.length === 0) return null;
+                            return (
+                                <details className="mt-3 rounded-control border border-warning/40 bg-warning-soft px-3 py-2">
+                                    <summary className="cursor-pointer text-xs font-medium text-fg">
+                                        Пропущенные сотрудники ({skipped.length})
+                                    </summary>
+                                    <ul className="mt-2 max-h-56 space-y-1 overflow-y-auto text-xs text-fg-muted">
+                                        {skipped.map((item, index) => (
+                                            <li key={`${index}-${item.message.slice(0, 20)}`}>• {item.message}</li>
+                                        ))}
+                                    </ul>
+                                </details>
+                            );
+                        })()}
 
                         {(lastReport.warnings?.length ?? 0) > 0 && (
                             <details className="mt-3 rounded-control border border-dashed border-border px-3 py-2">

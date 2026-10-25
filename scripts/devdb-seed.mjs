@@ -141,6 +141,14 @@ async function main() {
 
     if (fresh) {
         log('=== Очистка (--fresh) ===');
+        // Ключи ссылаются на пользователей и здания — чистим до пользователей.
+        await prisma.keyActivity.deleteMany();
+        await prisma.keyRequest.deleteMany();
+        await prisma.keyFavorite.deleteMany();
+        await prisma.keyPermission.deleteMany();
+        await prisma.keyItem.deleteMany();
+        await prisma.keyBuilding.deleteMany();
+        await prisma.unauthorizedLeave.deleteMany();
         await prisma.violation.deleteMany();
         await prisma.pass.deleteMany();
         await prisma.attendance.deleteMany();
@@ -352,6 +360,27 @@ async function main() {
         }
     }
 
+    // Для планшета охраны сегодня должно быть что показывать:
+    // несколько активных и уже ушедших пропусков.
+    const todayClasses = classes.filter(cls => (studentsByClass.get(cls.name) || []).length > 0);
+    for (let i = 0; i < 10; i++) {
+        const cls = todayClasses[i % todayClasses.length];
+        const classStudents = studentsByClass.get(cls.name) || [];
+        const student = classStudents[i % classStudents.length];
+        const used = i % 2 === 0;
+        passRows.push({
+            date: atTime(today, 0, 0),
+            classId: cls.id,
+            teacherId: cls.ownerId,
+            students: JSON.stringify([{ id: student.aisId, name: student.fullName }]),
+            exitTime: `${9 + (i % 6)}:${['10', '20', '30', '40', '50', '00'][i % 6]}`,
+            reason: pick(EXIT_REASONS),
+            used,
+            usedAt: used ? atTime(today, 12, 10 + i) : null,
+            createdAt: atTime(today, 7, 50),
+        });
+    }
+
     // Самовыходы и доверенности — по младшим классам (как в интерфейсе)
     const juniorClasses = classes.filter(c => c.grade <= 4);
     for (const cls of juniorClasses) {
@@ -429,6 +458,27 @@ async function main() {
         });
     }
 
+    // Уходы без разрешения — для раздела «Прогульщики»
+    const unauthorizedRows = [];
+    for (let i = 0; i < 14; i++) {
+        const cls = pick(classes.filter(c => c.grade >= 5));
+        const classStudents = studentsByClass.get(cls.name) || [];
+        if (classStudents.length === 0) continue;
+        const student = pick(classStudents);
+        const day = pick(schoolDays.slice(-21));
+        const returned = rnd() < 0.45;
+        unauthorizedRows.push({
+            studentId: student.aisId,
+            studentName: student.fullName,
+            className: cls.name,
+            leaveTime: atTime(day, rint(9, 14), rint(0, 59)),
+            returnTime: returned ? atTime(day, rint(14, 16), rint(0, 59)) : null,
+            reason: pick(['Ушёл с урока', 'Не вернулся после перемены', 'Ушёл через запасной выход', 'Пропустил урок']),
+            status: returned ? 'returned' : 'active',
+            teacherId: cls.ownerId,
+        });
+    }
+
     // --- Запись в базы ---
     log('=== Запись данных ===');
     await prisma.attendance.createMany({ data: attendanceRows });
@@ -454,6 +504,11 @@ async function main() {
     await prisma.schoolRecord.createMany({ data: schoolRecordRows });
     log(`  ВШУ: ${schoolRecordRows.length}`);
 
+    if (unauthorizedRows.length) {
+        await prisma.unauthorizedLeave.createMany({ data: unauthorizedRows });
+        log(`  уходы без разрешения: ${unauthorizedRows.length}`);
+    }
+
     // Заметки и новости для первого класса на сегодня
     await prisma.note.createMany({
         data: [
@@ -467,7 +522,142 @@ async function main() {
         ],
     });
 
-    // --- Итоги ---
+    // --- Ключница: здания, ключи, доступы, заявки и журнал ---
+    log('=== Ключница ===');
+    const mainBuilding = await prisma.keyBuilding.create({
+        data: { name: 'Основной корпус', address: 'ул. Школьная, 12' },
+    });
+    const juniorBuilding = await prisma.keyBuilding.create({
+        data: { name: 'Начальная школа', address: 'ул. Школьная, 12, корпус Б' },
+    });
+
+    // Классы 1–4 — начальная школа, 5–11 — основной корпус.
+    await prisma.class.updateMany({
+        where: { id: { in: classes.filter(cls => cls.grade >= 5).map(cls => cls.id) } },
+        data: { buildingId: mainBuilding.id },
+    });
+    await prisma.class.updateMany({
+        where: { id: { in: classes.filter(cls => cls.grade <= 4).map(cls => cls.id) } },
+        data: { buildingId: juniorBuilding.id },
+    });
+
+    const byName = (name) => userByName.get(name);
+    const petrov = byName('Петров Сергей Александрович');
+    const smirnova = byName('Смирнова Ольга Викторовна');
+    const kuznetsov = byName('Кузнецов Дмитрий Игоревич');
+    const sokolova = byName('Соколова Елена Андреевна');
+    const popova = byName('Попова Наталья Сергеевна');
+    const volkov = byName('Волков Артём Олегович');
+    const security = byName('Морозов Игорь Васильевич');
+
+    const keyPlan = [
+        { building: mainBuilding, room: '101', name: 'Кабинет математики', floor: 1, holder: null },
+        { building: mainBuilding, room: '102', name: 'Кабинет русского языка', floor: 1, holder: petrov },
+        { building: mainBuilding, room: '103', name: 'Кабинет физики', floor: 2, holder: volkov },
+        { building: mainBuilding, room: '104', name: 'Кабинет химии', floor: 2, holder: null, restricted: [petrov, smirnova] },
+        { building: mainBuilding, room: '105', name: 'Кабинет истории', floor: 3, holder: null },
+        { building: mainBuilding, room: '106', name: 'Кабинет информатики', floor: 3, holder: sokolova },
+        { building: mainBuilding, room: '107', name: 'Спортивный зал', floor: 1, holder: kuznetsov },
+        { building: juniorBuilding, room: '201', name: 'Кабинет 1А', floor: 1, holder: null },
+        { building: juniorBuilding, room: '202', name: 'Кабинет логопеда', floor: 2, holder: popova },
+        { building: juniorBuilding, room: '203', name: 'Актовый зал', floor: 1, holder: null, restricted: [popova, kuznetsov] },
+    ];
+
+    const keys = new Map();
+    for (const plan of keyPlan) {
+        const key = await prisma.keyItem.create({
+            data: {
+                buildingId: plan.building.id,
+                roomNumber: plan.room,
+                roomName: plan.name,
+                floor: plan.floor,
+                status: plan.holder ? 'ISSUED' : 'FREE',
+                holderId: plan.holder?.id ?? null,
+                issuedAt: plan.holder ? atTime(addDays(today, -rint(1, 5)), 8, 30) : null,
+                accessScope: plan.restricted ? 'RESTRICTED' : 'ALL',
+            },
+        });
+        keys.set(plan.room, key);
+        for (const user of plan.restricted ?? []) {
+            await prisma.keyPermission.create({ data: { keyId: key.id, userId: user.id } });
+        }
+    }
+
+    await prisma.keyFavorite.createMany({
+        data: [
+            { userId: petrov.id, keyId: keys.get('101').id },
+            { userId: petrov.id, keyId: keys.get('105').id },
+            { userId: smirnova.id, keyId: keys.get('104').id },
+        ],
+    });
+
+    async function addKeyRequest({ type, status, room, requester, target = null, decider = null, minutesAgo, details }) {
+        const key = keys.get(room);
+        const createdAt = new Date(Date.now() - minutesAgo * 60_000);
+        const decidedAt = decider ? new Date(createdAt.getTime() + 8 * 60_000) : null;
+        const request = await prisma.keyRequest.create({
+            data: {
+                type,
+                status,
+                requestedById: requester.id,
+                targetUserId: target?.id ?? null,
+                decidedById: decider?.id ?? null,
+                createdAt,
+                updatedAt: decidedAt ?? createdAt,
+            },
+        });
+        await prisma.keyRequestItem.create({ data: { requestId: request.id, keyId: key.id } });
+        await prisma.keyActivity.create({
+            data: {
+                keyId: key.id,
+                requestId: request.id,
+                actorId: requester.id,
+                action: `${type}_REQUEST`,
+                details,
+                createdAt,
+            },
+        });
+        if (decider) {
+            await prisma.keyActivity.create({
+                data: {
+                    keyId: key.id,
+                    requestId: request.id,
+                    actorId: decider.id,
+                    action: `${type}_${status}`,
+                    details: status === 'CONFIRMED' ? `Подтверждено: ${details}` : `Отменено: ${details}`,
+                    createdAt: decidedAt,
+                },
+            });
+        }
+        return request;
+    }
+
+    await addKeyRequest({
+        type: 'ISSUE', status: 'CONFIRMED', room: '106', requester: sokolova,
+        decider: security, minutesAgo: 60 * 26, details: 'Ключ от кабинета информатики',
+    });
+    await addKeyRequest({
+        type: 'TRANSFER', status: 'CONFIRMED', room: '103', requester: smirnova,
+        target: volkov, decider: volkov, minutesAgo: 60 * 50, details: 'Передача ключа физики',
+    });
+    await addKeyRequest({
+        type: 'ISSUE', status: 'PENDING', room: '105', requester: kuznetsov,
+        minutesAgo: 24, details: 'Ключ от кабинета истории',
+    });
+    await addKeyRequest({
+        type: 'RETURN', status: 'PENDING', room: '102', requester: petrov,
+        minutesAgo: 12, details: 'Возврат ключа русского языка',
+    });
+    await addKeyRequest({
+        type: 'TRANSFER', status: 'PENDING', room: '107', requester: kuznetsov,
+        target: volkov, minutesAgo: 38, details: 'Передача ключа спортзала',
+    });
+    await addKeyRequest({
+        type: 'ISSUE', status: 'CANCELLED', room: '104', requester: kuznetsov,
+        decider: security, minutesAgo: 60 * 72, details: 'Заявка на кабинет химии',
+    });
+
+    log(`  зданий: 2, ключей: ${keys.size}, заявок: 6`);
     const counts = {
         пользователей: await prisma.user.count(),
         классов: await prisma.class.count(),
@@ -477,6 +667,9 @@ async function main() {
         самовыходы: await prisma.selfExit.count(),
         доверенности: await prisma.authorization.count(),
         ВШУ: await prisma.schoolRecord.count(),
+        уходы: await prisma.unauthorizedLeave.count(),
+        ключей: await prisma.keyItem.count(),
+        заявок_ключей: await prisma.keyRequest.count(),
     };
     const [studentCount] = await my.query('SELECT COUNT(*) AS c FROM students');
 

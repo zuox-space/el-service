@@ -33,6 +33,12 @@ DB_USER=...
 DB_PASSWORD=...
 DB_NAME=...
 
+# Планшет охраны (свой вход)
+GUARD_LOGIN=guard-tablet
+GUARD_PASSWORD=...
+GUARD_EMAIL=guard-tablet@school.local
+GUARD_SESSION_SECRET=...
+
 PORT=3000
 WAIT_FOR_DB=true
 RUN_MIGRATIONS=true
@@ -40,7 +46,8 @@ RUN_MIGRATIONS=true
 
 Первый деплой:
 
-- `RUN_MIGRATIONS=true` — схема создастся/обновится автоматически;
+- `RUN_MIGRATIONS=true` — схема создастся/обновится автоматически
+  (включая таблицы ключницы);
 - `RUN_NORMALIZE=true` — один раз, если в базе классы вида «5-А»;
 - после успешного деплоя поставьте `RUN_MIGRATIONS=false` и `RUN_NORMALIZE=false`,
   чтобы рестарты не трогали схему.
@@ -69,6 +76,45 @@ node scripts/import-db.mjs \
   --database-url "postgresql://USER:PASSWORD@HOST:5432/DBNAME" \
   --in deploy/dumps/el_pass_copy_after.json
 ```
+
+## 3.1. Ключница
+
+Таблицы ключей создаются вместе со схемой. После первого деплоя:
+
+1. Войдите администратором → `/admin/keys`.
+2. Создайте здание и ключи или импортируйте CSV
+   (`building;building_address;room_number;room_name;floor`).
+3. Выдайте доступ к разделу «Ключи» ролям в «Роли и доступы»
+   (по умолчанию он есть у всех, кроме ADMIN — у ADMIN всё).
+4. Доступ к администрированию ключами (`keysAdmin`) по умолчанию только у ADMIN;
+   его можно выдать отдельной роли, не открывая остальную админку.
+5. Подтверждать заявки могут охрана и обладатели `keysAdmin`.
+
+Если у роли уже настроен непустой список разделов и «Ключей» там нет:
+
+```bash
+node scripts/keys-role-access.mjs --apply
+```
+
+## 3.2. Планшет охраны
+
+Отдельная страница `/guard` — без Яндекса, со своим логином и паролем из env:
+
+```ini
+GUARD_LOGIN=guard-tablet
+GUARD_PASSWORD=сложный-пароль
+GUARD_EMAIL=guard-tablet@school.local
+GUARD_SESSION_SECRET=отдельная-случайная-строка
+```
+
+- вход: `https://домен/guard` → `/guard/login`;
+- сессия — подписанная HttpOnly-cookie на 12 часов;
+- на странице: пропуска, самовыходы, выдача/сдача ключей и история;
+- фильтр по зданию запоминается в `localStorage`;
+- доступ к админке ключей (`/admin/keys`, здания, история) — только у роли
+  с разделом `keysAdmin`.
+
+`GUARD_SESSION_SECRET` можно не задавать — тогда используется `NEXTAUTH_SECRET`.
 
 ## 4. Первая синхронизация сотрудников
 

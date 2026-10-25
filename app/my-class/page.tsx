@@ -393,13 +393,13 @@ export default function HomePage() {
     }, [classSearch]);
 
     useEffect(() => {
-        if (!selectedClass || activeTab !== "violations") return;
+        if (!selectedClass) return;
         void loadClassViolations(selectedClass.name, classRange, classSearchQuery, 1, false);
     }, [selectedClass, activeTab, classRange, classSearchQuery, loadClassViolations]);
 
     // Нарушения за выбранную дату
     useEffect(() => {
-        if (!selectedClass || activeTab !== "violations") return;
+        if (!selectedClass) return;
 
         let cancelled = false;
 
@@ -509,19 +509,21 @@ export default function HomePage() {
                 date: passData.date,
                 classId: selectedClass.id,
                 students: passData.students,
-                exitTime: passData.exitTime,
-                reason: passData.reason,
+                exitTime: passData.exitTime ?? "13:00",
+                reason: passData.reason ?? "По заявлению родителей",
             }),
         });
 
         if (!response.ok) throw new Error("Не удалось оформить пропуск. Проверьте соединение и повторите.");
 
-        const newPass = await response.json();
-        setPassesHistory(previous => [newPass, ...previous]);
+        const created = await response.json();
+        const createdPasses = Array.isArray(created) ? created : [created];
+        const createdExitTime = createdPasses[0]?.exitTime ?? passData.exitTime ?? "13:00";
+        setPassesHistory(previous => [...createdPasses, ...previous]);
 
         toast.show({
-            title: "Пропуск оформлен",
-            description: `Выход в ${passData.exitTime} · учеников: ${passData.students?.length ?? 0}`,
+            title: createdPasses.length > 1 ? "Пропуска оформлены" : "Пропуск оформлен",
+            description: `Выход в ${createdExitTime} · учеников: ${createdPasses.length}`,
             tone: "success",
         });
     };
@@ -576,7 +578,7 @@ export default function HomePage() {
         const newViolation = await response.json();
         toast.show({ title: "Нарушение зафиксировано", description: data.studentName, tone: "success" });
 
-        if (activeTab === "violations" && selectedClass) {
+        if (selectedClass) {
             const dateStr = formatDateLocal(selectedDate);
             const violationsRes = await fetch(
                 `/api/violations?className=${encodeURIComponent(selectedClass.name)}&date=${dateStr}&pageSize=100`,

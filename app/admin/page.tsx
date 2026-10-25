@@ -52,6 +52,12 @@ interface DashboardPass {
     endDate?: string;
 }
 
+interface BuildingOption {
+    id: string;
+    name: string;
+    classes: Array<{ id: string; name: string }>;
+}
+
 interface Stats {
     totalPasses: number;
     totalSelfExits: number;
@@ -88,6 +94,8 @@ export default function AdminDashboardPage() {
     const [search, setSearch] = useState("");
     const [gradeGroup, setGradeGroup] = useState("");
     const [letter, setLetter] = useState("");
+    const [buildingId, setBuildingId] = useState("");
+    const [buildings, setBuildings] = useState<BuildingOption[]>([]);
 
     useEffect(() => {
         setMounted(true);
@@ -142,9 +150,10 @@ export default function AdminDashboardPage() {
             const raw = localStorage.getItem(FILTERS_STORAGE_KEY);
             if (!raw) return;
 
-            const saved = JSON.parse(raw) as { gradeGroup?: string; letter?: string };
+            const saved = JSON.parse(raw) as { gradeGroup?: string; letter?: string; buildingId?: string };
             if (saved.gradeGroup) setGradeGroup(saved.gradeGroup);
             if (saved.letter) setLetter(saved.letter);
+            if (saved.buildingId) setBuildingId(saved.buildingId);
         } catch {
             // повреждённое значение не должно ломать панель
         }
@@ -154,11 +163,11 @@ export default function AdminDashboardPage() {
         if (!mounted) return;
 
         try {
-            localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify({ gradeGroup, letter }));
+            localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify({ gradeGroup, letter, buildingId }));
         } catch {
             // приватный режим — не критично
         }
-    }, [mounted, gradeGroup, letter]);
+    }, [mounted, gradeGroup, letter, buildingId]);
 
     // «Обновить» — в шапке каркаса, а не в теле страницы
     useHeaderActions(
@@ -211,25 +220,39 @@ export default function AdminDashboardPage() {
         }
     };
 
+    useEffect(() => {
+        if (!session?.user?.roles?.includes("ADMIN")) return;
+        fetch("/api/keys/buildings", { cache: "no-store" })
+            .then(response => response.json())
+            .then(data => setBuildings(Array.isArray(data.buildings) ? data.buildings : []))
+            .catch(() => setBuildings([]));
+    }, [session]);
+
     const current = tab === "single" ? passes : tab === "self-exit" ? selfExits : departed;
 
     const rows = useMemo(() => {
         const query = search.trim().toLowerCase();
         const grades = GRADE_GROUPS.find(group => group.id === gradeGroup)?.grades ?? [];
 
+        const buildingClassNames = buildingId
+            ? new Set((buildings.find(item => item.id === buildingId)?.classes ?? []).map(item => item.name))
+            : null;
+
         return current.filter(item => {
             if (query && !item.studentName.toLowerCase().includes(query)) return false;
             if (grades.length > 0 && !grades.includes(item.grade)) return false;
             if (letter && item.studentName.charAt(0).toUpperCase() !== letter) return false;
+            if (buildingClassNames && !buildingClassNames.has(item.className)) return false;
             return true;
         });
-    }, [current, search, gradeGroup, letter]);
+    }, [current, search, gradeGroup, letter, buildingId, buildings]);
 
-    const filtersActive = Boolean(search || gradeGroup || letter);
+    const filtersActive = Boolean(search || gradeGroup || letter || buildingId);
     const resetFilters = () => {
         setSearch("");
         setGradeGroup("");
         setLetter("");
+        setBuildingId("");
     };
 
     if (!mounted || status === "loading") {
@@ -310,7 +333,7 @@ export default function AdminDashboardPage() {
                 {error && <FormError message={error} />}
 
                 {/* Фильтры: два поля в ряд, алфавит — отдельной строкой на всю ширину */}
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="grid gap-2 sm:grid-cols-3">
                     <SearchInput
                         value={search}
                         onChange={setSearch}
@@ -323,6 +346,13 @@ export default function AdminDashboardPage() {
                         value={gradeGroup}
                         onChange={setGradeGroup}
                         options={GRADE_GROUPS.map(group => ({ value: group.id, label: group.label }))}
+                    />
+                    <Select
+                        label="Здание"
+                        placeholder="Все здания"
+                        value={buildingId}
+                        onChange={setBuildingId}
+                        options={buildings.map(item => ({ value: item.id, label: item.name }))}
                     />
                 </div>
 
