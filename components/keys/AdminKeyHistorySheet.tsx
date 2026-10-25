@@ -6,7 +6,7 @@
 // Показывает не только тип, но и участников: кто запросил, кому передали,
 // кто подтвердил/отменил и когда.
 import { useEffect, useState } from "react";
-import { Badge, EmptyState, Sheet, Skeleton } from "@/components/ui/kit";
+import { Badge, EmptyState, Input, Sheet, Skeleton } from "@/components/ui/kit";
 import type { KeyItemDto, KeyRequestDto } from "@/lib/keys/queries";
 
 const TYPE_LABEL: Record<string, string> = { ISSUE: "Выдача", RETURN: "Сдача", TRANSFER: "Передача" };
@@ -35,6 +35,7 @@ export function AdminKeyHistorySheet({
     onClose: () => void;
 }) {
     const [items, setItems] = useState<KeyRequestDto[]>([]);
+    const [employeeQuery, setEmployeeQuery] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -84,6 +85,14 @@ export function AdminKeyHistorySheet({
                 </div>
             )}
 
+            <Input
+                label="Сотрудник"
+                value={employeeQuery}
+                onChange={event => setEmployeeQuery(event.target.value)}
+                placeholder="Фамилия или имя участника"
+                wrapperClassName="mb-2"
+            />
+
             {loading ? (
                 <div className="space-y-2">
                     <Skeleton height={90} radius="card" />
@@ -91,11 +100,21 @@ export function AdminKeyHistorySheet({
                 </div>
             ) : error ? (
                 <EmptyState title="Не удалось загрузить" description={error} compact />
-            ) : items.length === 0 ? (
-                <EmptyState title="Операций нет" description="Этот ключ ещё не выдавали" />
-            ) : (
-                <ol className="relative space-y-2 border-l border-border pl-4">
-                    {items.map(item => {
+            ) : (() => {
+                const query = employeeQuery.trim().toLowerCase();
+                const visible = query
+                    ? items.filter(item =>
+                        [item.requestedByName, item.targetUserName, item.decidedByName]
+                            .filter(Boolean)
+                            .some(name => String(name).toLowerCase().includes(query)),
+                    )
+                    : items;
+
+                return visible.length === 0 ? (
+                    <EmptyState title="Никого не найдено" description="Измените фамилию сотрудника" compact />
+                ) : (
+                    <ol className="relative space-y-2 border-l border-border pl-4">
+                        {visible.map(item => {
                         const confirmed = item.status === "CONFIRMED";
                         const cancelled = item.status === "CANCELLED";
 
@@ -169,7 +188,8 @@ export function AdminKeyHistorySheet({
                         );
                     })}
                 </ol>
-            )}
+                );
+            })()}
         </Sheet>
     );
 }

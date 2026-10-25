@@ -57,6 +57,7 @@ export function GuardScreen() {
     const [historyKeyId, setHistoryKeyId] = useState<string | null>(null);
     const [busyRequestId, setBusyRequestId] = useState<string | null>(null);
     const [busyPassId, setBusyPassId] = useState<string | null>(null);
+    const [busyKeyId, setBusyKeyId] = useState<string | null>(null);
     const [approvalId, setApprovalId] = useState<string | null>(null);
     const [dismissedApprovals, setDismissedApprovals] = useState<string[]>([]);
 
@@ -187,6 +188,20 @@ export function GuardScreen() {
             toast.show({ title: "Ошибка", description: e instanceof Error ? e.message : undefined, tone: "danger" });
         } finally {
             setBusyPassId(null);
+        }
+    };
+
+    const confirmReturn = async (key: KeyItemDto) => {
+        setBusyKeyId(key.id);
+        try {
+            const response = await fetch(`/api/guard/keys/${key.id}/return`, { method: "POST" });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.error || "Не удалось подтвердить сдачу");
+            await refresh();
+        } catch (e) {
+            toast.show({ title: "Ошибка", description: e instanceof Error ? e.message : undefined, tone: "danger" });
+        } finally {
+            setBusyKeyId(null);
         }
     };
 
@@ -374,7 +389,7 @@ export function GuardScreen() {
 
                 {tab === "notReturned" && (
                     <div className="h-full min-h-[60vh] lg:h-[calc(100dvh-8.75rem)] lg:min-h-0 lg:overflow-hidden">
-                        <GuardNotReturnedTab keys={issued} />
+                        <GuardNotReturnedTab keys={issued} busyId={busyKeyId} onConfirmReturn={confirmReturn} />
                     </div>
                 )}
 

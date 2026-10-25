@@ -50,8 +50,7 @@ export function HistoryPanel({
     buildingId?: string;
 }) {
     const [q, setQ] = useState("");
-    const [participantId, setParticipantId] = useState("");
-    const [participants, setParticipants] = useState<Array<{ id: string; name: string }>>([]);
+    const [participantName, setParticipantName] = useState("");
     const [requestType, setRequestType] = useState("all");
     const [status, setStatus] = useState("all");
     const [dateFrom, setDateFrom] = useState(defaultToday ? new Date().toISOString().slice(0, 10) : "");
@@ -67,13 +66,13 @@ export function HistoryPanel({
         if (keyId) search.set("keyId", keyId);
         if (buildingId && buildingId !== "all") search.set("buildingId", buildingId);
         if (q.trim()) search.set("q", q.trim());
-        if (participantId) search.set("participantId", participantId);
+        if (participantName.trim()) search.set("participantName", participantName.trim());
         if (requestType !== "all") search.set("type", requestType);
         if (status !== "all") search.set("status", status);
         if (dateFrom) search.set("dateFrom", dateFrom);
         if (dateTo) search.set("dateTo", dateTo);
         return search;
-    }, [keyId, q, participantId, requestType, status, dateFrom, dateTo, pageSize, buildingId]);
+    }, [keyId, q, participantName, requestType, status, dateFrom, dateTo, pageSize, buildingId]);
 
     const load = useCallback(
         async (offset = 0) => {
@@ -87,7 +86,7 @@ export function HistoryPanel({
                 setItems(current => (offset === 0 ? next : [...current, ...next]));
                 setTotal(Number(data.total) || 0);
                 setHasMore(Boolean(data.hasMore));
-                if (Array.isArray(data.participants)) setParticipants(data.participants);
+
             } finally {
                 setLoading(false);
             }
@@ -101,16 +100,13 @@ export function HistoryPanel({
 
     return (
         <Card padding="sm">
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-2 sm:grid-cols-2">
                 {keyId ? (
-                    <Select
-                        label="Участник"
-                        value={participantId}
-                        onChange={setParticipantId}
-                        options={[
-                            { value: "", label: "Все участники" },
-                            ...participants.map(item => ({ value: item.id, label: item.name })),
-                        ]}
+                    <Input
+                        label="Сотрудник"
+                        placeholder="Фамилия или имя"
+                        value={participantName}
+                        onChange={event => setParticipantName(event.target.value)}
                     />
                 ) : (
                     <Input
@@ -161,7 +157,7 @@ export function HistoryPanel({
                         setDateFrom("");
                         setDateTo("");
                         setQ("");
-                        setParticipantId("");
+                        setParticipantName("");
                         setRequestType("all");
                         setStatus("all");
                     }}

@@ -66,6 +66,7 @@ export interface KeyHistoryQuery {
     status?: string | null;
     q?: string | null;
     participantId?: string | null;
+    participantName?: string | null;
     dateFrom?: string | null;
     dateTo?: string | null;
     limit?: number;
@@ -600,6 +601,20 @@ export async function queryKeyHistory(
         ];
     }
 
+    if (params.participantName?.trim()) {
+        const name = params.participantName.trim();
+        where.AND = [
+            ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+            {
+                OR: [
+                    { requester: { name: { contains: name, mode: "insensitive" } } },
+                    { targetUser: { name: { contains: name, mode: "insensitive" } } },
+                    { decider: { name: { contains: name, mode: "insensitive" } } },
+                ],
+            },
+        ];
+    }
+
     const limit = Math.min(Math.max(params.limit ?? 30, 1), 200);
     const offset = Math.max(params.offset ?? 0, 0);
 
@@ -768,6 +783,82 @@ export async function deleteBuilding(id: string): Promise<void> {
     broadcastKeys("update", { at: new Date().toISOString() });
 }
 
+/** Охрана подтверждает, что ключ на месте: сдача от последнего держателя. */
+export async function confirmKeyReturnedByGuard(
+    access: AccessInfo,
+    keyId: string,
+): Promise<{ requestId: string }> {
+    if (!canConfirmKeys(access)) throw new KeysConflictError("Нет прав на подтверждение сдачи");
+
+    const key = await prisma.keyItem.findUnique({ where: { id: keyId } });
+    if (!key) throw new KeysConflictError("Ключ не найден");
+    if (key.status !== "ISSUED" || !key.holderId) {
+        throw new KeysConflictError("Ключ уже свободен");
+    }
+
+    const pendingTransfer = await prisma.keyRequest.findFirst({
+        where: { type: "TRANSFER", status: "PENDING", keys: { some: { keyId } } },
+        select: { id: true },
+    });
+    if (pendingTransfer) {
+        throw new KeysConflictError("По ключу есть активная передача — сначала завершите её");
+    }
+
+    const pendingReturn = await prisma.keyRequest.findFirst({
+        where: { type: "RETURN", status: "PENDING", keys: { some: { keyId } } },
+        orderBy: { createdAt: "desc" },
+    });
+
+    const holderId = key.holderId;
+    const now = new Date();
+
+    const requestId = await prisma.$transaction(async tx => {
+        let id: string;
+
+        if (pendingReturn) {
+            if (pendingReturn.requestedById !== holderId) {
+                throw new KeysConflictError("Заявка на сдачу создана другим сотрудником");
+            }
+            const claimed = await tx.keyRequest.updateMany({
+                where: { id: pendingReturn.id, status: "PENDING" },
+                data: { status: "CONFIRMED", decidedById: access.userId, updatedAt: now },
+            });
+            if (claimed.count === 0) throw new KeysConflictError("Заявка уже обработана");
+            id = pendingReturn.id;
+        } else {
+            const created = await tx.keyRequest.create({
+                data: {
+                    type: "RETURN",
+                    status: "CONFIRMED",
+                    requestedById: holderId,
+                    decidedById: access.userId,
+                    createdAt: now,
+                    updatedAt: now,
+                    keys: { create: [{ keyId }] },
+                },
+            });
+            id = created.id;
+        }
+
+        await tx.keyItem.update({
+            where: { id: keyId },
+            data: { status: "FREE", holderId: null, issuedAt: null },
+        });
+
+        return id;
+    });
+
+    await writeKeyLog({
+        keyId,
+        requestId,
+        actorId: access.userId,
+        action: "confirm_return",
+        details: `Охрана подтвердила сдачу ключа ${key.roomNumber}`,
+    });
+    broadcastKeys("update", { at: new Date().toISOString(), requestId });
+
+    return { requestId };
+}
 export async function setKeyPermissions(
     keyId: string,
     input: { accessScope: KeyAccessScope; userIds: string[] },

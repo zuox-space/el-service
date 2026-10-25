@@ -10,11 +10,13 @@ export function KeyHistoryDrawer({
     onClose,
     limit = 20,
     endpoint = "/api/keys/history",
+    defaultToday = true,
 }: {
     keyId: string | null;
     onClose: () => void;
     limit?: number;
     endpoint?: string;
+    defaultToday?: boolean;
 }) {
     return (
         <Sheet
@@ -23,7 +25,7 @@ export function KeyHistoryDrawer({
             title="История ключа"
             description="Выдачи, сдачи и передачи"
         >
-            {keyId && <HistoryPanel type="key" keyId={keyId} pageSize={limit} endpoint={endpoint} />}
+            {keyId && <HistoryPanel type="key" keyId={keyId} pageSize={limit} endpoint={endpoint} defaultToday={defaultToday} />}
         </Sheet>
     );
 }
