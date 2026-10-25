@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
         type: params.get("type"),
         status: params.get("status"),
         q: params.get("q"),
+        participantId: params.get("participantId"),
         dateFrom: params.get("dateFrom"),
         dateTo: params.get("dateTo"),
         limit: params.get("limit") ? Number(params.get("limit")) : 30,

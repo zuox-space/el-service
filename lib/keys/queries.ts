@@ -64,6 +64,7 @@ export interface KeyHistoryQuery {
     type?: string | null;
     status?: string | null;
     q?: string | null;
+    participantId?: string | null;
     dateFrom?: string | null;
     dateTo?: string | null;
     limit?: number;
@@ -502,7 +503,7 @@ export async function decideKeyRequest(
 export async function queryKeyHistory(
     access: AccessInfo,
     params: KeyHistoryQuery,
-): Promise<{ items: KeyRequestDto[]; total: number; hasMore: boolean }> {
+): Promise<{ items: KeyRequestDto[]; total: number; hasMore: boolean; participants: Array<{ id: string; name: string }> }> {
     const where: Prisma.KeyRequestWhereInput = {};
 
     const keyFilter: Prisma.KeyItemWhereInput = {};
@@ -546,6 +547,39 @@ export async function queryKeyHistory(
         delete where.OR;
     }
 
+    // Список участников операций — для фильтра в истории ключа.
+    const participantRows = await prisma.keyRequest.findMany({
+        where,
+        select: {
+            requester: { select: { id: true, name: true } },
+            targetUser: { select: { id: true, name: true } },
+            decider: { select: { id: true, name: true } },
+        },
+    });
+    const participantMap = new Map<string, string>();
+    for (const row of participantRows) {
+        for (const user of [row.requester, row.targetUser, row.decider]) {
+            if (user) participantMap.set(user.id, user.name);
+        }
+    }
+    const participants = [...participantMap.entries()]
+        .map(([id, name]) => ({ id, name }))
+        .sort((a, b) => a.name.localeCompare(b.name, "ru"));
+
+    if (params.participantId) {
+        const participantId = params.participantId;
+        where.AND = [
+            ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+            {
+                OR: [
+                    { requestedById: participantId },
+                    { targetUserId: participantId },
+                    { decidedById: participantId },
+                ],
+            },
+        ];
+    }
+
     const limit = Math.min(Math.max(params.limit ?? 30, 1), 200);
     const offset = Math.max(params.offset ?? 0, 0);
 
@@ -560,7 +594,7 @@ export async function queryKeyHistory(
         }),
     ]);
 
-    return { items: rows.map(toRequest), total, hasMore: offset + rows.length < total };
+    return { items: rows.map(toRequest), total, hasMore: offset + rows.length < total, participants };
 }
 
 /* ------------------------------ администрирование -------------------------- */
