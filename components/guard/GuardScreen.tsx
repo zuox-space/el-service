@@ -2,16 +2,30 @@
 
 // components/guard/GuardScreen.tsx
 //
-// Планшет охраны: пропуска, самовыходы, ключи. Отдельная авторизация,
-// не Яндекс и не NextAuth. Вёрстка рассчитана на горизонтальный планшет.
+// Пульт охраны на планшете: один экран, сверху табы.
+//  • Заявки — выдача/сдача слева, история справа;
+//  • Ключи — состояние ключей с фильтром по зданию;
+//  • Пропуска — выходы учеников;
+//  • Самовыходы.
+// Страница не скроллится на планшете: внутри табов свои прокручиваемые списки.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Clock, KeyRound, LogOut, RefreshCw, ShieldCheck } from "lucide-react";
-import { Badge, Button, Card, EmptyState, Select, Skeleton, useToast } from "@/components/ui/kit";
+import {
+    Badge,
+    Button,
+    Card,
+    EmptyState,
+    Input,
+    Select,
+    Skeleton,
+    Tabs,
+    useToast,
+} from "@/components/ui/kit";
 import { RequestCard } from "@/components/keys/RequestCard";
 import { KeyCard } from "@/components/keys/KeyCard";
-import { HistoryPanel } from "@/components/keys/HistoryPanel";
 import { KeyHistoryDrawer } from "@/components/keys/KeyHistoryDrawer";
+import { GuardHistoryPanel } from "./GuardHistoryPanel";
 import type { KeyItemDto, KeyRequestDto, KeysState } from "@/lib/keys/queries";
 
 interface GuardPass {
@@ -49,7 +63,10 @@ export function GuardScreen() {
     const [state, setState] = useState<GuardState | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [tab, setTab] = useState("requests");
     const [buildingId, setBuildingId] = useState("all");
+    const [floor, setFloor] = useState("all");
+    const [query, setQuery] = useState("");
     const [now, setNow] = useState(new Date());
     const [historyKeyId, setHistoryKeyId] = useState<string | null>(null);
     const [busyRequestId, setBusyRequestId] = useState<string | null>(null);
@@ -75,7 +92,7 @@ export function GuardScreen() {
 
     useEffect(() => {
         void refresh();
-        const timer = setInterval(() => setNow(new Date()), 30_000);
+        const clock = setInterval(() => setNow(new Date()), 30_000);
         const poll = setInterval(() => void refresh(), 60_000);
 
         const source = new EventSource("/api/guard/events");
@@ -83,7 +100,7 @@ export function GuardScreen() {
         source.addEventListener("update", onUpdate);
 
         return () => {
-            clearInterval(timer);
+            clearInterval(clock);
             clearInterval(poll);
             source.removeEventListener("update", onUpdate);
             source.close();
@@ -108,6 +125,16 @@ export function GuardScreen() {
     const issued = filteredKeys.filter(key => key.status === "ISSUED");
     const free = filteredKeys.filter(key => key.status === "FREE" && !key.pending);
 
+    const floors = [...new Set(filteredKeys.map(key => key.floor))].sort((a, b) => a - b);
+    const keysForGrid = filteredKeys.filter(key => {
+        if (floor !== "all" && String(key.floor) !== floor) return false;
+        if (query.trim()) {
+            const q = query.trim().toLowerCase();
+            if (!`${key.roomNumber} ${key.roomName}`.toLowerCase().includes(q)) return false;
+        }
+        return true;
+    });
+
     const decide = async (requestId: string, action: "confirm" | "cancel") => {
         setBusyRequestId(requestId);
         try {
@@ -120,7 +147,11 @@ export function GuardScreen() {
             if (!response.ok) throw new Error(data.error || "Не удалось обработать заявку");
             await refresh();
         } catch (e) {
-            toast.show({ title: "Действие не выполнено", description: e instanceof Error ? e.message : undefined, tone: "danger" });
+            toast.show({
+                title: "Действие не выполнено",
+                description: e instanceof Error ? e.message : undefined,
+                tone: "danger",
+            });
         } finally {
             setBusyRequestId(null);
         }
@@ -143,29 +174,29 @@ export function GuardScreen() {
     if (loading && !state) {
         return (
             <div className="min-h-dvh bg-bg p-4">
-                <Skeleton height={72} radius="card" />
+                <Skeleton height={56} radius="card" />
                 <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                    <Skeleton height={260} radius="card" />
-                    <Skeleton height={260} radius="card" />
+                    <Skeleton height={300} radius="card" />
+                    <Skeleton height={300} radius="card" />
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-dvh bg-bg">
-            <header className="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-sm">
-                <div className="mx-auto flex h-16 w-full max-w-[1500px] items-center gap-3 px-4">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-control bg-accent-solid text-accent-fg">
-                        <ShieldCheck size={20} aria-hidden />
+        <div className="flex min-h-dvh flex-col bg-bg lg:h-dvh lg:overflow-hidden">
+            <header className="shrink-0 border-b border-border bg-bg/95 px-3 py-2 backdrop-blur-sm">
+                <div className="mx-auto flex w-full max-w-[1500px] items-center gap-2">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-control bg-accent-solid text-accent-fg">
+                        <ShieldCheck size={18} aria-hidden />
                     </span>
                     <div className="min-w-0">
-                        <h1 className="truncate text-base font-semibold text-fg">Пульт охраны</h1>
-                        <p className="text-xs text-fg-subtle">Планшет охраны · ключи и пропуска</p>
+                        <h1 className="truncate text-sm font-semibold text-fg">Пульт охраны</h1>
+                        <p className="text-[11px] text-fg-subtle">Планшет охраны</p>
                     </div>
-                    <div className="ml-auto flex items-center gap-3">
-                        <span className="hidden items-center gap-1.5 text-sm tabular-nums text-fg-muted sm:flex">
-                            <Clock size={15} aria-hidden />
+                    <div className="ml-auto flex items-center gap-2">
+                        <span className="hidden items-center gap-1 text-xs tabular-nums text-fg-muted sm:flex">
+                            <Clock size={14} aria-hidden />
                             {now.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}
                         </span>
                         <Button size="sm" variant="ghost" leftIcon={RefreshCw} onClick={() => void refresh()}>
@@ -178,120 +209,218 @@ export function GuardScreen() {
                 </div>
             </header>
 
-            <main className="mx-auto w-full max-w-[1500px] space-y-3 px-4 py-4">
+            <div className="shrink-0 border-b border-border bg-bg px-3">
+                <div className="mx-auto w-full max-w-[1500px] py-1.5">
+                    <Tabs
+                        value={tab}
+                        onChange={setTab}
+                        size="sm"
+                        variant="scrollable"
+                        ariaLabel="Разделы пульта"
+                        items={[
+                            { id: "requests", label: "Заявки", count: pending.length },
+                            { id: "keys", label: "Ключи", count: filteredKeys.length },
+                            { id: "passes", label: "Пропуска", count: state?.passes.length ?? 0 },
+                            { id: "selfExits", label: "Самовыходы", count: state?.selfExits.length ?? 0 },
+                        ]}
+                    />
+                </div>
+            </div>
+
+            <main className="min-h-0 flex-1 overflow-auto p-3 lg:overflow-hidden">
                 {error && (
-                    <Card padding="sm" className="border-danger/40 bg-danger-soft">
+                    <Card padding="sm" className="mb-2 border-danger/40 bg-danger-soft">
                         <p className="text-sm text-fg">{error}</p>
                     </Card>
                 )}
 
-                <div className="grid gap-3 lg:grid-cols-2">
-                    <PassesPanel passes={state?.passes ?? []} onMarkUsed={markPassUsed} />
-                    <SelfExitsPanel items={state?.selfExits ?? []} />
-                </div>
-
-                <Card padding="sm">
-                    <div className="flex flex-wrap items-center gap-2">
-                        <div className="min-w-0">
-                            <p className="text-sm font-semibold text-fg">Ключи</p>
-                            <p className="text-xs text-fg-muted">Выдача и приём ключей, состояние и журнал</p>
-                        </div>
-                        <div className="ml-auto flex flex-wrap items-center gap-2">
+                {tab === "requests" && (
+                    <div className="flex h-full min-h-0 flex-col gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                             <Select
                                 aria-label="Здание"
                                 value={buildingId}
                                 onChange={changeBuilding}
-                                options={[{ value: "all", label: "Все здания" }, ...buildings.map(building => ({ value: building.id, label: building.name }))]}
+                                options={[
+                                    { value: "all", label: "Все здания" },
+                                    ...buildings.map(building => ({ value: building.id, label: building.name })),
+                                ]}
                                 wrapperClassName="w-52"
                             />
+                            <div className="ml-auto flex flex-wrap gap-1.5">
+                                <MiniStat label="Свободно" value={free.length} tone="success" />
+                                <MiniStat label="Выдано" value={issued.length} tone="info" />
+                                <MiniStat label="Ожидают" value={pending.length} tone="warning" />
+                            </div>
+                        </div>
+
+                        <div className="grid min-h-0 flex-1 gap-2 lg:grid-cols-2">
+                            <div className="flex min-h-0 flex-col gap-2">
+                                <RequestQueue
+                                    title="Выдача"
+                                    description="Сотрудники ждут ключи"
+                                    tone="info"
+                                    items={pendingIssue}
+                                    busyRequestId={busyRequestId}
+                                    onDecide={decide}
+                                />
+                                <RequestQueue
+                                    title="Сдача"
+                                    description="Сотрудники возвращают ключи"
+                                    tone="success"
+                                    items={pendingReturn}
+                                    busyRequestId={busyRequestId}
+                                    onDecide={decide}
+                                />
+                            </div>
+
+                            <Card padding="sm" className="flex min-h-0 flex-col">
+                                <div className="mb-2 flex items-center justify-between gap-2">
+                                    <div>
+                                        <p className="text-sm font-semibold text-fg">История</p>
+                                        <p className="text-xs text-fg-muted">Операции с ключами</p>
+                                    </div>
+                                    <Badge tone="neutral">{pending.length} в работе</Badge>
+                                </div>
+                                <div className="min-h-0 flex-1">
+                                    <GuardHistoryPanel buildingId={buildingId} onOpenKey={setHistoryKeyId} />
+                                </div>
+                            </Card>
                         </div>
                     </div>
+                )}
 
-                    <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                        <StatTile label="Всего" value={filteredKeys.length} />
-                        <StatTile label="Свободно" value={free.length} tone="success" />
-                        <StatTile label="Выдано" value={issued.length} tone="info" />
-                        <StatTile label="Ожидают" value={pending.length} tone={pending.length ? "warning" : "neutral"} />
-                    </div>
-                </Card>
+                {tab === "keys" && (
+                    <div className="flex h-full min-h-0 flex-col gap-2">
+                        <div className="flex flex-wrap items-end gap-2">
+                            <Select
+                                aria-label="Здание"
+                                value={buildingId}
+                                onChange={changeBuilding}
+                                options={[
+                                    { value: "all", label: "Все здания" },
+                                    ...buildings.map(building => ({ value: building.id, label: building.name })),
+                                ]}
+                                wrapperClassName="w-52"
+                            />
+                            <Input
+                                value={query}
+                                onChange={event => setQuery(event.target.value)}
+                                placeholder="Номер или кабинет"
+                                aria-label="Поиск ключа"
+                                wrapperClassName="w-48"
+                            />
+                            <Select
+                                aria-label="Этаж"
+                                value={floor}
+                                onChange={setFloor}
+                                options={[
+                                    { value: "all", label: "Все этажи" },
+                                    ...floors.map(value => ({ value: String(value), label: `${value} этаж` })),
+                                ]}
+                                wrapperClassName="w-32"
+                            />
+                            <span className="ml-auto text-xs text-fg-subtle">{keysForGrid.length} ключей</span>
+                        </div>
 
-                <div className="grid gap-3 lg:grid-cols-2">
-                    <div className="space-y-3">
-                        <Card padding="sm">
-                            <div className="mb-2 flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm font-semibold text-fg">Выдача</p>
-                                    <p className="text-xs text-fg-muted">Сотрудники ждут ключи</p>
-                                </div>
-                                <Badge tone="info">{pendingIssue.length}</Badge>
-                            </div>
-                            {pendingIssue.length === 0 ? (
-                                <EmptyState compact icon={KeyRound} title="Нет заявок на выдачу" description="Новые появятся автоматически" />
+                        <div className="min-h-0 flex-1 overflow-y-auto">
+                            {keysForGrid.length === 0 ? (
+                                <EmptyState icon={KeyRound} title="Ключей нет" description="Измените фильтр" />
                             ) : (
-                                <div className="space-y-2">
-                                    {pendingIssue.map(item => (
-                                        <RequestCard key={item.id} item={item} mode="security" busy={busyRequestId === item.id} onDecide={(id, action) => void decide(id, action)} />
+                                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                                    {keysForGrid.map(key => (
+                                        <KeyCard
+                                            key={key.id}
+                                            keyItem={key}
+                                            showBuilding={buildingId === "all"}
+                                            onShowHistory={item => setHistoryKeyId(item.id)}
+                                        />
                                     ))}
                                 </div>
                             )}
-                        </Card>
-
-                        <Card padding="sm">
-                            <div className="mb-2 flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm font-semibold text-fg">Сдача</p>
-                                    <p className="text-xs text-fg-muted">Сотрудники возвращают ключи</p>
-                                </div>
-                                <Badge tone="success">{pendingReturn.length}</Badge>
-                            </div>
-                            {pendingReturn.length === 0 ? (
-                                <EmptyState compact icon={KeyRound} title="Нет заявок на сдачу" description="Сдача подтверждается здесь" />
-                            ) : (
-                                <div className="space-y-2">
-                                    {pendingReturn.map(item => (
-                                        <RequestCard key={item.id} item={item} mode="security" busy={busyRequestId === item.id} onDecide={(id, action) => void decide(id, action)} />
-                                    ))}
-                                </div>
-                            )}
-                        </Card>
-                    </div>
-
-                    <Card padding="sm">
-                        <div className="mb-2">
-                            <p className="text-sm font-semibold text-fg">История</p>
-                            <p className="text-xs text-fg-muted">Операции с ключами за сегодня</p>
                         </div>
-                        <HistoryPanel
-                            type="all"
-                            defaultToday
-                            pageSize={50}
-                            buildingId={buildingId}
-                            endpoint="/api/guard/history"
-                            onOpenKey={setHistoryKeyId}
-                        />
+                    </div>
+                )}
+
+                {tab === "passes" && (
+                    <Card padding="sm" className="flex h-full min-h-0 flex-col">
+                        <div className="mb-2 flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-semibold text-fg">Пропуска</p>
+                                <p className="text-xs text-fg-muted">Выходы учеников на сегодня</p>
+                            </div>
+                            <Badge tone="info">{state?.passes.length ?? 0}</Badge>
+                        </div>
+                        <div className="min-h-0 flex-1 overflow-y-auto">
+                            {(state?.passes.length ?? 0) === 0 ? (
+                                <EmptyState icon={KeyRound} title="Пропусков нет" description="На сегодня пропуска не оформляли" compact />
+                            ) : (
+                                <ul className="divide-y divide-border overflow-hidden rounded-card border border-border">
+                                    {state?.passes.map(pass => (
+                                        <li key={pass.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
+                                            <div className="min-w-0 flex-1">
+                                                <p className="truncate text-sm text-fg">
+                                                    <span className="font-medium">{pass.className}</span> ·{" "}
+                                                    {pass.students.map(student => student.name).filter(Boolean).join(", ") || "Ученики"}
+                                                </p>
+                                                <p className="text-xs text-fg-muted">
+                                                    {pass.exitTime} · {pass.reason}
+                                                </p>
+                                            </div>
+                                            {pass.used ? (
+                                                <Badge tone="success">
+                                                    вышел{" "}
+                                                    {pass.usedAt
+                                                        ? new Date(pass.usedAt).toLocaleTimeString("ru-RU", {
+                                                              hour: "2-digit",
+                                                              minute: "2-digit",
+                                                          })
+                                                        : ""}
+                                                </Badge>
+                                            ) : (
+                                                <Button size="sm" onClick={() => void markPassUsed(pass.id)}>
+                                                    Отметить выход
+                                                </Button>
+                                            )}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
                     </Card>
-                </div>
+                )}
 
-                <Card padding="sm">
-                    <div className="mb-2 flex items-center justify-between">
-                        <div>
-                            <p className="text-sm font-semibold text-fg">Состояние ключей</p>
-                            <p className="text-xs text-fg-muted">
-                                {buildingId === "all" ? "Все здания" : buildings.find(item => item.id === buildingId)?.name}
-                            </p>
+                {tab === "selfExits" && (
+                    <Card padding="sm" className="flex h-full min-h-0 flex-col">
+                        <div className="mb-2 flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-semibold text-fg">Самовыходы</p>
+                                <p className="text-xs text-fg-muted">Ученики, которые могут уходить сами</p>
+                            </div>
+                            <Badge tone="neutral">{state?.selfExits.length ?? 0}</Badge>
                         </div>
-                        <Badge tone="neutral">{filteredKeys.length}</Badge>
-                    </div>
-                    {filteredKeys.length === 0 ? (
-                        <EmptyState icon={KeyRound} title="Ключей нет" description="Ключи появятся после добавления в админке" />
-                    ) : (
-                        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                            {filteredKeys.map(key => (
-                                <KeyCard key={key.id} keyItem={key} showBuilding={buildingId === "all"} onShowHistory={item => setHistoryKeyId(item.id)} />
-                            ))}
+                        <div className="min-h-0 flex-1 overflow-y-auto">
+                            {(state?.selfExits.length ?? 0) === 0 ? (
+                                <EmptyState icon={KeyRound} title="Самовыходов нет" description="На сегодня разрешений нет" compact />
+                            ) : (
+                                <ul className="divide-y divide-border overflow-hidden rounded-card border border-border">
+                                    {state?.selfExits.map(item => (
+                                        <li key={item.id} className="px-3 py-2">
+                                            <p className="truncate text-sm text-fg">
+                                                <span className="font-medium">{item.className}</span> · {item.studentName}
+                                            </p>
+                                            <p className="text-xs text-fg-muted">
+                                                {new Date(item.startDate).toLocaleDateString("ru-RU")} —{" "}
+                                                {new Date(item.endDate).toLocaleDateString("ru-RU")}
+                                                {item.reason ? ` · ${item.reason}` : ""}
+                                            </p>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                         </div>
-                    )}
-                </Card>
+                    </Card>
+                )}
             </main>
 
             <KeyHistoryDrawer keyId={historyKeyId} onClose={() => setHistoryKeyId(null)} endpoint="/api/guard/history" />
@@ -299,84 +428,66 @@ export function GuardScreen() {
     );
 }
 
-function PassesPanel({ passes, onMarkUsed }: { passes: GuardPass[]; onMarkUsed: (id: string) => Promise<void> }) {
+function RequestQueue({
+    title,
+    description,
+    tone,
+    items,
+    busyRequestId,
+    onDecide,
+}: {
+    title: string;
+    description: string;
+    tone: "info" | "success";
+    items: KeyRequestDto[];
+    busyRequestId: string | null;
+    onDecide: (id: string, action: "confirm" | "cancel") => Promise<void>;
+}) {
     return (
-        <Card padding="sm">
-            <div className="mb-2 flex items-center justify-between">
+        <Card padding="sm" className="flex min-h-0 flex-1 flex-col">
+            <div className="mb-1.5 flex items-center justify-between">
                 <div>
-                    <p className="text-sm font-semibold text-fg">Пропуска</p>
-                    <p className="text-xs text-fg-muted">Выходы учеников на сегодня</p>
+                    <p className="text-sm font-semibold text-fg">{title}</p>
+                    <p className="text-[11px] text-fg-muted">{description}</p>
                 </div>
-                <Badge tone="info">{passes.length}</Badge>
+                <Badge tone={tone}>{items.length}</Badge>
             </div>
-            {passes.length === 0 ? (
-                <EmptyState compact icon={KeyRound} title="Пропусков нет" description="На сегодня пропуска не оформляли" />
-            ) : (
-                <ul className="divide-y divide-border overflow-hidden rounded-card border border-border">
-                    {passes.map(pass => (
-                        <li key={pass.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
-                            <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm text-fg">
-                                    <span className="font-medium">{pass.className}</span> · {pass.students.map(student => student.name).filter(Boolean).join(", ") || "Ученики"}
-                                </p>
-                                <p className="text-xs text-fg-muted">
-                                    {pass.exitTime} · {pass.reason}
-                                </p>
-                            </div>
-                            {pass.used ? (
-                                <Badge tone="success">
-                                    вышел {pass.usedAt ? new Date(pass.usedAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }) : ""}
-                                </Badge>
-                            ) : (
-                                <Button size="sm" onClick={() => void onMarkUsed(pass.id)}>
-                                    Отметить выход
-                                </Button>
-                            )}
-                        </li>
-                    ))}
-                </ul>
-            )}
+            <div className="min-h-0 flex-1 overflow-y-auto">
+                {items.length === 0 ? (
+                    <EmptyState compact icon={KeyRound} title="Заявок нет" description="Появятся автоматически" />
+                ) : (
+                    <div className="space-y-1.5">
+                        {items.map(item => (
+                            <RequestCard
+                                key={item.id}
+                                item={item}
+                                mode="security"
+                                busy={busyRequestId === item.id}
+                                onDecide={(id, action) => void onDecide(id, action)}
+                            />
+                        ))}
+                    </div>
+                )}
+            </div>
         </Card>
     );
 }
 
-function SelfExitsPanel({ items }: { items: GuardSelfExit[] }) {
+function MiniStat({
+    label,
+    value,
+    tone = "neutral",
+}: {
+    label: string;
+    value: number;
+    tone?: "neutral" | "success" | "info" | "warning";
+}) {
+    const color =
+        tone === "success" ? "text-success" : tone === "info" ? "text-info" : tone === "warning" ? "text-warning" : "text-fg";
     return (
-        <Card padding="sm">
-            <div className="mb-2 flex items-center justify-between">
-                <div>
-                    <p className="text-sm font-semibold text-fg">Самовыходы</p>
-                    <p className="text-xs text-fg-muted">Ученики, которые могут уходить сами</p>
-                </div>
-                <Badge tone="neutral">{items.length}</Badge>
-            </div>
-            {items.length === 0 ? (
-                <EmptyState compact icon={KeyRound} title="Самовыходов нет" description="На сегодня разрешений нет" />
-            ) : (
-                <ul className="divide-y divide-border overflow-hidden rounded-card border border-border">
-                    {items.map(item => (
-                        <li key={item.id} className="px-3 py-2">
-                            <p className="truncate text-sm text-fg">
-                                <span className="font-medium">{item.className}</span> · {item.studentName}
-                            </p>
-                            <p className="text-xs text-fg-muted">
-                                {new Date(item.startDate).toLocaleDateString("ru-RU")} — {new Date(item.endDate).toLocaleDateString("ru-RU")}
-                                {item.reason ? ` · ${item.reason}` : ""}
-                            </p>
-                        </li>
-                    ))}
-                </ul>
-            )}
-        </Card>
-    );
-}
-
-function StatTile({ label, value, tone = "neutral" }: { label: string; value: number; tone?: "neutral" | "success" | "info" | "warning" }) {
-    const color = tone === "success" ? "text-success" : tone === "info" ? "text-info" : tone === "warning" ? "text-warning" : "text-fg";
-    return (
-        <div className="rounded-control border border-border bg-surface-2 px-2.5 py-2">
-            <p className="text-[11px] text-fg-subtle">{label}</p>
-            <p className={`text-lg font-semibold tabular-nums ${color}`}>{value}</p>
+        <div className="rounded-control border border-border bg-surface px-2 py-1">
+            <span className="text-[10px] text-fg-subtle">{label} </span>
+            <span className={`text-sm font-semibold tabular-nums ${color}`}>{value}</span>
         </div>
     );
 }
