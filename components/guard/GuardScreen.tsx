@@ -26,26 +26,10 @@ import { RequestCard } from "@/components/keys/RequestCard";
 import { KeyCard } from "@/components/keys/KeyCard";
 import { KeyHistoryDrawer } from "@/components/keys/KeyHistoryDrawer";
 import { GuardHistoryPanel } from "./GuardHistoryPanel";
+import { GuardPassesTab, type GuardPass } from "./GuardPassesTab";
+import { GuardSelfExitsTab, type GuardSelfExit } from "./GuardSelfExitsTab";
 import type { KeyItemDto, KeyRequestDto, KeysState } from "@/lib/keys/queries";
 
-interface GuardPass {
-    id: string;
-    className: string;
-    exitTime: string;
-    reason: string;
-    used: boolean;
-    usedAt: string | null;
-    students: Array<{ id?: string | number; name?: string }>;
-}
-
-interface GuardSelfExit {
-    id: string;
-    studentName: string;
-    className: string;
-    reason: string | null;
-    startDate: string;
-    endDate: string;
-}
 
 interface GuardState {
     serverTime: string;
@@ -70,6 +54,7 @@ export function GuardScreen() {
     const [now, setNow] = useState(new Date());
     const [historyKeyId, setHistoryKeyId] = useState<string | null>(null);
     const [busyRequestId, setBusyRequestId] = useState<string | null>(null);
+    const [busyPassId, setBusyPassId] = useState<string | null>(null);
 
     useEffect(() => {
         const stored = window.localStorage.getItem(BUILDING_STORAGE_KEY);
@@ -158,12 +143,29 @@ export function GuardScreen() {
     };
 
     const markPassUsed = async (passId: string) => {
-        const response = await fetch(`/api/guard/passes/${passId}/use`, { method: "POST" });
-        if (!response.ok) {
-            toast.show({ title: "Не удалось отметить выход", tone: "danger" });
-            return;
+        setBusyPassId(passId);
+        try {
+            const response = await fetch(`/api/guard/passes/${passId}/use`, { method: "POST" });
+            if (!response.ok) throw new Error("Не удалось отметить выход");
+            await refresh();
+        } catch (e) {
+            toast.show({ title: "Ошибка", description: e instanceof Error ? e.message : undefined, tone: "danger" });
+        } finally {
+            setBusyPassId(null);
         }
-        await refresh();
+    };
+
+    const undoPass = async (passId: string) => {
+        setBusyPassId(passId);
+        try {
+            const response = await fetch(`/api/guard/passes/${passId}/undo`, { method: "POST" });
+            if (!response.ok) throw new Error("Не удалось отменить выход");
+            await refresh();
+        } catch (e) {
+            toast.show({ title: "Ошибка", description: e instanceof Error ? e.message : undefined, tone: "danger" });
+        } finally {
+            setBusyPassId(null);
+        }
     };
 
     const logout = async () => {
@@ -227,7 +229,7 @@ export function GuardScreen() {
                 </div>
             </div>
 
-            <main className="min-h-0 flex-1 overflow-auto p-3 lg:overflow-hidden">
+            <main className="min-h-0 flex-1 overflow-y-auto p-3 lg:flex lg:flex-col lg:overflow-hidden">
                 {error && (
                     <Card padding="sm" className="mb-2 border-danger/40 bg-danger-soft">
                         <p className="text-sm text-fg">{error}</p>
@@ -235,7 +237,7 @@ export function GuardScreen() {
                 )}
 
                 {tab === "requests" && (
-                    <div className="flex h-full min-h-0 flex-col gap-2">
+                    <div className="flex h-full min-h-0 flex-col gap-2 lg:flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                             <Select
                                 aria-label="Здание"
@@ -291,7 +293,7 @@ export function GuardScreen() {
                 )}
 
                 {tab === "keys" && (
-                    <div className="flex h-full min-h-0 flex-col gap-2">
+                    <div className="flex h-full min-h-0 flex-col gap-2 lg:flex-1">
                         <div className="flex flex-wrap items-end gap-2">
                             <Select
                                 aria-label="Здание"
@@ -343,85 +345,20 @@ export function GuardScreen() {
                 )}
 
                 {tab === "passes" && (
-                    <Card padding="sm" className="flex h-full min-h-0 flex-col">
-                        <div className="mb-2 flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-semibold text-fg">Пропуска</p>
-                                <p className="text-xs text-fg-muted">Выходы учеников на сегодня</p>
-                            </div>
-                            <Badge tone="info">{state?.passes.length ?? 0}</Badge>
-                        </div>
-                        <div className="min-h-0 flex-1 overflow-y-auto">
-                            {(state?.passes.length ?? 0) === 0 ? (
-                                <EmptyState icon={KeyRound} title="Пропусков нет" description="На сегодня пропуска не оформляли" compact />
-                            ) : (
-                                <ul className="divide-y divide-border overflow-hidden rounded-card border border-border">
-                                    {state?.passes.map(pass => (
-                                        <li key={pass.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
-                                            <div className="min-w-0 flex-1">
-                                                <p className="truncate text-sm text-fg">
-                                                    <span className="font-medium">{pass.className}</span> ·{" "}
-                                                    {pass.students.map(student => student.name).filter(Boolean).join(", ") || "Ученики"}
-                                                </p>
-                                                <p className="text-xs text-fg-muted">
-                                                    {pass.exitTime} · {pass.reason}
-                                                </p>
-                                            </div>
-                                            {pass.used ? (
-                                                <Badge tone="success">
-                                                    вышел{" "}
-                                                    {pass.usedAt
-                                                        ? new Date(pass.usedAt).toLocaleTimeString("ru-RU", {
-                                                              hour: "2-digit",
-                                                              minute: "2-digit",
-                                                          })
-                                                        : ""}
-                                                </Badge>
-                                            ) : (
-                                                <Button size="sm" onClick={() => void markPassUsed(pass.id)}>
-                                                    Отметить выход
-                                                </Button>
-                                            )}
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </div>
-                    </Card>
+                    <div className="h-full min-h-[60vh] lg:min-h-0 lg:flex-1">
+                        <GuardPassesTab
+                            passes={state?.passes ?? []}
+                            busyId={busyPassId}
+                            onMarkUsed={markPassUsed}
+                            onUndo={undoPass}
+                        />
+                    </div>
                 )}
-
                 {tab === "selfExits" && (
-                    <Card padding="sm" className="flex h-full min-h-0 flex-col">
-                        <div className="mb-2 flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-semibold text-fg">Самовыходы</p>
-                                <p className="text-xs text-fg-muted">Ученики, которые могут уходить сами</p>
-                            </div>
-                            <Badge tone="neutral">{state?.selfExits.length ?? 0}</Badge>
-                        </div>
-                        <div className="min-h-0 flex-1 overflow-y-auto">
-                            {(state?.selfExits.length ?? 0) === 0 ? (
-                                <EmptyState icon={KeyRound} title="Самовыходов нет" description="На сегодня разрешений нет" compact />
-                            ) : (
-                                <ul className="divide-y divide-border overflow-hidden rounded-card border border-border">
-                                    {state?.selfExits.map(item => (
-                                        <li key={item.id} className="px-3 py-2">
-                                            <p className="truncate text-sm text-fg">
-                                                <span className="font-medium">{item.className}</span> · {item.studentName}
-                                            </p>
-                                            <p className="text-xs text-fg-muted">
-                                                {new Date(item.startDate).toLocaleDateString("ru-RU")} —{" "}
-                                                {new Date(item.endDate).toLocaleDateString("ru-RU")}
-                                                {item.reason ? ` · ${item.reason}` : ""}
-                                            </p>
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </div>
-                    </Card>
-                )}
-            </main>
+                    <div className="h-full min-h-[60vh] lg:min-h-0 lg:flex-1">
+                        <GuardSelfExitsTab items={state?.selfExits ?? []} />
+                    </div>
+                )}            </main>
 
             <KeyHistoryDrawer keyId={historyKeyId} onClose={() => setHistoryKeyId(null)} endpoint="/api/guard/history" />
         </div>
