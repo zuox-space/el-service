@@ -27,7 +27,7 @@ export interface KeyRequestDto {
     decidedByName: string | null;
     createdAt: string;
     updatedAt: string;
-    keys: Array<{ id: string; roomNumber: string; roomName: string; buildingName: string }>;
+    keys: Array<{ id: string; buildingId: string; roomNumber: string; roomName: string; buildingName: string }>;
 }
 
 export interface KeyItemDto {
@@ -81,6 +81,7 @@ const requestInclude = {
             key: {
                 select: {
                     id: true,
+                    buildingId: true,
                     roomNumber: true,
                     roomName: true,
                     building: { select: { name: true } },
@@ -122,6 +123,7 @@ function toRequest(row: RequestRow): KeyRequestDto {
         updatedAt: row.updatedAt.toISOString(),
         keys: row.keys.map(item => ({
             id: item.key.id,
+            buildingId: item.key.buildingId,
             roomNumber: item.key.roomNumber,
             roomName: item.key.roomName,
             buildingName: item.key.building.name,

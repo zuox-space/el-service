@@ -104,7 +104,11 @@ export function GuardScreen() {
         [keys, buildingId],
     );
 
-    const pending = (state?.keys.requests ?? []).filter(item => item.status === "PENDING");
+    const pending = (state?.keys.requests ?? []).filter(item => {
+        if (item.status !== "PENDING") return false;
+        if (buildingId === "all") return true;
+        return item.keys.some(key => key.buildingId === buildingId);
+    });
     const pendingIssue = pending.filter(item => item.type === "ISSUE");
     const pendingReturn = pending.filter(item => item.type === "RETURN");
     const issued = filteredKeys.filter(key => key.status === "ISSUED");
