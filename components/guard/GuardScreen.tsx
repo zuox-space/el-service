@@ -196,6 +196,16 @@ export function GuardScreen() {
                         <h1 className="truncate text-sm font-semibold text-fg">Пульт охраны</h1>
                         <p className="text-[11px] text-fg-subtle">Планшет охраны</p>
                     </div>
+                    <Select
+                        aria-label="Здание"
+                        value={buildingId}
+                        onChange={changeBuilding}
+                        options={[
+                            { value: "all", label: "Все здания" },
+                            ...buildings.map(building => ({ value: building.id, label: building.name })),
+                        ]}
+                        wrapperClassName="ml-2 w-36 sm:w-48"
+                    />
                     <div className="ml-auto flex items-center gap-2">
                         <span className="hidden items-center gap-1 text-xs tabular-nums text-fg-muted sm:flex">
                             <Clock size={14} aria-hidden />
@@ -239,16 +249,7 @@ export function GuardScreen() {
                 {tab === "requests" && (
                     <div className="flex h-full min-h-0 flex-col gap-2 lg:flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                            <Select
-                                aria-label="Здание"
-                                value={buildingId}
-                                onChange={changeBuilding}
-                                options={[
-                                    { value: "all", label: "Все здания" },
-                                    ...buildings.map(building => ({ value: building.id, label: building.name })),
-                                ]}
-                                wrapperClassName="w-52"
-                            />
+
                             <div className="ml-auto flex flex-wrap gap-1.5">
                                 <MiniStat label="Свободно" value={free.length} tone="success" />
                                 <MiniStat label="Выдано" value={issued.length} tone="info" />
@@ -295,16 +296,7 @@ export function GuardScreen() {
                 {tab === "keys" && (
                     <div className="flex h-full min-h-0 flex-col gap-2 lg:flex-1">
                         <div className="flex flex-wrap items-end gap-2">
-                            <Select
-                                aria-label="Здание"
-                                value={buildingId}
-                                onChange={changeBuilding}
-                                options={[
-                                    { value: "all", label: "Все здания" },
-                                    ...buildings.map(building => ({ value: building.id, label: building.name })),
-                                ]}
-                                wrapperClassName="w-52"
-                            />
+
                             <Input
                                 value={query}
                                 onChange={event => setQuery(event.target.value)}

@@ -126,11 +126,12 @@ async function main() {
         };
         const res = await session.json(`${BASE}/api/passes`, 'POST', payload);
         const data = await res.json().catch(() => ({}));
-        check('пропуск создан', res.ok && Boolean(data.id), `HTTP ${res.status}`);
-        if (data.id) created.passes.push(data.id);
+        const createdPasses = Array.isArray(data) ? data : [data];
+        check('пропуск создан', res.ok && createdPasses.length === 1 && Boolean(createdPasses[0]?.id), `HTTP ${res.status}`);
+        for (const pass of createdPasses) if (pass.id) created.passes.push(pass.id);
 
         const list = await (await session.fetch(`${BASE}/api/passes?classId=${cls.id}&date=${today}`)).json();
-        const saved = Array.isArray(list) ? list.find(p => p.id === data.id) : null;
+        const saved = Array.isArray(list) ? list.find(p => p.id === createdPasses[0]?.id) : null;
         check('пропуск читается обратно с учеником', Boolean(saved) && Array.isArray(saved.students) && saved.students.length === 1,
             JSON.stringify(saved?.students));
     }

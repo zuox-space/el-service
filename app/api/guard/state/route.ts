@@ -43,9 +43,12 @@ export async function GET() {
 
     const classIds = [...new Set([...passes.map(item => item.classId), ...selfExits.map(item => item.classId)])];
     const classes = classIds.length
-        ? await prisma.class.findMany({ where: { id: { in: classIds } }, select: { id: true, name: true } })
+        ? await prisma.class.findMany({ where: { id: { in: classIds } }, select: { id: true, name: true, grade: true } })
         : [];
     const className = new Map(classes.map(item => [item.id, item.name]));
+    const classGrade = new Map(classes.map(item => [item.id, item.grade]));
+    // Самовыходы бывают только у младших классов: 7–11 не показываем.
+    const visibleSelfExits = selfExits.filter(item => (classGrade.get(item.classId) ?? 99) < 7);
 
     return NextResponse.json({
         success: true,
@@ -60,7 +63,7 @@ export async function GET() {
             usedAt: item.usedAt ? item.usedAt.toISOString() : null,
             students: parseStudents(item.students),
         })),
-        selfExits: selfExits.map(item => ({
+        selfExits: visibleSelfExits.map(item => ({
             id: item.id,
             studentName: item.studentName,
             className: className.get(item.classId) ?? "",

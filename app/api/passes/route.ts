@@ -71,18 +71,30 @@ export async function POST(req: NextRequest) {
     const passDate = new Date(date);
     passDate.setHours(0, 0, 0, 0);
 
-    const pass = await prisma.pass.create({
-      data: {
-        date: passDate,
-        classId: classId,
-        teacherId: session.user.id,
-        students: JSON.stringify(students),
-        exitTime: exitTime,
-        reason: reason,
-      },
-    });
+    // Каждому выбранному ребёнку — отдельный пропуск, а не одна запись на всех.
+    const studentList = Array.isArray(students) ? students.filter(Boolean) : [];
+    if (studentList.length === 0) {
+      return NextResponse.json({ error: "Выберите хотя бы одного ученика" }, { status: 400 });
+    }
 
-    return NextResponse.json({ ...pass, students: students });
+    const created = await prisma.$transaction(
+      studentList.map((student) =>
+        prisma.pass.create({
+          data: {
+            date: passDate,
+            classId: classId,
+            teacherId: session.user.id,
+            students: JSON.stringify([student]),
+            exitTime: exitTime,
+            reason: reason,
+          },
+        }),
+      ),
+    );
+
+    return NextResponse.json(
+      created.map((pass, index) => ({ ...pass, students: [studentList[index]] })),
+    );
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Failed to create pass" }, { status: 500 });
