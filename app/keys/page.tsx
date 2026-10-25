@@ -424,8 +424,13 @@ function Cabinet({
                                                         {REQUEST_TYPE_LABEL[request.type]} · {request.keys.map(key => key.roomNumber).join(", ")}
                                                     </p>
                                                     <p className="truncate text-[11px] text-fg-subtle">
-                                                        {formatDateTime(request.createdAt)}
-                                                        {request.targetUserName ? ` · → ${request.targetUserName}` : ""}
+                                                        {formatDateTime(request.createdAt)} · запросил {request.requestedByName}
+                                                        {request.targetUserName ? ` → ${request.targetUserName}` : ""}
+                                                    </p>
+                                                    <p className="truncate text-[11px] text-fg-subtle">
+                                                        {request.status === "PENDING"
+                                                            ? "ждёт подтверждения"
+                                                            : `подтвердил ${request.decidedByName ?? "—"}`}
                                                     </p>
                                                 </div>
                                                 <div className="flex shrink-0 items-center gap-2">

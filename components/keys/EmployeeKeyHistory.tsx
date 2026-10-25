@@ -63,24 +63,37 @@ export function EmployeeKeyHistory({
                 <EmptyState title="Операций нет" description="Этот ключ ещё не выдавали" compact />
             ) : (
                 <ul className="divide-y divide-border overflow-hidden rounded-card border border-border">
-                    {items.map(item => (
-                        <li key={item.id} className="px-3 py-2.5">
-                            <div className="flex flex-wrap items-start justify-between gap-2">
-                                <div className="min-w-0">
-                                    <p className="text-sm text-fg">
-                                        {TYPE_LABEL[item.type]} · {item.keys.map(key => key.roomNumber).join(", ")}
-                                    </p>
-                                    <p className="text-[11px] text-fg-subtle">
-                                        {formatDateTime(item.createdAt)}
-                                        {item.targetUserName ? ` · → ${item.targetUserName}` : ""}
-                                    </p>
+                    {items.map(item => {
+                        const participant =
+                            item.type === "TRANSFER"
+                                ? `${item.requestedByName} → ${item.targetUserName ?? "получатель"}`
+                                : item.type === "RETURN"
+                                    ? item.requestedByName
+                                    : item.requestedByName;
+
+                        return (
+                            <li key={item.id} className="px-3 py-2.5">
+                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                        <p className="text-sm text-fg">
+                                            {TYPE_LABEL[item.type]} · {item.keys.map(key => key.roomNumber).join(", ")}
+                                        </p>
+                                        <p className="mt-0.5 text-xs text-fg">
+                                            {item.type === "ISSUE" ? "Взял: " : item.type === "RETURN" ? "Сдал: " : "Передал: "}
+                                            <span className="font-medium">{participant}</span>
+                                        </p>
+                                        <p className="text-[11px] text-fg-subtle">
+                                            Подтвердил: {item.decidedByName ?? (item.status === "PENDING" ? "ещё не подтверждено" : "—")}
+                                        </p>
+                                        <p className="text-[11px] text-fg-subtle">{formatDateTime(item.createdAt)}</p>
+                                    </div>
+                                    <Badge tone={item.status === "PENDING" ? "warning" : "success"}>
+                                        {STATUS_LABEL[item.status]}
+                                    </Badge>
                                 </div>
-                                <Badge tone={item.status === "PENDING" ? "warning" : "success"}>
-                                    {STATUS_LABEL[item.status]}
-                                </Badge>
-                            </div>
-                        </li>
-                    ))}
+                            </li>
+                        );
+                    })}
                 </ul>
             )}
         </Sheet>
