@@ -42,11 +42,18 @@ export async function GET() {
     ]);
 
     const classIds = [...new Set([...passes.map(item => item.classId), ...selfExits.map(item => item.classId)])];
-    const classes = classIds.length
-        ? await prisma.class.findMany({ where: { id: { in: classIds } }, select: { id: true, name: true, grade: true } })
-        : [];
+    const teacherIds = [...new Set(passes.map(item => item.teacherId))];
+    const [classes, teachers] = await Promise.all([
+        classIds.length
+            ? prisma.class.findMany({ where: { id: { in: classIds } }, select: { id: true, name: true, grade: true } })
+            : Promise.resolve([]),
+        teacherIds.length
+            ? prisma.user.findMany({ where: { id: { in: teacherIds } }, select: { id: true, name: true } })
+            : Promise.resolve([]),
+    ]);
     const className = new Map(classes.map(item => [item.id, item.name]));
     const classGrade = new Map(classes.map(item => [item.id, item.grade]));
+    const teacherName = new Map(teachers.map(item => [item.id, item.name]));
     // Самовыходы бывают только у младших классов: 7–11 не показываем.
     const visibleSelfExits = selfExits.filter(item => (classGrade.get(item.classId) ?? 99) < 7);
 
@@ -58,6 +65,7 @@ export async function GET() {
             id: item.id,
             classId: item.classId,
             className: className.get(item.classId) ?? "",
+            teacherName: teacherName.get(item.teacherId) ?? "Не указан",
             exitTime: item.exitTime,
             reason: item.reason,
             used: item.used,

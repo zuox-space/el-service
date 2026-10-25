@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 
 import { requireAnySection } from "@/lib/access/server";
 import { prisma } from "@/lib/prisma";
+import { broadcastKeys } from "@/lib/keys/bus";
 
 
 export async function PUT(
@@ -29,6 +30,7 @@ export async function PUT(
       }
     });
 
+    broadcastKeys("update", { at: new Date().toISOString() });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error undoing mark:", error);

@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 
 import { requireAnySection } from "@/lib/access/server";
 import { prisma } from "@/lib/prisma";
+import { broadcastKeys } from "@/lib/keys/bus";
 
 
 export const dynamic = 'force-dynamic';
@@ -93,6 +94,7 @@ export async function POST(req: NextRequest) {
       ),
     );
 
+    broadcastKeys("update", { at: new Date().toISOString() });
     return NextResponse.json(
       created.map((pass, index) => ({ ...pass, students: [studentList[index]] })),
     );
@@ -129,6 +131,7 @@ export async function PUT(req: NextRequest) {
       }
     });
 
+    broadcastKeys("update", { at: new Date().toISOString() });
     return NextResponse.json({ success: true, pass });
   } catch (error) {
     console.error("Error marking pass as used:", error);
@@ -156,6 +159,7 @@ export async function DELETE(req: NextRequest) {
 
   try {
     await prisma.pass.delete({ where: { id } });
+    broadcastKeys("update", { at: new Date().toISOString() });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error(error);

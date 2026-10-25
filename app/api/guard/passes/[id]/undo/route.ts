@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { broadcastKeys } from "@/lib/keys/bus";
 import { getGuardAccess } from "@/lib/guard/auth";
 
 /** Охрана отменяет ошибочно отмеченный выход по пропуску. */
@@ -18,5 +19,6 @@ export async function POST(_request: NextRequest, { params }: { params: { id: st
         data: { used: false, usedAt: null },
     });
 
+    broadcastKeys("update", { at: new Date().toISOString() });
     return NextResponse.json({ success: true });
 }
