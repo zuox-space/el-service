@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { History } from "lucide-react";
 import { Badge, Button, Chip, EmptyState, Input, Select, Skeleton } from "@/components/ui/kit";
 import type { KeyRequestDto } from "@/lib/keys/queries";
+import { toLocalISODate } from "@/lib/date";
 
 const TYPE_LABEL: Record<string, string> = { ISSUE: "Выдача", RETURN: "Сдача", TRANSFER: "Передача" };
 const STATUS_LABEL: Record<string, string> = {
@@ -47,7 +48,7 @@ export function GuardHistoryPanel({
         if (type !== "all") search.set("type", type);
         if (status !== "all") search.set("status", status);
         if (todayOnly) {
-            const today = new Date().toISOString().slice(0, 10);
+            const today = toLocalISODate();
             search.set("dateFrom", today);
             search.set("dateTo", today);
         }
@@ -71,6 +72,16 @@ export function GuardHistoryPanel({
 
     useEffect(() => {
         void load();
+    }, [load]);
+
+    useEffect(() => {
+        const source = new EventSource("/api/guard/events");
+        const onUpdate = () => void load();
+        source.addEventListener("update", onUpdate);
+        return () => {
+            source.removeEventListener("update", onUpdate);
+            source.close();
+        };
     }, [load]);
 
     return (

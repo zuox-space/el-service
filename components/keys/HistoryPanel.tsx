@@ -14,6 +14,7 @@ import {
     Skeleton,
 } from "@/components/ui/kit";
 import type { KeyRequestDto } from "@/lib/keys/queries";
+import { toLocalISODate } from "@/lib/date";
 
 const TYPE_LABEL: Record<string, string> = { ISSUE: "Выдача", RETURN: "Сдача", TRANSFER: "Передача" };
 const STATUS_LABEL: Record<string, string> = {
@@ -53,8 +54,8 @@ export function HistoryPanel({
     const [participantName, setParticipantName] = useState("");
     const [requestType, setRequestType] = useState("all");
     const [status, setStatus] = useState("all");
-    const [dateFrom, setDateFrom] = useState(defaultToday ? new Date().toISOString().slice(0, 10) : "");
-    const [dateTo, setDateTo] = useState(defaultToday ? new Date().toISOString().slice(0, 10) : "");
+    const [dateFrom, setDateFrom] = useState(defaultToday ? toLocalISODate() : "");
+    const [dateTo, setDateTo] = useState(defaultToday ? toLocalISODate() : "");
     const [items, setItems] = useState<KeyRequestDto[]>([]);
     const [total, setTotal] = useState(0);
     const [hasMore, setHasMore] = useState(false);
@@ -145,7 +146,7 @@ export function HistoryPanel({
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <Chip
                     onClick={() => {
-                        const today = new Date().toISOString().slice(0, 10);
+                        const today = toLocalISODate();
                         setDateFrom(today);
                         setDateTo(today);
                     }}
