@@ -15,6 +15,16 @@ const guardGlobal = globalThis as typeof globalThis & {
 };
 const attempts = (guardGlobal.__guardLoginAttempts ??= new Map());
 
+function requestUsesHttps(request: NextRequest): boolean {
+    const override = process.env.GUARD_COOKIE_SECURE;
+    if (override === "true" || override === "false") return override === "true";
+
+    const forwarded = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase();
+    if (forwarded) return forwarded === "https";
+
+    return request.nextUrl.protocol === "https:";
+}
+
 export async function POST(request: NextRequest) {
     if (!hasGuardConfig()) {
         return NextResponse.json(
@@ -49,6 +59,6 @@ export async function POST(request: NextRequest) {
     attempts.delete(ip);
 
     const response = NextResponse.json({ success: true });
-    response.cookies.set(GUARD_COOKIE, createGuardToken(), guardCookieOptions());
+    response.cookies.set(GUARD_COOKIE, createGuardToken(), guardCookieOptions(requestUsesHttps(request)));
     return response;
 }

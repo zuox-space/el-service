@@ -49,11 +49,13 @@ export function verifyGuardToken(token: string | undefined | null): boolean {
     }
 }
 
-export function guardCookieOptions() {
+export function guardCookieOptions(secure = false) {
     return {
         httpOnly: true,
         sameSite: "lax" as const,
-        secure: process.env.NODE_ENV === "production",
+        // Secure только для реального HTTPS. На HTTP браузер молча выбрасывает
+        // такую cookie: вход вернёт 200, но /guard снова отправит на логин.
+        secure,
         path: "/",
         maxAge: SESSION_TTL_MS / 1000,
     };

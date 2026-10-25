@@ -2,12 +2,10 @@
 
 // app/guard/login/page.tsx
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { KeyRound, LogIn, ShieldCheck } from "lucide-react";
 import { Button, Card, FormError, Input } from "@/components/ui/kit";
 
 export default function GuardLoginPage() {
-    const router = useRouter();
     const [login, setLogin] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState<string | null>(null);
@@ -26,7 +24,9 @@ export default function GuardLoginPage() {
             });
             const data = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(data.error || "Не удалось войти");
-            router.replace("/guard");
+            // Полная навигация: middleware и страница должны получить уже
+            // установленную cookie, а не закешированный RSC-редирект.
+            window.location.replace("/guard");
         } catch (e) {
             setError(e instanceof Error ? e.message : "Не удалось войти");
         } finally {
