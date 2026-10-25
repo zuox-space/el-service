@@ -16,7 +16,11 @@ export function GlobalKeysFab() {
     const pathname = usePathname() ?? "/";
     const { can, loading } = useAccess();
 
-    const hidden = pathname.startsWith("/login") || pathname.startsWith("/offline");
+    const hidden =
+        pathname.startsWith("/login") ||
+        pathname.startsWith("/offline") ||
+        // в админке ключей своя навигация, как в keys-app
+        pathname.startsWith("/admin");
     if (loading || hidden || !can("keys")) return null;
 
     return (

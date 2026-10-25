@@ -1,13 +1,12 @@
 "use client";
 
 // app/admin/keys/page.tsx
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { KeyRound, Plus, ShieldCheck, Trash2, Upload } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { History, KeyRound, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import {
     Badge,
     Button,
     Card,
-    Checkbox,
     EmptyState,
     Input,
     Modal,
@@ -15,14 +14,12 @@ import {
     PageHeader,
     Select,
     Skeleton,
-    Tabs,
     Textarea,
     useToast,
 } from "@/components/ui/kit";
 import { KeysProvider, useKeys } from "@/components/keys/KeysProvider";
-import type { KeyItemDto, KeyRequestDto } from "@/lib/keys/queries";
-
-const TYPE_LABEL: Record<string, string> = { ISSUE: "Выдача", RETURN: "Сдача", TRANSFER: "Передача" };
+import { KeyHistoryDrawer } from "@/components/keys/KeyHistoryDrawer";
+import type { KeyItemDto } from "@/lib/keys/queries";
 
 export default function AdminKeysPage() {
     return (
@@ -33,80 +30,70 @@ export default function AdminKeysPage() {
 }
 
 function AdminKeysScreen() {
-    const { state, loading, users, loadUsers, refresh, decide, error } = useKeys();
+    const { state, loading, error, refresh, users, loadUsers } = useKeys();
     const toast = useToast();
 
-    const [tab, setTab] = useState("keys");
-    const [addOpen, setAddOpen] = useState(false);
+    const [buildingId, setBuildingId] = useState("all");
+    const [floor, setFloor] = useState("all");
+    const [query, setQuery] = useState("");
+    const [createOpen, setCreateOpen] = useState(false);
     const [importOpen, setImportOpen] = useState(false);
-    const [permissionsKey, setPermissionsKey] = useState<KeyItemDto | null>(null);
-    const [history, setHistory] = useState<KeyRequestDto[]>([]);
-    const [historyLoading, setHistoryLoading] = useState(false);
+    const [accessKey, setAccessKey] = useState<KeyItemDto | null>(null);
+    const [historyKeyId, setHistoryKeyId] = useState<string | null>(null);
+    const [deleteKey, setDeleteKey] = useState<KeyItemDto | null>(null);
 
     const keys = state?.keys ?? [];
     const buildings = state?.buildings ?? [];
-    const pending = (state?.requests ?? []).filter(item => item.status === "PENDING");
 
-    useEffect(() => {
-        void loadUsers();
-    }, [loadUsers]);
+    const visible = useMemo(() => {
+        const q = query.trim().toLowerCase();
+        return keys
+            .filter(key => {
+                if (buildingId !== "all" && key.buildingId !== buildingId) return false;
+                if (floor !== "all" && String(key.floor) !== floor) return false;
+                if (q) {
+                    const haystack = `${key.roomNumber} ${key.roomName} ${key.buildingName}`.toLowerCase();
+                    if (!haystack.includes(q)) return false;
+                }
+                return true;
+            })
+            .sort(
+                (a, b) =>
+                    a.buildingName.localeCompare(b.buildingName, "ru") ||
+                    a.roomNumber.localeCompare(b.roomNumber, "ru", { numeric: true }),
+            );
+    }, [keys, buildingId, floor, query]);
 
-    const loadHistory = useCallback(async () => {
-        setHistoryLoading(true);
-        try {
-            const response = await fetch("/api/keys/history?limit=60", { cache: "no-store" });
-            const data = await response.json();
-            setHistory(Array.isArray(data.items) ? data.items : []);
-        } finally {
-            setHistoryLoading(false);
-        }
-    }, []);
+    const floors = [...new Set(keys.map(key => key.floor))].sort((a, b) => a - b);
 
-    useEffect(() => {
-        if (tab === "history") void loadHistory();
-    }, [tab, loadHistory]);
-
-    const removeKey = async (key: KeyItemDto) => {
-        if (!window.confirm(`Удалить ключ ${key.roomNumber}?`)) return;
-        const response = await fetch(`/api/keys/${key.id}`, { method: "DELETE" });
+    const removeKey = async () => {
+        if (!deleteKey) return;
+        const response = await fetch(`/api/keys/${deleteKey.id}`, { method: "DELETE" });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
             toast.show({ title: "Не удалось удалить", description: data.error, tone: "danger" });
             return;
         }
         toast.show({ title: "Ключ удалён", tone: "success" });
+        setDeleteKey(null);
         await refresh();
     };
 
-    const decideRequest = async (request: KeyRequestDto, action: "confirm" | "cancel") => {
-        try {
-            await decide(request.id, action);
-            toast.show({ title: action === "confirm" ? "Подтверждено" : "Отменено", tone: "success" });
-        } catch (e) {
-            toast.show({ title: "Ошибка", description: e instanceof Error ? e.message : undefined, tone: "danger" });
-        }
-    };
-
-    const tabs = [
-        { id: "keys", label: "Ключи", count: keys.length },
-        { id: "buildings", label: "Здания", count: buildings.length },
-        { id: "requests", label: "Заявки", count: pending.length },
-        { id: "history", label: "Журнал" },
-    ];
+    if (loading && !state) return <Skeleton height={240} radius="card" />;
 
     return (
         <div className="min-h-full bg-bg">
             <PageHeader
                 title="Ключи"
-                subtitle="Ключи, здания, заявки и журнал операций"
+                subtitle="Список всех ключей. Здесь создают ключи, настраивают доступ и смотрят историю."
                 onBack={() => (window.location.href = "/admin")}
                 actions={
                     <>
-                        <Button size="sm" variant="ghost" leftIcon={Upload} onClick={() => setImportOpen(true)}>
-                            Импорт
+                        <Button size="sm" variant="secondary" leftIcon={Upload} onClick={() => setImportOpen(true)}>
+                            Импорт CSV
                         </Button>
-                        <Button size="sm" leftIcon={Plus} onClick={() => setAddOpen(true)}>
-                            Ключ
+                        <Button size="sm" leftIcon={Plus} onClick={() => setCreateOpen(true)}>
+                            Создать ключ
                         </Button>
                     </>
                 }
@@ -115,224 +102,104 @@ function AdminKeysScreen() {
             <main className="mx-auto w-full max-w-[1200px] space-y-3 px-4 py-4">
                 {error && <Card padding="sm" className="border-danger/40 bg-danger-soft"><p className="text-sm text-fg">{error}</p></Card>}
 
-                <Tabs value={tab} onChange={setTab} items={tabs} ariaLabel="Администрирование ключами" size="sm" />
+                <Card padding="sm">
+                    <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+                        <Input
+                            placeholder="Кабинет или название"
+                            aria-label="Поиск ключа"
+                            value={query}
+                            onChange={event => setQuery(event.target.value)}
+                            wrapperClassName="sm:flex-1"
+                        />
+                        <Select
+                            aria-label="Здание"
+                            value={buildingId}
+                            onChange={setBuildingId}
+                            options={[{ value: "all", label: "Все здания" }, ...buildings.map(building => ({ value: building.id, label: building.name }))]}
+                            wrapperClassName="sm:w-56"
+                        />
+                        <Select
+                            aria-label="Этаж"
+                            value={floor}
+                            onChange={setFloor}
+                            options={[{ value: "all", label: "Все этажи" }, ...floors.map(value => ({ value: String(value), label: `${value} этаж` }))]}
+                            wrapperClassName="sm:w-40"
+                        />
+                        <span className="shrink-0 pb-3 text-xs text-fg-muted sm:ml-auto">
+                            {visible.length} из {keys.length}
+                        </span>
+                    </div>
 
-                {loading && !state ? (
-                    <Skeleton height={200} radius="card" />
-                ) : tab === "keys" ? (
-                    <KeysTable keys={keys} onDelete={removeKey} onPermissions={setPermissionsKey} />
-                ) : tab === "buildings" ? (
-                    <BuildingsPanel buildings={buildings} onChanged={refresh} />
-                ) : tab === "requests" ? (
-                    <RequestsPanel items={pending} onDecide={decideRequest} />
-                ) : (
-                    <HistoryPanel items={history} loading={historyLoading} />
-                )}
+                    {keys.length === 0 ? (
+                        <EmptyState icon={KeyRound} title="Ключей нет" description="Создайте первый ключ или импортируйте CSV" />
+                    ) : visible.length === 0 ? (
+                        <EmptyState icon={KeyRound} title="Ключи не найдены" description="Измените фильтр или запрос" />
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full min-w-[640px] border-collapse text-sm">
+                                <thead>
+                                    <tr className="border-b border-border text-left text-xs text-fg-subtle">
+                                        <th className="py-2 pr-3 font-medium">Кабинет</th>
+                                        <th className="hidden py-2 pr-3 font-medium md:table-cell">Здание</th>
+                                        <th className="hidden py-2 pr-3 font-medium sm:table-cell">Этаж</th>
+                                        <th className="py-2 pr-3 font-medium">Статус</th>
+                                        <th className="hidden py-2 pr-3 font-medium lg:table-cell">Владелец</th>
+                                        <th className="hidden py-2 pr-3 font-medium lg:table-cell">Доступ</th>
+                                        <th className="py-2 text-right font-medium">Действия</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {visible.map(key => (
+                                        <tr key={key.id} className="border-b border-border/60">
+                                            <td className="py-2 pr-3">
+                                                <p className="font-medium text-fg">{key.roomNumber}</p>
+                                                <p className="truncate text-xs text-fg-muted">{key.roomName || "Кабинет"}</p>
+                                            </td>
+                                            <td className="hidden py-2 pr-3 text-xs text-fg-muted md:table-cell">{key.buildingName}</td>
+                                            <td className="hidden py-2 pr-3 text-xs text-fg-muted sm:table-cell">{key.floor} этаж</td>
+                                            <td className="py-2 pr-3">
+                                                <Badge tone={key.pending ? "warning" : key.status === "FREE" ? "success" : "info"}>
+                                                    {key.pending ? "заявка" : key.status === "FREE" ? "свободен" : "выдан"}
+                                                </Badge>
+                                            </td>
+                                            <td className="hidden py-2 pr-3 text-xs text-fg-muted lg:table-cell">
+                                                {key.holderName ?? "—"}
+                                            </td>
+                                            <td className="hidden py-2 pr-3 text-xs text-fg-muted lg:table-cell">
+                                                {key.accessScope === "RESTRICTED" ? "По списку" : "Все сотрудники"}
+                                            </td>
+                                            <td className="py-2">
+                                                <div className="flex justify-end gap-1">
+                                                    <Button size="sm" variant="ghost" leftIcon={History} onClick={() => setHistoryKeyId(key.id)}>
+                                                        История
+                                                    </Button>
+                                                    <Button size="sm" variant="ghost" leftIcon={Pencil} onClick={() => { setAccessKey(key); void loadUsers(); }}>
+                                                        Права
+                                                    </Button>
+                                                    <Button size="sm" variant="ghost" leftIcon={Trash2} onClick={() => setDeleteKey(key)}>
+                                                        Удалить
+                                                    </Button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </Card>
             </main>
 
-            <AddKeyModal open={addOpen} buildings={buildings} onClose={() => setAddOpen(false)} onCreated={refresh} />
-            <ImportModal open={importOpen} onClose={() => setImportOpen(false)} onImported={refresh} />
-            <PermissionsModal
-                keyItem={permissionsKey}
-                users={users}
-                onClose={() => setPermissionsKey(null)}
-                onSaved={refresh}
-            />
+            <CreateKeyModal open={createOpen} buildings={buildings} onClose={() => setCreateOpen(false)} onCreated={refresh} />
+            <ImportKeysModal open={importOpen} onClose={() => setImportOpen(false)} onImported={refresh} />
+            <KeyAccessModal keyItem={accessKey} users={users} onClose={() => setAccessKey(null)} onSaved={refresh} />
+            <DeleteKeyModal keyItem={deleteKey} onClose={() => setDeleteKey(null)} onConfirm={() => void removeKey()} />
+            <KeyHistoryDrawer keyId={historyKeyId} onClose={() => setHistoryKeyId(null)} />
         </div>
     );
 }
 
-function KeysTable({
-    keys,
-    onDelete,
-    onPermissions,
-}: {
-    keys: KeyItemDto[];
-    onDelete: (key: KeyItemDto) => void;
-    onPermissions: (key: KeyItemDto) => void;
-}) {
-    if (keys.length === 0) {
-        return <EmptyState icon={KeyRound} title="Ключей нет" description="Добавьте первый ключ или импортируйте CSV" />;
-    }
-
-    return (
-        <Card padding="none">
-            <ul className="divide-y divide-border">
-                {keys.map(key => (
-                    <li key={key.id} className="flex flex-wrap items-center gap-2 px-3 py-2.5">
-                        <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-fg">
-                                {key.roomNumber} · {key.roomName || "без названия"}
-                            </p>
-                            <p className="text-xs text-fg-muted">
-                                {key.buildingName} · {key.floor} этаж
-                                {key.holderName ? ` · у ${key.holderName}` : ""}
-                            </p>
-                        </div>
-                        <Badge tone={key.status === "FREE" ? "success" : "info"}>
-                            {key.status === "FREE" ? "свободен" : "выдан"}
-                        </Badge>
-                        <Button size="sm" variant="ghost" leftIcon={ShieldCheck} onClick={() => onPermissions(key)}>
-                            Доступ
-                        </Button>
-                        <Button size="sm" variant="ghost" leftIcon={Trash2} onClick={() => onDelete(key)}>
-                            Удалить
-                        </Button>
-                    </li>
-                ))}
-            </ul>
-        </Card>
-    );
-}
-
-function BuildingsPanel({
-    buildings,
-    onChanged,
-}: {
-    buildings: Array<{ id: string; name: string; address: string }>;
-    onChanged: () => Promise<void>;
-}) {
-    const toast = useToast();
-    const [name, setName] = useState("");
-    const [address, setAddress] = useState("");
-
-    const add = async () => {
-        const response = await fetch("/api/keys/buildings", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name, address }),
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-            toast.show({ title: "Ошибка", description: data.error, tone: "danger" });
-            return;
-        }
-        setName("");
-        setAddress("");
-        await onChanged();
-    };
-
-    const remove = async (id: string) => {
-        if (!window.confirm("Удалить здание?")) return;
-        const response = await fetch(`/api/keys/buildings/${id}`, { method: "DELETE" });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-            toast.show({ title: "Ошибка", description: data.error, tone: "danger" });
-            return;
-        }
-        await onChanged();
-    };
-
-    return (
-        <div className="space-y-2">
-            <Card padding="sm">
-                <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-                    <Input label="Название" value={name} onChange={e => setName(e.target.value)} />
-                    <Input label="Адрес" value={address} onChange={e => setAddress(e.target.value)} />
-                    <Button onClick={() => void add()} disabled={!name.trim()}>
-                        Добавить
-                    </Button>
-                </div>
-            </Card>
-
-            {buildings.length === 0 ? (
-                <EmptyState title="Зданий нет" description="Добавьте здание, чтобы создавать ключи" />
-            ) : (
-                <Card padding="none">
-                    <ul className="divide-y divide-border">
-                        {buildings.map(building => (
-                            <li key={building.id} className="flex items-center gap-2 px-3 py-2">
-                                <div className="min-w-0 flex-1">
-                                    <p className="text-sm text-fg">{building.name}</p>
-                                    {building.address && <p className="text-xs text-fg-muted">{building.address}</p>}
-                                </div>
-                                <Button size="sm" variant="ghost" onClick={() => void remove(building.id)}>
-                                    Удалить
-                                </Button>
-                            </li>
-                        ))}
-                    </ul>
-                </Card>
-            )}
-        </div>
-    );
-}
-
-function RequestsPanel({
-    items,
-    onDecide,
-}: {
-    items: KeyRequestDto[];
-    onDecide: (request: KeyRequestDto, action: "confirm" | "cancel") => void;
-}) {
-    if (items.length === 0) return <EmptyState icon={KeyRound} title="Заявок нет" description="Все заявки обработаны" />;
-
-    return (
-        <div className="space-y-2">
-            {items.map(request => (
-                <Card key={request.id} padding="sm">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div>
-                            <p className="text-sm font-semibold text-fg">
-                                {TYPE_LABEL[request.type]} · {request.keys.map(key => key.roomNumber).join(", ")}
-                            </p>
-                            <p className="text-xs text-fg-muted">
-                                {request.requestedByName}
-                                {request.targetUserName ? ` → ${request.targetUserName}` : ""}
-                            </p>
-                        </div>
-                        <div className="flex gap-1.5">
-                            <Button size="sm" onClick={() => onDecide(request, "confirm")}>
-                                Подтвердить
-                            </Button>
-                            <Button size="sm" variant="ghost" onClick={() => onDecide(request, "cancel")}>
-                                Отменить
-                            </Button>
-                        </div>
-                    </div>
-                </Card>
-            ))}
-        </div>
-    );
-}
-
-function HistoryPanel({ items, loading }: { items: KeyRequestDto[]; loading: boolean }) {
-    if (loading) return <Skeleton height={160} radius="card" />;
-    if (items.length === 0) return <EmptyState icon={KeyRound} title="Журнал пуст" description="Операции появятся здесь" />;
-
-    return (
-        <Card padding="none">
-            <ul className="divide-y divide-border">
-                {items.map(item => (
-                    <li key={item.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
-                        <div className="min-w-0 flex-1">
-                            <p className="text-sm text-fg">
-                                {TYPE_LABEL[item.type]} · {item.keys.map(key => key.roomNumber).join(", ")}
-                            </p>
-                            <p className="text-xs text-fg-muted">
-                                {item.requestedByName}
-                                {item.targetUserName ? ` → ${item.targetUserName}` : ""}
-                            </p>
-                        </div>
-                        <Badge tone={item.status === "CONFIRMED" ? "success" : item.status === "PENDING" ? "warning" : "neutral"}>
-                            {item.status === "CONFIRMED" ? "подтверждено" : item.status === "PENDING" ? "ожидает" : "отменено"}
-                        </Badge>
-                        <span className="text-[11px] text-fg-subtle">
-                            {new Date(item.createdAt).toLocaleString("ru-RU", {
-                                day: "2-digit",
-                                month: "2-digit",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                            })}
-                        </span>
-                    </li>
-                ))}
-            </ul>
-        </Card>
-    );
-}
-
-function AddKeyModal({
+function CreateKeyModal({
     open,
     buildings,
     onClose,
@@ -348,6 +215,7 @@ function AddKeyModal({
     const [roomNumber, setRoomNumber] = useState("");
     const [roomName, setRoomName] = useState("");
     const [floor, setFloor] = useState("1");
+    const [scope, setScope] = useState("ALL");
     const [saving, setSaving] = useState(false);
 
     const submit = async () => {
@@ -356,11 +224,11 @@ function AddKeyModal({
             const response = await fetch("/api/keys", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ buildingId, roomNumber, roomName, floor: Number(floor), accessScope: "ALL" }),
+                body: JSON.stringify({ buildingId, roomNumber, roomName, floor: Number(floor), accessScope: scope }),
             });
             const data = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(data.error || "Не удалось создать ключ");
-            toast.show({ title: "Ключ добавлен", tone: "success" });
+            toast.show({ title: "Ключ создан", tone: "success" });
             setRoomNumber("");
             setRoomName("");
             onClose();
@@ -376,27 +244,30 @@ function AddKeyModal({
         <Modal
             open={open}
             onClose={onClose}
-            title="Новый ключ"
+            title="Создать ключ"
             size="sm"
-            footer={<ModalFooter onCancel={onClose} onSubmit={() => void submit()} submitLabel="Добавить" loading={saving} disabled={!buildingId || !roomNumber.trim()} />}
+            footer={<ModalFooter onCancel={onClose} onSubmit={() => void submit()} submitLabel="Создать" loading={saving} disabled={!buildingId || !roomNumber.trim()} />}
         >
             <div className="space-y-2">
+                <Select label="Здание" placeholder="Выберите здание" value={buildingId} onChange={setBuildingId} options={buildings.map(building => ({ value: building.id, label: building.name }))} />
+                <Input label="Номер" value={roomNumber} onChange={event => setRoomNumber(event.target.value)} />
+                <Input label="Название кабинета" value={roomName} onChange={event => setRoomName(event.target.value)} />
+                <Input label="Этаж" type="number" value={floor} onChange={event => setFloor(event.target.value)} />
                 <Select
-                    label="Здание"
-                    placeholder="Выберите здание"
-                    value={buildingId}
-                    onChange={setBuildingId}
-                    options={buildings.map(building => ({ value: building.id, label: building.name }))}
+                    label="Доступ"
+                    value={scope}
+                    onChange={setScope}
+                    options={[
+                        { value: "ALL", label: "Все сотрудники" },
+                        { value: "RESTRICTED", label: "Только выбранные" },
+                    ]}
                 />
-                <Input label="Номер" value={roomNumber} onChange={e => setRoomNumber(e.target.value)} />
-                <Input label="Название кабинета" value={roomName} onChange={e => setRoomName(e.target.value)} />
-                <Input label="Этаж" type="number" value={floor} onChange={e => setFloor(e.target.value)} />
             </div>
         </Modal>
     );
 }
 
-function ImportModal({
+function ImportKeysModal({
     open,
     onClose,
     onImported,
@@ -437,23 +308,17 @@ function ImportModal({
         <Modal
             open={open}
             onClose={onClose}
-            title="Импорт ключей"
-            description="CSV: building;building_address;room_number;room_name;floor"
+            title="Импорт CSV"
+            description="building;building_address;room_number;room_name;floor"
             size="md"
             footer={<ModalFooter onCancel={onClose} onSubmit={() => void submit()} submitLabel="Импортировать" loading={saving} disabled={!csv.trim()} />}
         >
-            <Textarea
-                label="CSV"
-                rows={10}
-                value={csv}
-                onChange={e => setCsv(e.target.value)}
-                placeholder={"Основной корпус;ул. Школьная, 1;101;Кабинет математики;1"}
-            />
+            <Textarea label="CSV" rows={10} value={csv} onChange={event => setCsv(event.target.value)} placeholder="Основной корпус;ул. Школьная, 1;101;Кабинет математики;1" />
         </Modal>
     );
 }
 
-function PermissionsModal({
+function KeyAccessModal({
     keyItem,
     users,
     onClose,
@@ -470,12 +335,19 @@ function PermissionsModal({
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        if (!keyItem) return;
-        setScope(keyItem.accessScope);
+        if (!keyItem) {
+            setSelected([]);
+            setScope("ALL");
+            return;
+        }
+
         setLoading(true);
-        fetch(`/api/keys/${keyItem.id}/permissions`)
+        fetch(`/api/keys/${keyItem.id}/permissions`, { cache: "no-store" })
             .then(response => response.json())
-            .then(data => setSelected(Array.isArray(data.userIds) ? data.userIds : []))
+            .then(data => {
+                setScope(data.accessScope === "RESTRICTED" ? "RESTRICTED" : "ALL");
+                setSelected(Array.isArray(data.userIds) ? data.userIds : []);
+            })
             .finally(() => setLoading(false));
     }, [keyItem]);
 
@@ -514,26 +386,50 @@ function PermissionsModal({
                         { value: "RESTRICTED", label: "Только выбранные" },
                     ]}
                 />
-
                 {scope === "RESTRICTED" && (
                     <div className="max-h-[40vh] space-y-1 overflow-y-auto rounded-card border border-border p-2">
                         {users.map(user => (
-                            <Checkbox
-                                key={user.id}
-                                checked={selected.includes(user.id)}
-                                onChange={() =>
-                                    setSelected(current =>
-                                        current.includes(user.id)
-                                            ? current.filter(id => id !== user.id)
-                                            : [...current, user.id],
-                                    )
-                                }
-                                label={user.name}
-                            />
+                            <label key={user.id} className="flex items-center gap-2 text-sm text-fg">
+                                <input
+                                    type="checkbox"
+                                    checked={selected.includes(user.id)}
+                                    onChange={() =>
+                                        setSelected(current =>
+                                            current.includes(user.id)
+                                                ? current.filter(id => id !== user.id)
+                                                : [...current, user.id],
+                                        )
+                                    }
+                                />
+                                {user.name}
+                            </label>
                         ))}
                     </div>
                 )}
             </div>
+        </Modal>
+    );
+}
+
+function DeleteKeyModal({
+    keyItem,
+    onClose,
+    onConfirm,
+}: {
+    keyItem: KeyItemDto | null;
+    onClose: () => void;
+    onConfirm: () => void;
+}) {
+    return (
+        <Modal
+            open={Boolean(keyItem)}
+            onClose={onClose}
+            title="Удалить ключ?"
+            description={keyItem ? `${keyItem.roomNumber} · ${keyItem.roomName}` : undefined}
+            size="sm"
+            footer={<ModalFooter onCancel={onClose} onSubmit={onConfirm} submitLabel="Удалить" tone="danger" />}
+        >
+            <p className="text-sm text-fg-muted">Ключ исчезнет из списка. История операций останется.</p>
         </Modal>
     );
 }
