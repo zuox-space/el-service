@@ -278,7 +278,9 @@ export interface ModalProps extends Omit<OverlayProps, "variant"> {
 }
 
 export function Modal({ forceModal = false, ...props }: ModalProps) {
-    return <Overlay {...props} variant={forceModal ? "modal" : "auto"} />;
+    // На десктопе все модалки — правой панелью; на телефоне Overlay сам
+    // превращает side в нижнюю шторку.
+    return <Overlay {...props} variant={forceModal ? "modal" : "side"} />;
 }
 
 export function BottomSheet(props: Omit<OverlayProps, "variant">) {
