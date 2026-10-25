@@ -8,7 +8,6 @@ import {
     ChartPie,
     ClipboardList,
     Building2,
-    History,
     Home,
     KeyRound,
     LayoutDashboard,
@@ -86,7 +85,6 @@ export const NAV_GROUPS: NavGroup[] = [
         title: "Оперативно",
         items: [
             { id: "dashboard", label: "Контроль выхода", href: "/admin", icon: LayoutDashboard, exact: true, section: "dashboard" },
-            { id: "keys", label: "Ключи", href: "/keys", icon: KeyRound, section: "keys" },
         ],
     },
     {
@@ -125,7 +123,6 @@ export const NAV_GROUPS: NavGroup[] = [
         items: [
             { id: "keys-admin", label: "Ключи", href: "/admin/keys", icon: KeyRound, section: "keysAdmin" },
             { id: "keys-buildings", label: "Здания", href: "/admin/keys/buildings", icon: Building2, section: "keysAdmin" },
-            { id: "keys-history", label: "История ключей", href: "/admin/keys/history", icon: History, section: "keysAdmin" },
             { id: "users", label: "Персонал", href: "/admin/users", icon: Users, section: "users" },
             { id: "roles", label: "Роли и доступы", href: "/admin/roles", icon: ShieldCheck, section: "users" },
             { id: "sync", label: "Синхронизация", href: "/admin/sync", icon: RefreshCw, section: "users" },

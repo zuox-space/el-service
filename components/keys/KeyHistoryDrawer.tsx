@@ -1,7 +1,7 @@
 "use client";
 
 // components/keys/KeyHistoryDrawer.tsx
-import { Modal } from "@/components/ui/kit";
+import { Sheet } from "@/components/ui/kit";
 import { HistoryPanel } from "./HistoryPanel";
 
 /** История одного ключа — как KeyHistoryDrawer в keys-app. */
@@ -17,14 +17,13 @@ export function KeyHistoryDrawer({
     endpoint?: string;
 }) {
     return (
-        <Modal
+        <Sheet
             open={Boolean(keyId)}
             onClose={onClose}
             title="История ключа"
             description="Выдачи, сдачи и передачи"
-            size="lg"
         >
             {keyId && <HistoryPanel type="key" keyId={keyId} pageSize={limit} endpoint={endpoint} />}
-        </Modal>
+        </Sheet>
     );
 }

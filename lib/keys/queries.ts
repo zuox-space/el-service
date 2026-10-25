@@ -314,6 +314,13 @@ export async function createKeyRequest(
             throw new KeysConflictError("У коллеги нет доступа к ключам");
         }
         if (target.roles.includes("SECURITY")) throw new KeysConflictError("Нельзя передать ключ охране");
+
+        for (const key of keys) {
+            if (!(await canAccessKey(target, key))) {
+                throw new KeysConflictError(`У коллеги нет доступа к ключу ${key.roomNumber}`);
+            }
+        }
+
         targetUserId = targetId;
     }
 

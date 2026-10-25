@@ -31,6 +31,7 @@ import { KeyCard } from "@/components/keys/KeyCard";
 import { RequestCard } from "@/components/keys/RequestCard";
 import { HistoryPanel } from "@/components/keys/HistoryPanel";
 import { KeyHistoryDrawer } from "@/components/keys/KeyHistoryDrawer";
+import { EmployeeKeyHistory } from "@/components/keys/EmployeeKeyHistory";
 import { ColleaguePicker } from "@/components/keys/ColleaguePicker";
 import type { KeyItemDto, KeyRequestDto } from "@/lib/keys/queries";
 
@@ -41,7 +42,7 @@ const REQUEST_STATUS_LABEL: Record<string, string> = {
     CANCELLED: "отменена",
 };
 const AFTER_HOURS_MIN = 18 * 60;
-const HISTORY_PAGE = 10;
+const HISTORY_PAGE = 5;
 
 function formatDateTime(value: string | null | undefined): string {
     if (!value) return "—";
@@ -141,6 +142,8 @@ function Cabinet({
 
     useEffect(() => {
         void loadUsers();
+        const stored = window.localStorage.getItem("keys-building-id");
+        if (stored) setBuildingId(stored);
     }, [loadUsers]);
 
     const me = state?.me;
@@ -244,7 +247,10 @@ function Cabinet({
                     <Select
                         aria-label="Здание"
                         value={buildingId}
-                        onChange={setBuildingId}
+                        onChange={value => {
+                            setBuildingId(value);
+                            window.localStorage.setItem("keys-building-id", value);
+                        }}
                         options={[{ value: "all", label: "Все здания" }, ...(state?.buildings ?? []).map(building => ({ value: building.id, label: building.name }))]}
                         wrapperClassName="sm:w-64"
                     />
@@ -474,7 +480,7 @@ function Cabinet({
                 <p className="mt-3 text-xs text-fg-muted">Передаётся: {selectedMine.map(key => key.roomNumber).join(", ")}</p>
             </Modal>
 
-            <KeyHistoryDrawer keyId={historyKeyId} onClose={() => setHistoryKeyId(null)} limit={5} />
+            <EmployeeKeyHistory keyId={historyKeyId} onClose={() => setHistoryKeyId(null)} />
         </>
     );
 }

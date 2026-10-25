@@ -13,6 +13,7 @@ import {
     ModalFooter,
     PageHeader,
     Select,
+    Sheet,
     Skeleton,
     Textarea,
     useToast,
@@ -332,6 +333,7 @@ function KeyAccessModal({
     const toast = useToast();
     const [scope, setScope] = useState<"ALL" | "RESTRICTED">("ALL");
     const [selected, setSelected] = useState<string[]>([]);
+    const [userQuery, setUserQuery] = useState("");
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
@@ -369,11 +371,11 @@ function KeyAccessModal({
     };
 
     return (
-        <Modal
+        <Sheet
             open={Boolean(keyItem)}
             onClose={onClose}
             title={keyItem ? `Доступ к ключу ${keyItem.roomNumber}` : "Доступ"}
-            size="md"
+            description="Кому разрешён этот ключ"
             footer={<ModalFooter onCancel={onClose} onSubmit={() => void save()} submitLabel="Сохранить" loading={loading} />}
         >
             <div className="space-y-3">
@@ -387,27 +389,37 @@ function KeyAccessModal({
                     ]}
                 />
                 {scope === "RESTRICTED" && (
-                    <div className="max-h-[40vh] space-y-1 overflow-y-auto rounded-card border border-border p-2">
-                        {users.map(user => (
-                            <label key={user.id} className="flex items-center gap-2 text-sm text-fg">
-                                <input
-                                    type="checkbox"
-                                    checked={selected.includes(user.id)}
-                                    onChange={() =>
-                                        setSelected(current =>
-                                            current.includes(user.id)
-                                                ? current.filter(id => id !== user.id)
-                                                : [...current, user.id],
-                                        )
-                                    }
-                                />
-                                {user.name}
-                            </label>
-                        ))}
-                    </div>
+                    <>
+                        <Input
+                            label="Поиск по ФИО"
+                            value={userQuery}
+                            onChange={event => setUserQuery(event.target.value)}
+                            placeholder="Фамилия или имя"
+                        />
+                        <div className="max-h-[50vh] space-y-1 overflow-y-auto rounded-card border border-border p-2">
+                            {users
+                                .filter(user => user.name.toLowerCase().includes(userQuery.trim().toLowerCase()))
+                                .map(user => (
+                                    <label key={user.id} className="flex items-center gap-2 text-sm text-fg">
+                                        <input
+                                            type="checkbox"
+                                            checked={selected.includes(user.id)}
+                                            onChange={() =>
+                                                setSelected(current =>
+                                                    current.includes(user.id)
+                                                        ? current.filter(id => id !== user.id)
+                                                        : [...current, user.id],
+                                                )
+                                            }
+                                        />
+                                        {user.name}
+                                    </label>
+                                ))}
+                        </div>
+                    </>
                 )}
             </div>
-        </Modal>
+        </Sheet>
     );
 }
 
