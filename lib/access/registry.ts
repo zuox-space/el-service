@@ -21,6 +21,8 @@ export type AccessSectionId =
     | "schoolRecords"
     | "truants"
     | "absent"
+    | "keys"
+    | "keysAdmin"
     | "users";
 
 export interface AccessGroup {
@@ -50,6 +52,7 @@ export const ACCESS_GROUPS: AccessGroup[] = [
     { id: "students", title: "Ученики и классы" },
     { id: "discipline", title: "Дисциплина" },
     { id: "analytics", title: "Аналитика" },
+    { id: "keys", title: "Ключи" },
     { id: "admin", title: "Администрирование" },
 ];
 
@@ -143,6 +146,22 @@ export const ACCESS_SECTIONS: AccessSection[] = [
         group: "analytics",
         href: "/admin/absent",
         defaultRoles: ["ADMIN", "HEAD_TEACHER", "METHODIST", "CLASS_TEACHER"],
+    },
+    {
+        id: "keys",
+        label: "Ключи",
+        description: "Взять, сдать или передать ключ, мои ключи и заявки",
+        group: "keys",
+        href: "/keys",
+        defaultRoles: ["EMPLOYEE", "TEACHER", "CLASS_TEACHER", "METHODIST", "HEAD_TEACHER", "SECURITY", "ADMIN"],
+    },
+    {
+        id: "keysAdmin",
+        label: "Администрирование ключами",
+        description: "Ключи, здания, заявки, журнал операций и права на ключи",
+        group: "admin",
+        href: "/admin/keys",
+        defaultRoles: ["ADMIN"],
     },
     {
         id: "users",

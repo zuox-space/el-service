@@ -8,6 +8,7 @@ import {
     ChartPie,
     ClipboardList,
     Home,
+    KeyRound,
     LayoutDashboard,
     ListOrdered,
     MoreHorizontal,
@@ -81,7 +82,10 @@ export const NAV_GROUPS: NavGroup[] = [
     },
     {
         title: "Оперативно",
-        items: [{ id: "dashboard", label: "Контроль выхода", href: "/admin", icon: LayoutDashboard, exact: true, section: "dashboard" }],
+        items: [
+            { id: "dashboard", label: "Контроль выхода", href: "/admin", icon: LayoutDashboard, exact: true, section: "dashboard" },
+            { id: "keys", label: "Ключи", href: "/keys", icon: KeyRound, section: "keys" },
+        ],
     },
     {
         title: "Ученики и классы",
@@ -117,6 +121,7 @@ export const NAV_GROUPS: NavGroup[] = [
     {
         title: "Администрирование",
         items: [
+            { id: "keys-admin", label: "Ключи", href: "/admin/keys", icon: KeyRound, section: "keysAdmin" },
             { id: "users", label: "Персонал", href: "/admin/users", icon: Users, section: "users" },
             { id: "roles", label: "Роли и доступы", href: "/admin/roles", icon: ShieldCheck, section: "users" },
             { id: "sync", label: "Синхронизация", href: "/admin/sync", icon: RefreshCw, section: "users" },

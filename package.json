@@ -27,7 +27,10 @@
     "sync:teachers:adopt": "node scripts/sync-teachers.mjs --adopt --apply",
     "sync:teachers:test": "node scripts/sync-teachers.test.mjs",
     "classes:normalize": "node scripts/normalize-class-names.mjs",
-    "classes:normalize:apply": "node scripts/normalize-class-names.mjs --apply"
+    "classes:normalize:apply": "node scripts/normalize-class-names.mjs --apply",
+    "keys:access": "node scripts/keys-role-access.mjs",
+    "keys:access:apply": "node scripts/keys-role-access.mjs --apply",
+    "keys:test": "node scripts/keys-test.mjs"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

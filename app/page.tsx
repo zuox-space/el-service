@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import {
     ArrowRight,
+    KeyRound,
     School,
     ShieldCheck,
 } from "lucide-react";
@@ -94,6 +95,7 @@ export default function PortalPage() {
     const services = data?.services ?? [];
     const hasServices = services.length > 0;
     const hasMyClass = Boolean(data?.myClass.available);
+    const hasKeys = services.some(service => service.id === "keys");
     const roles = (data?.user.roles ?? []) as string[];
 
 
@@ -176,6 +178,39 @@ export default function PortalPage() {
                                     </div>
                                     <p className="mt-1 text-sm text-fg-muted">
                                         Посещаемость, нарушения, выход из школы и др.
+                                    </p>
+                                </div>
+                                <ArrowRight
+                                    size={18}
+                                    className="mt-1 shrink-0 text-fg-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-accent-text"
+                                    aria-hidden
+                                />
+                            </div>
+                        </Link>
+                    </section>
+                )}
+
+                {/* Ключи */}
+                {hasKeys && (
+                    <section aria-labelledby="keys-title">
+                        <h2
+                            id="keys-title"
+                            className="mb-2 px-1 text-xs font-medium uppercase tracking-wide text-fg-subtle"
+                        >
+                            Ключница
+                        </h2>
+                        <Link
+                            href="/keys"
+                            className="group block rounded-card border border-dashed border-border bg-surface p-4 shadow-card transition-colors hover:border-accent/50 hover:bg-surface-hover"
+                        >
+                            <div className="flex items-start gap-3">
+                                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-control bg-accent-soft text-accent-text">
+                                    <KeyRound size={22} aria-hidden />
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                    <h3 className="text-base font-semibold text-fg">Ключи</h3>
+                                    <p className="mt-1 text-sm text-fg-muted">
+                                        Взять, сдать или передать ключ, мои ключи и заявки
                                     </p>
                                 </div>
                                 <ArrowRight

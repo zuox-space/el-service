@@ -139,6 +139,11 @@ WHERE table_name='User' AND column_name IN ('externalId','syncEnabled','archived
 SELECT COUNT(*) FROM "Class" GROUP BY name HAVING COUNT(*) > 1;  -- пусто
 ```
 
+`db push` также создаёт таблицы ключницы (`KeyBuilding`, `KeyItem`,
+`KeyPermission`, `KeyFavorite`, `KeyRequest`, `KeyRequestItem`, `KeyActivity`).
+Данные ключей начинаются с нуля — здания и ключи добавляются в `/admin/keys`
+или импортом CSV. Подробности — в [KEYS.md](./KEYS.md).
+
 ---
 
 ## 5. Нормализация классов «5-А → 5А»
@@ -152,6 +157,13 @@ node scripts/normalize-class-names.mjs --apply
 
 Скрипт переименовывает классы, сливает дубли (посещаемость, пропуска, ВШУ,
 заметки, новости, шаринги) и чистит `className` в нарушениях, ВШУ, доверенностях.
+
+Если у ролей уже настроен непустой `defaultSections`, добавьте в него раздел «Ключи»:
+
+```bash
+node scripts/keys-role-access.mjs          # проверка
+node scripts/keys-role-access.mjs --apply
+```
 
 После — добить уникальные индексы, если применяли SQL-вариант:
 
@@ -269,6 +281,8 @@ curl -I https://school.example.ru/login
 7. `/admin/sync` — «Проверить» показывает 0 изменений; «Синхронизировать» не нажимаем без нужды.
 8. Архивированный сотрудник не входит (если есть такой для проверки).
 9. `/admin/users` — роли и флаги синхронизации отображаются.
+10. `/admin/keys` — ключница: создайте здание и ключ, проверьте заявку.
+11. `/keys` и кнопка с ключом слева — сотрудник может взять/сдать/передать ключ.
 
 Если что-то не так — смотрите `pm2 logs` / `journalctl` / `docker logs`.
 

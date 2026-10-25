@@ -40,7 +40,8 @@ RUN_MIGRATIONS=true
 
 Первый деплой:
 
-- `RUN_MIGRATIONS=true` — схема создастся/обновится автоматически;
+- `RUN_MIGRATIONS=true` — схема создастся/обновится автоматически
+  (включая таблицы ключницы);
 - `RUN_NORMALIZE=true` — один раз, если в базе классы вида «5-А»;
 - после успешного деплоя поставьте `RUN_MIGRATIONS=false` и `RUN_NORMALIZE=false`,
   чтобы рестарты не трогали схему.
@@ -68,6 +69,25 @@ docker compose --profile setup run --rm migrate   # локально
 node scripts/import-db.mjs \
   --database-url "postgresql://USER:PASSWORD@HOST:5432/DBNAME" \
   --in deploy/dumps/el_pass_copy_after.json
+```
+
+## 3.1. Ключница
+
+Таблицы ключей создаются вместе со схемой. После первого деплоя:
+
+1. Войдите администратором → `/admin/keys`.
+2. Создайте здание и ключи или импортируйте CSV
+   (`building;building_address;room_number;room_name;floor`).
+3. Выдайте доступ к разделу «Ключи» ролям в «Роли и доступы»
+   (по умолчанию он есть у всех, кроме ADMIN — у ADMIN всё).
+4. Доступ к администрированию ключами (`keysAdmin`) по умолчанию только у ADMIN;
+   его можно выдать отдельной роли, не открывая остальную админку.
+5. Подтверждать заявки могут охрана и обладатели `keysAdmin`.
+
+Если у роли уже настроен непустой список разделов и «Ключей» там нет:
+
+```bash
+node scripts/keys-role-access.mjs --apply
 ```
 
 ## 4. Первая синхронизация сотрудников
