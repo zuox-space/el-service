@@ -83,6 +83,11 @@ export function Overlay({
         }
         onClose();
     }, [confirmOnClose, isDirty, onClose]);
+    // Колбэк закрытия в ref: inline onClose не должен перезапускать focus-trap.
+    const requestCloseRef = useRef(requestClose);
+    useEffect(() => {
+        requestCloseRef.current = requestClose;
+    }, [requestClose]);
 
     /* блокировка прокрутки страницы + компенсация ширины скроллбара */
     useEffect(() => {
@@ -119,7 +124,7 @@ export function Overlay({
         const onKeyDown = (event: KeyboardEvent) => {
             if (event.key === "Escape") {
                 event.stopPropagation();
-                requestClose();
+                requestCloseRef.current();
                 return;
             }
 
@@ -156,7 +161,7 @@ export function Overlay({
             document.removeEventListener("keydown", onKeyDown, true);
             restoreFocusRef.current?.focus?.({ preventScroll: true });
         };
-    }, [open, requestClose]);
+    }, [open]);
 
     if (!mounted || !open) return null;
 
