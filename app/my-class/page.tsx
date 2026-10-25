@@ -393,13 +393,13 @@ export default function HomePage() {
     }, [classSearch]);
 
     useEffect(() => {
-        if (!selectedClass || activeTab !== "violations") return;
+        if (!selectedClass) return;
         void loadClassViolations(selectedClass.name, classRange, classSearchQuery, 1, false);
     }, [selectedClass, activeTab, classRange, classSearchQuery, loadClassViolations]);
 
     // Нарушения за выбранную дату
     useEffect(() => {
-        if (!selectedClass || activeTab !== "violations") return;
+        if (!selectedClass) return;
 
         let cancelled = false;
 
@@ -578,7 +578,7 @@ export default function HomePage() {
         const newViolation = await response.json();
         toast.show({ title: "Нарушение зафиксировано", description: data.studentName, tone: "success" });
 
-        if (activeTab === "violations" && selectedClass) {
+        if (selectedClass) {
             const dateStr = formatDateLocal(selectedDate);
             const violationsRes = await fetch(
                 `/api/violations?className=${encodeURIComponent(selectedClass.name)}&date=${dateStr}&pageSize=100`,

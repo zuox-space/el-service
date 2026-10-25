@@ -7,6 +7,7 @@ import { authOptions } from "@/lib/auth";
 
 import { requireSection } from "@/lib/access/server";
 import { prisma } from "@/lib/prisma";
+import { canAccessClass } from "@/lib/access/classes";
 
 
 // GET: Получить активные самовыходы
@@ -25,6 +26,10 @@ export async function GET(req: NextRequest) {
 
   if (!classId) {
     return NextResponse.json([]);
+  }
+
+  if (!(await canAccessClass(accessGuard.access, classId))) {
+    return NextResponse.json({ error: "Нет доступа к классу" }, { status: 403 });
   }
 
   try {
@@ -61,6 +66,10 @@ export async function POST(req: NextRequest) {
     const { studentId, studentName, startDate, endDate, photoUrl, reason, classId } = body;
 
     console.log("📝 Creating self-exit with data:", { studentId, studentName, startDate, endDate, classId });
+
+    if (!(await canAccessClass(accessGuard.access, classId))) {
+        return NextResponse.json({ error: "Нет доступа к классу" }, { status: 403 });
+    }
 
     if (!studentId || !studentName || !startDate || !endDate || !classId) {
       return NextResponse.json({

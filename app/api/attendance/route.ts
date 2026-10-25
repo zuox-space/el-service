@@ -6,6 +6,8 @@ import { authOptions } from "@/lib/auth";
 
 import { requireSection } from "@/lib/access/server";
 import { prisma } from "@/lib/prisma";
+import { canAccessClass } from "@/lib/access/classes";
+import { getDayRange } from "@/lib/date";
 
 
 // GET метод - получение отметки
@@ -29,12 +31,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(null);
   }
 
+  if (!(await canAccessClass(accessGuard.access, classId))) {
+    return NextResponse.json({ error: "Нет доступа к классу" }, { status: 403 });
+  }
+
   try {
-    const startDate = new Date(date);
-    startDate.setHours(0, 0, 0, 0);
-    
-    const endDate = new Date(date);
-    endDate.setHours(23, 59, 59, 999);
+    const { start: startDate, end: endDate } = getDayRange(date);
 
     const attendance = await prisma.attendance.findFirst({
       where: {
@@ -79,6 +81,10 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { date, classId, presentStudents, absentStudents, absentReasons } = body;
+
+    if (!(await canAccessClass(accessGuard.access, classId))) {
+      return NextResponse.json({ error: "Нет доступа к классу" }, { status: 403 });
+    }
 
     console.log("Saving attendance:", { date, classId, presentStudents, absentStudents });
 

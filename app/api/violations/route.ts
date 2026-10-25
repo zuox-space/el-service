@@ -10,6 +10,7 @@ import { requireAnySection, requireSection } from "@/lib/access/server";
 import { getDayRange, parseLocalDate } from "@/lib/date";
 import { normalizeClassName } from "@/lib/class-name";
 import { classNamesForBuilding } from "@/lib/buildings";
+import { accessibleClassNames, canAccessClass } from "@/lib/access/classes";
 
 
 const MAX_PAGE_SIZE = 100;
@@ -96,6 +97,22 @@ export async function GET(req: NextRequest) {
                 where.className = { in: classesInGroup.map(cls => cls.name) };
             }
         }
+        // Учитель с myClass видит только свои/расшаренные классы.
+        // Администратор и школьные разделы (нарушения/портфолио/ВШУ) — все.
+        const allowedClassNames = await accessibleClassNames(accessGuard.access);
+        if (allowedClassNames) {
+            if (typeof where.className === "string" && !allowedClassNames.has(where.className)) {
+                return NextResponse.json({ error: "Нет доступа к классу" }, { status: 403 });
+            }
+            if (where.className && typeof where.className === "object" && Array.isArray(where.className.in)) {
+                where.className = {
+                    in: where.className.in.filter((name: string) => allowedClassNames.has(name)),
+                };
+            } else if (!where.className) {
+                where.className = { in: [...allowedClassNames] };
+            }
+        }
+
         if (violationType) where.violationType = violationType;
 
         // Фильтр по отработке: администрация отмечает, что замечание разобрано
@@ -211,6 +228,10 @@ export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
         const { studentId, studentName, className, violationType, comment } = body;
+
+        if (!(await canAccessClass(accessGuard.access, className))) {
+            return NextResponse.json({ error: "Нет доступа к классу" }, { status: 403 });
+        }
 
         if (!studentId || !studentName || !violationType) {
             return NextResponse.json({

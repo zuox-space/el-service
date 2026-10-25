@@ -7,6 +7,8 @@ import { authOptions } from "@/lib/auth";
 
 import { requireAnySection } from "@/lib/access/server";
 import { query } from "@/lib/mysql_db";
+import { accessibleClassNames } from "@/lib/access/classes";
+import { normalizeClassName } from "@/lib/class-name";
 
 
 export async function GET(req: NextRequest) {
@@ -46,7 +48,11 @@ export async function GET(req: NextRequest) {
       LIMIT ?
     `, [pattern, pattern, limit]);
 
-        return NextResponse.json(students);
+        const allowedClassNames = await accessibleClassNames(accessGuard.access);
+        const visible = allowedClassNames
+            ? students.filter(student => allowedClassNames.has(normalizeClassName(student.className)))
+            : students;
+        return NextResponse.json(visible);
     } catch (error) {
         console.error("Error searching students:", error);
         return NextResponse.json([]);

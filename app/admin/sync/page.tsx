@@ -100,7 +100,10 @@ export default function SyncTeachersPage() {
             });
 
             const data = await response.json().catch(() => ({}));
-            if (!response.ok) throw new Error(data.error || "Не удалось выполнить синхронизацию");
+            if (!response.ok) {
+                const details = [data.error, data.hint, data.log].filter(Boolean).join("\n\n");
+                throw new Error(details || "Не удалось выполнить синхронизацию");
+            }
 
             setLastReport(data.report);
             toast.show({
