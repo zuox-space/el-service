@@ -27,6 +27,7 @@ export interface KeyRequestDto {
     decidedByName: string | null;
     createdAt: string;
     updatedAt: string;
+    expiresAt: string | null;
     keys: Array<{ id: string; buildingId: string; roomNumber: string; roomName: string; buildingName: string }>;
 }
 
@@ -122,6 +123,7 @@ function toRequest(row: RequestRow): KeyRequestDto {
         decidedByName: row.decider ? shortName(row.decider.name) : null,
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
+        expiresAt: row.expiresAt ? row.expiresAt.toISOString() : null,
         keys: row.keys.map(item => ({
             id: item.key.id,
             buildingId: item.key.buildingId,
@@ -152,7 +154,18 @@ function toKey(row: KeyRow, favorite: boolean, pending: KeyRequestDto | null): K
 
 /* --------------------------------- состояние ------------------------------- */
 
+const KEY_REQUEST_TTL_MS = 60_000;
+
+async function cancelExpiredRequests(): Promise<void> {
+    const now = new Date();
+    await prisma.keyRequest.updateMany({
+        where: { status: "PENDING", expiresAt: { lte: now } },
+        data: { status: "CANCELLED", updatedAt: now },
+    });
+}
+
 export async function buildKeysState(access: AccessInfo): Promise<KeysState> {
+    await cancelExpiredRequests();
     const manage = canConfirmKeys(access);
     const admin = canAdminKeys(access);
     const requestable = canUseKeys(access) && !isKeysOperatorOnly(access);
@@ -288,6 +301,7 @@ export async function createKeyRequest(
     access: AccessInfo,
     input: { type: KeyRequestType; keyIds: string[]; targetUserId?: string | null },
 ): Promise<{ requestId: string }> {
+    await cancelExpiredRequests();
     if (!canUseKeys(access)) throw new KeysConflictError("Нет доступа к ключам");
     if (isKeysOperatorOnly(access)) throw new KeysConflictError("Охрана не создаёт заявки — она их обрабатывает");
 
@@ -363,6 +377,7 @@ export async function createKeyRequest(
                 type: input.type,
                 requestedById: access.userId,
                 targetUserId,
+                expiresAt: new Date(Date.now() + KEY_REQUEST_TTL_MS),
                 keys: { create: keyIds.map(keyId => ({ keyId })) },
             },
         });
@@ -401,6 +416,10 @@ export async function decideKeyRequest(
     });
     if (!item) throw new KeysConflictError("Заявка не найдена");
     if (item.status !== "PENDING") throw new KeysConflictError("Заявка уже обработана");
+    if (item.expiresAt && item.expiresAt.getTime() <= Date.now()) {
+        await cancelExpiredRequests();
+        throw new KeysConflictError("Заявка истекла — создайте новую");
+    }
 
     const manage = canConfirmKeys(access);
     const isTransfer = item.type === "TRANSFER";
@@ -504,6 +523,7 @@ export async function queryKeyHistory(
     access: AccessInfo,
     params: KeyHistoryQuery,
 ): Promise<{ items: KeyRequestDto[]; total: number; hasMore: boolean; participants: Array<{ id: string; name: string }> }> {
+    await cancelExpiredRequests();
     const where: Prisma.KeyRequestWhereInput = {};
 
     const keyFilter: Prisma.KeyItemWhereInput = {};

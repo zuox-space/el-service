@@ -32,6 +32,11 @@ interface KeysContextValue {
         keyIds: string[];
         targetUserId?: string | null;
     }) => Promise<void>;
+    requestWithId: (input: {
+        type: "ISSUE" | "RETURN" | "TRANSFER";
+        keyIds: string[];
+        targetUserId?: string | null;
+    }) => Promise<string>;
     decide: (requestId: string, action: "confirm" | "cancel") => Promise<void>;
     toggleFavorite: (keyId: string) => Promise<void>;
 }
@@ -74,15 +79,18 @@ export function KeysProvider({ children }: { children: ReactNode }) {
         sourceRef.current = source;
         const onUpdate = () => void refresh();
         source.addEventListener("update", onUpdate);
+        // Страховка на истечение заявки: SSE не присылает событие при отмене по TTL.
+        const poll = setInterval(() => void refresh(), 15_000);
 
         return () => {
+            clearInterval(poll);
             source.removeEventListener("update", onUpdate);
             source.close();
             sourceRef.current = null;
         };
     }, [refresh]);
 
-    const submitRequest = useCallback<KeysContextValue["submitRequest"]>(
+    const requestWithId = useCallback<KeysContextValue["requestWithId"]>(
         async input => {
             const response = await fetch("/api/keys/requests", {
                 method: "POST",
@@ -92,8 +100,16 @@ export function KeysProvider({ children }: { children: ReactNode }) {
             const data = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(data.error || "Не удалось создать заявку");
             await refresh();
+            return String(data.requestId ?? "");
         },
         [refresh],
+    );
+
+    const submitRequest = useCallback<KeysContextValue["submitRequest"]>(
+        async input => {
+            await requestWithId(input);
+        },
+        [requestWithId],
     );
 
     const decide = useCallback<KeysContextValue["decide"]>(
@@ -123,8 +139,8 @@ export function KeysProvider({ children }: { children: ReactNode }) {
     );
 
     const value = useMemo(
-        () => ({ state, users, loading, error, refresh, loadUsers, submitRequest, decide, toggleFavorite }),
-        [state, users, loading, error, refresh, loadUsers, submitRequest, decide, toggleFavorite],
+        () => ({ state, users, loading, error, refresh, loadUsers, submitRequest, requestWithId, decide, toggleFavorite }),
+        [state, users, loading, error, refresh, loadUsers, submitRequest, requestWithId, decide, toggleFavorite],
     );
 
     return <KeysContext.Provider value={value}>{children}</KeysContext.Provider>;

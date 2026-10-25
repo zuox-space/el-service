@@ -17,6 +17,7 @@ import {
     Card,
     EmptyState,
     Input,
+    Modal,
     Select,
     Skeleton,
     Tabs,
@@ -28,6 +29,7 @@ import { KeyHistoryDrawer } from "@/components/keys/KeyHistoryDrawer";
 import { GuardHistoryPanel } from "./GuardHistoryPanel";
 import { GuardPassesTab, type GuardPass } from "./GuardPassesTab";
 import { GuardSelfExitsTab, type GuardSelfExit } from "./GuardSelfExitsTab";
+import { GuardNotReturnedTab } from "./GuardNotReturnedTab";
 import type { KeyItemDto, KeyRequestDto, KeysState } from "@/lib/keys/queries";
 
 
@@ -55,6 +57,8 @@ export function GuardScreen() {
     const [historyKeyId, setHistoryKeyId] = useState<string | null>(null);
     const [busyRequestId, setBusyRequestId] = useState<string | null>(null);
     const [busyPassId, setBusyPassId] = useState<string | null>(null);
+    const [approvalId, setApprovalId] = useState<string | null>(null);
+    const [dismissedApprovals, setDismissedApprovals] = useState<string[]>([]);
 
     useEffect(() => {
         const stored = window.localStorage.getItem(BUILDING_STORAGE_KEY);
@@ -78,7 +82,7 @@ export function GuardScreen() {
     useEffect(() => {
         void refresh();
         const clock = setInterval(() => setNow(new Date()), 30_000);
-        const poll = setInterval(() => void refresh(), 60_000);
+        const poll = setInterval(() => void refresh(), 15_000);
 
         const source = new EventSource("/api/guard/events");
         const onUpdate = () => void refresh();
@@ -111,6 +115,20 @@ export function GuardScreen() {
     });
     const pendingIssue = pending.filter(item => item.type === "ISSUE");
     const pendingReturn = pending.filter(item => item.type === "RETURN");
+    const approvalCandidates = [...pendingIssue, ...pendingReturn]
+        .filter(item => item.expiresAt && new Date(item.expiresAt).getTime() > Date.now())
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const approvalRequest = pending.find(item => item.id === approvalId) ?? null;
+
+    useEffect(() => {
+        if (approvalId && !pending.some(item => item.id === approvalId && item.status === "PENDING")) {
+            setApprovalId(null);
+            return;
+        }
+        if (approvalId) return;
+        const next = approvalCandidates.find(item => !dismissedApprovals.includes(item.id));
+        if (next) setApprovalId(next.id);
+    }, [approvalId, pending, approvalCandidates, dismissedApprovals]);
     const issued = filteredKeys.filter(key => key.status === "ISSUED");
     const free = filteredKeys.filter(key => key.status === "FREE" && !key.pending);
 
@@ -249,6 +267,7 @@ export function GuardScreen() {
                         items={[
                             { id: "requests", label: "Заявки", count: pending.length },
                             { id: "keys", label: "Ключи", count: filteredKeys.length },
+                            { id: "notReturned", label: "Не сдали", count: issued.length },
                             { id: "passes", label: "Пропуска", count: filteredPasses.length },
                             { id: "selfExits", label: "Самовыходы", count: filteredSelfExits.length },
                         ]}
@@ -353,6 +372,12 @@ export function GuardScreen() {
                     </div>
                 )}
 
+                {tab === "notReturned" && (
+                    <div className="h-full min-h-[60vh] lg:h-[calc(100dvh-8.75rem)] lg:min-h-0 lg:overflow-hidden">
+                        <GuardNotReturnedTab keys={issued} />
+                    </div>
+                )}
+
                 {tab === "passes" && (
                     <div className="h-full min-h-[60vh] lg:h-[calc(100dvh-8.75rem)] lg:min-h-0 lg:overflow-hidden">
                         <GuardPassesTab
@@ -368,6 +393,20 @@ export function GuardScreen() {
                         <GuardSelfExitsTab items={filteredSelfExits} />
                     </div>
                 )}            </main>
+
+            <GuardApprovalModal
+                request={approvalRequest}
+                onClose={() => {
+                    if (approvalId) setDismissedApprovals(current => [...current, approvalId]);
+                    setApprovalId(null);
+                }}
+                onExpire={() => void refresh()}
+                onDecide={async (id, action) => {
+                    await decide(id, action);
+                    setDismissedApprovals(current => (id ? [...current, id] : current));
+                    setApprovalId(null);
+                }}
+            />
 
             <KeyHistoryDrawer keyId={historyKeyId} onClose={() => setHistoryKeyId(null)} endpoint="/api/guard/history" />
         </div>
@@ -435,5 +474,56 @@ function MiniStat({
             <span className="text-[10px] text-fg-subtle">{label} </span>
             <span className={`text-sm font-semibold tabular-nums ${color}`}>{value}</span>
         </div>
+    );
+}
+
+function GuardApprovalModal({
+    request,
+    onClose,
+    onDecide,
+    onExpire,
+}: {
+    request: KeyRequestDto | null;
+    onClose: () => void;
+    onDecide: (id: string, action: "confirm" | "cancel") => Promise<void>;
+    onExpire: () => void;
+}) {
+    const [now, setNow] = useState(Date.now());
+    useEffect(() => {
+        if (!request) return;
+        const timer = setInterval(() => setNow(Date.now()), 1000);
+        return () => clearInterval(timer);
+    }, [request]);
+
+    const seconds = request
+        ? Math.max(0, Math.ceil((new Date(request.expiresAt ?? 0).getTime() - now) / 1000))
+        : 0;
+
+    useEffect(() => {
+        if (request && seconds <= 0) onExpire();
+    }, [request, seconds, onExpire]);
+
+    if (!request) return null;
+
+    return (
+        <Modal
+            open
+            onClose={onClose}
+            title={request.type === "ISSUE" ? "Заявка на выдачу ключа" : "Заявка на сдачу ключа"}
+            description={`${request.requestedByName} · осталось ${seconds} сек`}
+            size="sm"
+        >
+            <div className="space-y-2">
+                <RequestCard
+                    item={request}
+                    mode="security"
+                    busy={false}
+                    onDecide={(id, action) => void onDecide(id, action)}
+                />
+                <p className="text-xs text-fg-subtle">
+                    Если закрыть окно, заявка останется в очереди и истечёт через минуту.
+                </p>
+            </div>
+        </Modal>
     );
 }
