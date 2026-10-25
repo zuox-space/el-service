@@ -3,14 +3,7 @@
 // components/ui/GlobalKeysFab.tsx
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import {
-    ArrowDownToLine,
-    ChevronRight,
-    Inbox,
-    KeyRound,
-    Send,
-    X,
-} from "lucide-react";
+import { Inbox, KeyRound, Undo2, X } from "lucide-react";
 import { useAccess } from "@/components/access/AccessProvider";
 import { KeysProvider, useKeys } from "@/components/keys/KeysProvider";
 import {
@@ -81,15 +74,26 @@ function KeysFabInner() {
                 className="fixed bottom-[4.5rem] left-4 z-40 flex flex-col items-start gap-2 sm:bottom-6 sm:left-6"
             >
                 {expanded && (
-                    <div className="flex flex-col gap-1.5 rounded-card border border-border bg-surface p-1.5 shadow-raised">
-                        <ActionButton icon={KeyRound} label="Взять" onClick={() => openMode("take")} />
-                        <ActionButton icon={ArrowDownToLine} label="Сдать" onClick={() => openMode("my")} />
-                        <ActionButton icon={Send} label="Передать" onClick={() => openMode("transfer")} />
+                    <div className="flex flex-col items-center gap-2 rounded-full border border-border bg-surface p-1.5 shadow-raised">
+                        <IconAction
+                            icon={KeyRound}
+                            label="Взять ключ"
+                            onClick={() => openMode("take")}
+                            className="border-accent/40 bg-accent-soft text-accent-text hover:bg-accent/20"
+                        />
+                        <IconAction
+                            icon={Undo2}
+                            label="Сдать ключ"
+                            onClick={() => openMode("my")}
+                            className="border-success/40 bg-success-soft text-success hover:bg-success/20"
+                        />
                         {incoming.length > 0 && (
-                            <ActionButton
+                            <IconAction
                                 icon={Inbox}
-                                label={`Принять${incoming.length > 1 ? ` · ${incoming.length}` : ""}`}
+                                label="Принять переданный ключ"
+                                badge={incoming.length}
                                 onClick={() => openMode("incoming")}
+                                className="border-warning/40 bg-warning-soft text-warning hover:bg-warning/20"
                             />
                         )}
                     </div>
@@ -98,7 +102,7 @@ function KeysFabInner() {
                 <button
                     type="button"
                     onClick={() => setExpanded(open => !open)}
-                    aria-label={expanded ? "Свернуть меню ключей" : "Ключи: взять, сдать, передать, принять"}
+                    aria-label={expanded ? "Свернуть меню ключей" : "Ключи: взять, сдать, принять"}
                     aria-expanded={expanded}
                     title={expanded ? "Свернуть" : "Ключи"}
                     className="flex h-14 w-14 items-center justify-center rounded-full border border-accent/40 bg-accent-soft text-accent-text shadow-raised transition-all hover:scale-105 hover:bg-accent/20 active:scale-95"
@@ -116,24 +120,33 @@ function KeysFabInner() {
     );
 }
 
-function ActionButton({
+function IconAction({
     icon: Icon,
     label,
     onClick,
+    className,
+    badge,
 }: {
     icon: typeof KeyRound;
     label: string;
     onClick: () => void;
+    className: string;
+    badge?: number;
 }) {
     return (
         <button
             type="button"
             onClick={onClick}
-            className="flex w-44 items-center gap-2 rounded-control px-3 py-2 text-left text-sm text-fg transition-colors hover:bg-surface-hover"
+            aria-label={label}
+            title={label}
+            className={`relative flex h-12 w-12 items-center justify-center rounded-full border transition-colors active:scale-95 ${className}`}
         >
-            <Icon size={16} className="shrink-0 text-accent-text" aria-hidden />
-            <span className="flex-1">{label}</span>
-            <ChevronRight size={14} className="shrink-0 text-fg-subtle" aria-hidden />
+            <Icon size={21} aria-hidden />
+            {badge && badge > 0 ? (
+                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-semibold text-white">
+                    {badge}
+                </span>
+            ) : null}
         </button>
     );
 }
