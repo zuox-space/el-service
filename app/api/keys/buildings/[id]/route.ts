@@ -9,7 +9,7 @@ export async function PATCH(
     request: NextRequest,
     { params }: { params: { id: string } },
 ) {
-    const guard = await requireSection("keysAdmin");
+    const guard = await requireSection("buildingsAdmin");
     if (!guard.ok) return guard.response;
 
     const body = await request.json().catch(() => null);
@@ -32,7 +32,7 @@ export async function DELETE(
     _request: NextRequest,
     { params }: { params: { id: string } },
 ) {
-    const guard = await requireSection("keysAdmin");
+    const guard = await requireSection("buildingsAdmin");
     if (!guard.ok) return guard.response;
 
     try {

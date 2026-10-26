@@ -167,7 +167,9 @@ export function Overlay({
 
     const body = (
         <>
-            <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-3">{children}</div>
+            <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:pb-3">
+                {children}
+            </div>
 
             {confirming && (
                 <div className="border-t border-warning/30 bg-warning-soft px-4 py-3">
@@ -183,7 +185,11 @@ export function Overlay({
                 </div>
             )}
 
-            {footer && <div className="shrink-0 border-t border-border bg-surface px-4 py-3">{footer}</div>}
+            {footer && (
+                <div className="shrink-0 border-t border-border bg-surface px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:pb-3">
+                    {footer}
+                </div>
+            )}
         </>
     );
 

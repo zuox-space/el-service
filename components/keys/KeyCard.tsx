@@ -2,8 +2,8 @@
 
 // components/keys/KeyCard.tsx
 import { useState } from "react";
-import { Lock, Star } from "lucide-react";
-import { Badge, Button, Checkbox, Modal } from "@/components/ui/kit";
+import { History as HistoryIcon, KeyRound, Lock, Send, Star, Undo2, X } from "lucide-react";
+import { Badge, Checkbox, Modal } from "@/components/ui/kit";
 import type { KeyItemDto, KeyRequestDto } from "@/lib/keys/queries";
 import { ColleaguePicker } from "./ColleaguePicker";
 
@@ -73,37 +73,40 @@ export function KeyCard({
 
         if (keyItem.status === "FREE" && !keyItem.pending) {
             return (
-                <Button size="sm" disabled={busy} onClick={() => onRequest?.(keyItem)}>
-                    Запросить
-                </Button>
+                <CardAction
+                    icon={KeyRound}
+                    label="Запросить ключ"
+                    disabled={busy}
+                    onClick={() => onRequest?.(keyItem)}
+                    className="border-accent/40 bg-accent-soft text-accent-text hover:bg-accent/20"
+                />
             );
         }
 
         if (keyItem.pending && pendingByMe) {
             return (
-                <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-xs leading-4 text-warning">
+                <div className="flex items-center gap-2">
+                    <p className="max-w-[11rem] text-[11px] leading-4 text-warning">
                         {keyItem.pending.type === "ISSUE"
                             ? "Ждём подтверждения охраны…"
                             : keyItem.pending.type === "RETURN"
                                 ? "Охрана принимает…"
                                 : "Получатель подтверждает…"}
                     </p>
-                    <Button
-                        size="sm"
-                        variant="danger"
+                    <CardAction
+                        icon={X}
+                        label="Отменить заявку"
                         disabled={busy}
                         onClick={() => keyItem.pending && onCancelPending?.(keyItem.pending)}
-                    >
-                        Отменить
-                    </Button>
+                        className="border-danger/40 bg-danger-soft text-danger hover:bg-danger/20"
+                    />
                 </div>
             );
         }
 
         if (keyItem.status === "FREE" && keyItem.pending) {
             return (
-                <p className="text-xs leading-4 text-warning">
+                <p className="text-[11px] leading-4 text-warning">
                     {keyItem.pending.targetUserName
                         ? `Передача → ${keyItem.pending.targetUserName}`
                         : `Запрошен: ${keyItem.pending.requestedByName}`}
@@ -113,13 +116,21 @@ export function KeyCard({
 
         if (isMine && !keyItem.pending) {
             return (
-                <div className="flex flex-wrap items-center gap-2">
-                    <Button size="sm" disabled={busy} onClick={() => onReturn?.(keyItem)}>
-                        Сдать
-                    </Button>
-                    <Button size="sm" variant="secondary" disabled={busy} onClick={() => setTransferOpen(true)}>
-                        Передать…
-                    </Button>
+                <div className="flex items-center gap-1.5">
+                    <CardAction
+                        icon={Undo2}
+                        label="Сдать ключ"
+                        disabled={busy}
+                        onClick={() => onReturn?.(keyItem)}
+                        className="border-success/40 bg-success-soft text-success hover:bg-success/20"
+                    />
+                    <CardAction
+                        icon={Send}
+                        label="Передать ключ"
+                        disabled={busy}
+                        onClick={() => setTransferOpen(true)}
+                        className="border-border bg-surface-2 text-fg-muted hover:bg-surface-3 hover:text-fg"
+                    />
                 </div>
             );
         }
@@ -166,29 +177,28 @@ export function KeyCard({
                                 <Lock size={13} aria-hidden />
                             </span>
                         )}
+                        {onToggleFavorite && (
+                            <button
+                                type="button"
+                                onClick={() => onToggleFavorite(keyItem)}
+                                aria-pressed={keyItem.favorite}
+                                aria-label={keyItem.favorite ? "Убрать из избранного" : "Добавить в избранное"}
+                                title={keyItem.favorite ? "Убрать из избранного" : "Добавить в избранное"}
+                                className="ml-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-control transition-colors hover:bg-surface-hover"
+                            >
+                                <Star
+                                    size={15}
+                                    className={keyItem.favorite ? "fill-warning text-warning" : "text-fg-subtle"}
+                                    aria-hidden
+                                />
+                            </button>
+                        )}
                     </div>
                     <p className="mt-0.5 line-clamp-2 text-xs leading-4 text-fg-muted">
                         {keyItem.roomName || "Кабинет"} · {keyItem.floor} этаж
                         {showBuilding ? ` · ${keyItem.buildingName}` : ""}
                     </p>
                 </div>
-
-                {onToggleFavorite && (
-                    <button
-                        type="button"
-                        onClick={() => onToggleFavorite(keyItem)}
-                        aria-pressed={keyItem.favorite}
-                        aria-label={keyItem.favorite ? "Убрать из избранного" : "Добавить в избранное"}
-                        title={keyItem.favorite ? "Убрать из избранного" : "Добавить в избранное"}
-                        className="-mr-1 -mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-control transition-colors hover:bg-surface-hover"
-                    >
-                        <Star
-                            size={16}
-                            className={keyItem.favorite ? "fill-warning text-warning" : "text-fg-subtle"}
-                            aria-hidden
-                        />
-                    </button>
-                )}
             </div>
 
             {keyItem.status === "ISSUED" && keyItem.holderName && (
@@ -200,20 +210,23 @@ export function KeyCard({
 
             {pendingNote}
 
-            <div className="min-h-0 flex-1" />
-
             {!selectMode && (
-                <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">{cabinetActions()}</div>
-                    {onShowHistory && (
-                        <button
-                            type="button"
-                            onClick={() => onShowHistory(keyItem)}
-                            className="shrink-0 text-xs font-medium text-accent-text underline-offset-2 hover:underline"
-                        >
-                            История
-                        </button>
-                    )}
+                <div className="mt-2 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                        {onShowHistory && (
+                            <button
+                                type="button"
+                                onClick={() => onShowHistory(keyItem)}
+                                className="inline-flex items-center gap-1 text-xs font-medium text-accent-text underline-offset-2 hover:underline"
+                            >
+                                <HistoryIcon size={14} aria-hidden />
+                                История
+                            </button>
+                        )}
+                    </div>
+                    <div className="-mr-3 flex shrink-0 items-center gap-1.5 sm:mr-0">
+                        {cabinetActions()}
+                    </div>
                 </div>
             )}
 
@@ -237,5 +250,32 @@ export function KeyCard({
                 />
             </Modal>
         </article>
+    );
+}
+
+function CardAction({
+    icon: Icon,
+    label,
+    onClick,
+    className,
+    disabled,
+}: {
+    icon: typeof KeyRound;
+    label: string;
+    onClick: () => void;
+    className: string;
+    disabled?: boolean;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled}
+            aria-label={label}
+            title={label}
+            className={`flex h-8 w-8 items-center justify-center rounded-full border transition-colors active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+        >
+            <Icon size={16} aria-hidden />
+        </button>
     );
 }

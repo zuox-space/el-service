@@ -6,8 +6,11 @@ import { requireSection } from "@/lib/access/server";
 import { importKeysCsv, KeysConflictError } from "@/lib/keys/queries";
 
 export async function POST(request: NextRequest) {
-    const guard = await requireSection("keysAdmin");
-    if (!guard.ok) return guard.response;
+    // Импорт CSV создаёт и здания, и ключи — нужны оба админских раздела.
+    const keysGuard = await requireSection("keysAdmin");
+    if (!keysGuard.ok) return keysGuard.response;
+    const buildingsGuard = await requireSection("buildingsAdmin");
+    if (!buildingsGuard.ok) return buildingsGuard.response;
 
     const body = await request.json().catch(() => null);
     const text = typeof body?.csv === "string" ? body.csv : "";

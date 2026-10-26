@@ -23,6 +23,7 @@ export type AccessSectionId =
     | "absent"
     | "keys"
     | "keysAdmin"
+    | "buildingsAdmin"
     | "users";
 
 export interface AccessGroup {
@@ -158,10 +159,17 @@ export const ACCESS_SECTIONS: AccessSection[] = [
     {
         id: "keysAdmin",
         label: "Администрирование ключами",
-        description: "Ключи, здания, заявки, журнал операций и права на ключи",
+        description: "Ключи, заявки, журнал операций и права на ключи",
         group: "admin",
         href: "/admin/keys",
-        extraPaths: ["/admin/buildings"],
+        defaultRoles: ["ADMIN"],
+    },
+    {
+        id: "buildingsAdmin",
+        label: "Здания и классы",
+        description: "Создание зданий, адреса и привязка классов к зданиям",
+        group: "admin",
+        href: "/admin/buildings",
         defaultRoles: ["ADMIN"],
     },
     {

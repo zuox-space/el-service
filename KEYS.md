@@ -36,21 +36,25 @@ API планшета: `/api/guard/login`, `/api/guard/state`, `/api/guard/events
 `/api/guard/history`, `/api/guard/requests/[id]/decision`,
 `/api/guard/passes/[id]/use`.
 
-Доступ к администрированию ключей (`/admin/keys`, `/admin/buildings`, история) — только у
-роли с разделом `keysAdmin`.
+Доступ к администрированию ключей (`/admin/keys`, история) — у роли с разделом
+`keysAdmin`. Управление зданиями (`/admin/buildings`) — отдельный раздел
+`buildingsAdmin`: можно выдать только его, не давая доступ к ключам.
 
 ## Доступы
 
-Два раздела в реестре (`lib/access/registry.ts`):
+Три раздела в реестре (`lib/access/registry.ts`):
 
 | Раздел | Что открывает | По умолчанию |
 |---|---|---|
 | `keys` | `/keys`, заявки, мои ключи, история | все роли (кроме ADMIN — у него всё) |
-| `keysAdmin` | `/admin/keys`: ключи, здания, заявки, журнал, права | только ADMIN |
+| `keysAdmin` | `/admin/keys`: ключи, заявки, журнал, права | только ADMIN |
+| `buildingsAdmin` | `/admin/buildings`: здания и привязка классов | только ADMIN |
 
 - Доступ к пульту (`keys`) выдаётся ролям/сотрудникам как обычный раздел.
-- Администрирование (`keysAdmin`) — отдельный раздел; его можно выдать роли
-  в «Администрирование → Роли и доступы», не давая доступ к остальной админке.
+- Администрирование ключей (`keysAdmin`) и здания (`buildingsAdmin`) — отдельные
+  разделы; их можно выдавать независимо, не открывая остальную админку.
+- `keysAdmin` может читать список зданий и классов для форм ключей, но не менять здания.
+- Импорт CSV создаёт и здания, и ключи — требует оба раздела.
 - Подтверждать заявки могут `SECURITY` и обладатели `keysAdmin`.
 - Охрана не создаёт заявки — только обрабатывает.
 
@@ -123,9 +127,10 @@ building;building_address;room_number;room_name;floor
 | GET/POST | `/api/keys` | `keysAdmin` |
 | PATCH/DELETE | `/api/keys/[id]` | `keysAdmin` |
 | GET/PUT | `/api/keys/[id]/permissions` | `keysAdmin` |
-| GET/POST | `/api/keys/buildings` | `keysAdmin` |
-| PATCH/DELETE | `/api/keys/buildings/[id]` | `keysAdmin` |
-| POST | `/api/keys/import` | `keysAdmin` |
+| GET | `/api/keys/buildings` | `keysAdmin` или `buildingsAdmin` |
+| POST | `/api/keys/buildings` | `buildingsAdmin` |
+| PATCH/DELETE | `/api/keys/buildings/[id]` | `buildingsAdmin` |
+| POST | `/api/keys/import` | `keysAdmin` + `buildingsAdmin` |
 
 ## Проверка
 

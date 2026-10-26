@@ -16,7 +16,6 @@ import {
     Skeleton,
     useToast,
 } from "@/components/ui/kit";
-import { KeysProvider, useKeys } from "@/components/keys/KeysProvider";
 
 interface ClassOption {
     id: string;
@@ -33,17 +32,14 @@ interface BuildingDto {
 }
 
 export default function AdminBuildingsPage() {
-    return (
-        <KeysProvider>
-            <BuildingsScreen />
-        </KeysProvider>
-    );
+    return <BuildingsScreen />;
 }
 
 function BuildingsScreen() {
-    const { state, loading, refresh } = useKeys();
     const toast = useToast();
 
+    const [buildings, setBuildings] = useState<BuildingDto[]>([]);
+    const [loading, setLoading] = useState(true);
     const [classes, setClasses] = useState<ClassOption[]>([]);
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<BuildingDto | null>(null);
@@ -54,9 +50,25 @@ function BuildingsScreen() {
     const [saving, setSaving] = useState(false);
     const [deleting, setDeleting] = useState<BuildingDto | null>(null);
 
-    const buildings = (state?.buildings ?? []) as BuildingDto[];
+    const loadBuildings = async () => {
+        try {
+            const response = await fetch("/api/keys/buildings", { cache: "no-store" });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.error || "Не удалось загрузить здания");
+            setBuildings(Array.isArray(data.buildings) ? data.buildings : []);
+        } catch (e) {
+            toast.show({
+                title: "Не удалось загрузить здания",
+                description: e instanceof Error ? e.message : undefined,
+                tone: "danger",
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
+        void loadBuildings();
         fetch("/api/keys/classes", { cache: "no-store" })
             .then(response => response.json())
             .then(data => setClasses(Array.isArray(data.classes) ? data.classes : []))
@@ -109,7 +121,7 @@ function BuildingsScreen() {
                 tone: "success",
             });
             setFormOpen(false);
-            await refresh();
+            await loadBuildings();
         } catch (e) {
             toast.show({ title: "Ошибка", description: e instanceof Error ? e.message : undefined, tone: "danger" });
         } finally {
@@ -127,7 +139,7 @@ function BuildingsScreen() {
         }
         toast.show({ title: "Здание удалено", tone: "success" });
         setDeleting(null);
-        await refresh();
+        await loadBuildings();
     };
 
     const toggleClass = (classId: string) => {
@@ -136,7 +148,7 @@ function BuildingsScreen() {
         );
     };
 
-    if (loading && !state) return <Skeleton height={220} radius="card" />;
+    if (loading) return <Skeleton height={220} radius="card" />;
 
     return (
         <div className="min-h-full bg-bg">

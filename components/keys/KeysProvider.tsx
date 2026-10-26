@@ -43,7 +43,7 @@ interface KeysContextValue {
 
 const KeysContext = createContext<KeysContextValue | null>(null);
 
-export function KeysProvider({ children }: { children: ReactNode }) {
+export function KeysProvider({ children, enabled = true }: { children: ReactNode; enabled?: boolean }) {
     const [state, setState] = useState<KeysState | null>(null);
     const [users, setUsers] = useState<KeysUser[]>([]);
     const [loading, setLoading] = useState(true);
@@ -73,6 +73,11 @@ export function KeysProvider({ children }: { children: ReactNode }) {
     }, [users.length]);
 
     useEffect(() => {
+        if (!enabled) {
+            setLoading(false);
+            return;
+        }
+
         void refresh();
 
         const source = new EventSource("/api/keys/events");
@@ -88,7 +93,7 @@ export function KeysProvider({ children }: { children: ReactNode }) {
             source.close();
             sourceRef.current = null;
         };
-    }, [refresh]);
+    }, [enabled, refresh]);
 
     const requestWithId = useCallback<KeysContextValue["requestWithId"]>(
         async input => {

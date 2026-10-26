@@ -21,6 +21,12 @@ import { formatDateTimeMoscow } from "@/lib/date";
  * снять отметку (например, поставили по ошибке).
  */
 
+const COMMENT_PRESETS = [
+    "Поговорил с ребёнком",
+    "Замечание отработано с родителями",
+    "Передано в работу соц. педагогу",
+];
+
 export interface ResolvableViolation {
     id: string;
     studentName: string;
@@ -138,6 +144,24 @@ export function ResolveViolationModal({ open, onClose, violations, onDone, sourc
                     hint="Комментарий увидит сотрудник, который зафиксировал нарушение"
                     required
                 />
+
+                <div>
+                    <p className="mb-1.5 text-xs text-fg-subtle">Быстрые формулировки</p>
+                    <div className="flex flex-wrap gap-1.5">
+                        {COMMENT_PRESETS.map(preset => (
+                            <button
+                                key={preset}
+                                type="button"
+                                onClick={() =>
+                                    setComment(current => (current.trim() ? `${current.trim()}\n${preset}` : preset))
+                                }
+                                className="rounded-full border border-border bg-surface-2 px-2.5 py-1 text-left text-xs text-fg-muted transition-colors hover:bg-surface-3 hover:text-fg"
+                            >
+                                {preset}
+                            </button>
+                        ))}
+                    </div>
+                </div>
 
                 {allResolved && (
                     <Button

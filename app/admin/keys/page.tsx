@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/kit";
 import { KeysProvider, useKeys } from "@/components/keys/KeysProvider";
 import { AdminKeyHistorySheet } from "@/components/keys/AdminKeyHistorySheet";
+import { useAccess } from "@/components/access/AccessProvider";
 import type { KeyItemDto } from "@/lib/keys/queries";
 
 export default function AdminKeysPage() {
@@ -32,6 +33,7 @@ export default function AdminKeysPage() {
 
 function AdminKeysScreen() {
     const { state, loading, error, refresh, users, loadUsers } = useKeys();
+    const { can } = useAccess();
     const toast = useToast();
 
     const [buildingId, setBuildingId] = useState("all");
@@ -90,9 +92,11 @@ function AdminKeysScreen() {
                 onBack={() => (window.location.href = "/admin")}
                 actions={
                     <>
-                        <Button size="sm" variant="secondary" leftIcon={Upload} onClick={() => setImportOpen(true)}>
-                            Импорт CSV
-                        </Button>
+                        {can("buildingsAdmin") && (
+                            <Button size="sm" variant="secondary" leftIcon={Upload} onClick={() => setImportOpen(true)}>
+                                Импорт CSV
+                            </Button>
+                        )}
                         <Button size="sm" leftIcon={Plus} onClick={() => setCreateOpen(true)}>
                             Создать ключ
                         </Button>

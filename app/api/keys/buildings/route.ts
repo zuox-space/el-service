@@ -2,12 +2,12 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireSection } from "@/lib/access/server";
+import { requireAnySection, requireSection } from "@/lib/access/server";
 import { prisma } from "@/lib/prisma";
 import { createBuilding, KeysConflictError } from "@/lib/keys/queries";
 
 export async function GET() {
-    const guard = await requireSection("keysAdmin");
+    const guard = await requireAnySection(["keysAdmin", "buildingsAdmin"]);
     if (!guard.ok) return guard.response;
 
     const buildings = await prisma.keyBuilding.findMany({
@@ -18,7 +18,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-    const guard = await requireSection("keysAdmin");
+    const guard = await requireSection("buildingsAdmin");
     if (!guard.ok) return guard.response;
 
     const body = await request.json().catch(() => null);

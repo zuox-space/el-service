@@ -122,7 +122,7 @@ export const NAV_GROUPS: NavGroup[] = [
         title: "Администрирование",
         items: [
             { id: "keys-admin", label: "Ключи", href: "/admin/keys", icon: KeyRound, section: "keysAdmin" },
-            { id: "buildings", label: "Здания", href: "/admin/buildings", icon: Building2, section: "keysAdmin" },
+            { id: "buildings", label: "Здания", href: "/admin/buildings", icon: Building2, section: "buildingsAdmin" },
             { id: "users", label: "Персонал", href: "/admin/users", icon: Users, section: "users" },
             { id: "roles", label: "Роли и доступы", href: "/admin/roles", icon: ShieldCheck, section: "users" },
             { id: "sync", label: "Синхронизация", href: "/admin/sync", icon: RefreshCw, section: "users" },

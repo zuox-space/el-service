@@ -2,12 +2,12 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { requireSection } from "@/lib/access/server";
+import { requireAnySection } from "@/lib/access/server";
 import { prisma } from "@/lib/prisma";
 
 /** Список классов для привязки к зданию. */
 export async function GET() {
-    const guard = await requireSection("keysAdmin");
+    const guard = await requireAnySection(["keysAdmin", "buildingsAdmin"]);
     if (!guard.ok) return guard.response;
 
     const classes = await prisma.class.findMany({
