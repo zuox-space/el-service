@@ -2,35 +2,46 @@
 
 // components/my-class/MyClassStats.tsx
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CalendarCheck, ChevronRight, CheckCircle2 } from "lucide-react";
-import { Badge, Button, Card, EmptyState, FormError, Skeleton } from "@/components/ui/kit";
+import { AlertTriangle, CalendarCheck, ChevronDown } from "lucide-react";
+import { EmptyState, FormError, Skeleton } from "@/components/ui/kit";
 import {
     addMonths,
     formatDateShortRu,
     getAcademicYearStart,
     toLocalISODate,
 } from "@/lib/date";
+import { getViolationType } from "@/lib/violations";
 
 interface Stats {
     summary: {
-        markedDays: number;
-        schoolDays: number;
-        attendancePercent: number;
-        absentCount: number;
         violationsTotal: number;
         violationsResolved: number;
         violationsUnresolved: number;
-        resolutionPercent: number;
     };
     attendance: {
         daily: Array<{
             date: string;
             absent: number;
             marked: boolean;
+            reasons?: Record<string, number>;
         }>;
+        reasons: Array<{ reason: string; count: number }>;
     };
     violations: {
         byMonth: Array<{
+            month: string;
+            count: number;
+            resolved: number;
+            unresolved: number;
+        }>;
+        byType: Array<{
+            type: string;
+            count: number;
+            resolved: number;
+            unresolved: number;
+        }>;
+        byTypeMonth: Array<{
+            type: string;
             month: string;
             count: number;
             resolved: number;
@@ -46,6 +57,15 @@ const PERIODS: Array<{ id: Period; label: string }> = [
     { id: "month", label: "Месяц" },
     { id: "week", label: "7 дней" },
 ];
+
+const REASON_LABEL: Record<string, string> = {
+    sick: "Болен",
+    family: "По заявлению родителей",
+    vacation: "В отпуске",
+    competition: "Соревнования",
+    other: "Причина неясна",
+    unknown: "Не указана",
+};
 
 function rangeFor(period: Period): { from: string; to: string } {
     const today = new Date();
@@ -73,6 +93,8 @@ export function MyClassStats({
     const [stats, setStats] = useState<Stats | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [selectedReason, setSelectedReason] = useState("all");
+    const [selectedType, setSelectedType] = useState("all");
 
     const range = useMemo(() => rangeFor(period), [period]);
 
@@ -103,6 +125,12 @@ export function MyClassStats({
             cancelled = true;
         };
     }, [classId, range.from, range.to]);
+
+    const violationItems = useMemo(() => {
+        if (!stats) return [];
+        if (selectedType === "all") return stats.violations.byMonth;
+        return stats.violations.byTypeMonth.filter(item => item.type === selectedType);
+    }, [stats, selectedType]);
 
     if (loading && !stats) {
         return (
@@ -140,74 +168,165 @@ export function MyClassStats({
                 </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-card border border-border bg-surface px-3 py-2">
-                    <p className="flex items-center gap-1 text-[11px] text-fg-subtle">
-                        <CalendarCheck size={13} aria-hidden /> Посещаемость
-                    </p>
-                    <p className="mt-0.5 text-2xl font-semibold tabular-nums text-fg">
-                        {stats.summary.attendancePercent}%
-                    </p>
-                    <p className="text-[10px] text-fg-subtle">
-                        {stats.summary.markedDays} из {stats.summary.schoolDays} дней
-                    </p>
-                </div>
-                <div className="rounded-card border border-border bg-surface px-3 py-2">
-                    <p className="flex items-center gap-1 text-[11px] text-fg-subtle">
-                        <AlertTriangle size={13} aria-hidden /> Нарушения
-                    </p>
-                    <p className="mt-0.5 text-2xl font-semibold tabular-nums text-fg">
-                        {stats.summary.violationsTotal}
-                    </p>
-                    <p className="text-[10px] text-fg-subtle">
-                        отработано {stats.summary.violationsResolved} · в работе {stats.summary.violationsUnresolved}
-                    </p>
-                </div>
+            <div className="rounded-card border border-border bg-surface px-3 py-2">
+                <p className="flex items-center gap-1 text-[11px] text-fg-subtle">
+                    <AlertTriangle size={13} aria-hidden /> Нарушения
+                </p>
+                <p className="mt-0.5 text-2xl font-semibold tabular-nums text-fg">
+                    {stats.summary.violationsTotal}
+                </p>
+                <p className="text-[10px] text-fg-subtle">
+                    отработано {stats.summary.violationsResolved} · в работе {stats.summary.violationsUnresolved}
+                </p>
             </div>
 
-            <Card padding="sm" title="Посещаемость" description={`Класс ${className}`}>
+            <CollapsibleSection
+                title="Посещаемость"
+                description={`Класс ${className} · нажмите на причину, чтобы изменить график`}
+                icon={CalendarCheck}
+            >
                 {stats.attendance.daily.length === 0 ? (
                     <EmptyState icon={CalendarCheck} title="Отметок нет" compact />
                 ) : (
-                    <AttendanceBars items={stats.attendance.daily} />
+                    <div className="space-y-2">
+                        {stats.attendance.reasons.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5">
+                                <FilterButton
+                                    active={selectedReason === "all"}
+                                    onClick={() => setSelectedReason("all")}
+                                >
+                                    Все причины
+                                </FilterButton>
+                                {stats.attendance.reasons.map(item => (
+                                    <FilterButton
+                                        key={item.reason}
+                                        active={selectedReason === item.reason}
+                                        onClick={() => setSelectedReason(item.reason)}
+                                    >
+                                        {REASON_LABEL[item.reason] ?? item.reason} · {item.count}
+                                    </FilterButton>
+                                ))}
+                            </div>
+                        )}
+                        <AttendanceBars items={stats.attendance.daily} selectedReason={selectedReason} />
+                    </div>
                 )}
-            </Card>
+            </CollapsibleSection>
 
-            <Card padding="sm" title="Динамика нарушений" description="По месяцам, отработано и в работе">
+            <CollapsibleSection
+                title="Динамика нарушений"
+                description="По месяцам · нажмите на тип, чтобы изменить график"
+                icon={AlertTriangle}
+            >
                 {stats.violations.byMonth.length === 0 ? (
                     <EmptyState icon={AlertTriangle} title="Нарушений нет" compact />
                 ) : (
-                    <ViolationBars items={stats.violations.byMonth} />
+                    <div className="space-y-2">
+                        <div className="flex flex-wrap gap-1.5">
+                            <FilterButton
+                                active={selectedType === "all"}
+                                onClick={() => setSelectedType("all")}
+                            >
+                                Все нарушения · {stats.summary.violationsTotal}
+                            </FilterButton>
+                            {stats.violations.byType.map(item => {
+                                const type = getViolationType(item.type);
+                                return (
+                                    <FilterButton
+                                        key={item.type}
+                                        active={selectedType === item.type}
+                                        onClick={() => setSelectedType(item.type)}
+                                    >
+                                        {type.shortLabel} · {item.count}
+                                    </FilterButton>
+                                );
+                            })}
+                        </div>
+                        <ViolationBars items={violationItems} />
+                    </div>
                 )}
-            </Card>
-
-            <div className="flex items-center gap-2 rounded-card border border-border bg-surface px-3 py-2">
-                <CheckCircle2 size={16} className="text-success" aria-hidden />
-                <p className="text-xs text-fg-muted">
-                    Отработано нарушений: <span className="font-semibold text-fg">{stats.summary.resolutionPercent}%</span>
-                </p>
-                <ChevronRight size={15} className="ml-auto text-fg-subtle" aria-hidden />
-                <Badge tone={stats.summary.violationsUnresolved > 0 ? "warning" : "success"}>
-                    {stats.summary.violationsUnresolved} в работе
-                </Badge>
-            </div>
+            </CollapsibleSection>
         </div>
     );
 }
 
-function AttendanceBars({ items }: { items: Stats["attendance"]["daily"] }) {
-    const max = Math.max(1, ...items.map(item => item.absent));
+function CollapsibleSection({
+    title,
+    description,
+    icon: Icon,
+    children,
+}: {
+    title: string;
+    description: string;
+    icon: typeof CalendarCheck;
+    children: React.ReactNode;
+}) {
+    return (
+        <details open className="group rounded-card border border-border bg-surface shadow-card">
+            <summary className="flex list-none cursor-pointer items-center gap-2 px-3 py-2.5 [&::-webkit-details-marker]:hidden">
+                <Icon size={16} className="shrink-0 text-fg-subtle" aria-hidden />
+                <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-fg">{title}</p>
+                    <p className="truncate text-[11px] text-fg-muted">{description}</p>
+                </div>
+                <ChevronDown
+                    size={17}
+                    className="shrink-0 text-fg-subtle transition-transform group-open:rotate-180"
+                    aria-hidden
+                />
+            </summary>
+            <div className="border-t border-border p-3">{children}</div>
+        </details>
+    );
+}
+
+function FilterButton({
+    active,
+    onClick,
+    children,
+}: {
+    active: boolean;
+    onClick: () => void;
+    children: React.ReactNode;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                active
+                    ? "border-accent bg-accent-solid text-accent-fg"
+                    : "border-border bg-surface-2 text-fg-muted hover:bg-surface-3 hover:text-fg"
+            }`}
+        >
+            {children}
+        </button>
+    );
+}
+
+function AttendanceBars({
+    items,
+    selectedReason,
+}: {
+    items: Stats["attendance"]["daily"];
+    selectedReason: string;
+}) {
+    const values = items.map(item => ({
+        ...item,
+        value: selectedReason === "all" ? item.absent : item.reasons?.[selectedReason] ?? 0,
+    }));
+    const max = Math.max(1, ...values.map(item => item.value));
 
     return (
         <div className="overflow-x-auto">
             <div className="flex h-32 min-w-[360px] items-end gap-1">
-                {items.map(item => (
+                {values.map(item => (
                     <div
                         key={item.date}
                         className="flex min-w-2.5 flex-1 flex-col items-center gap-1"
                         title={
                             item.marked
-                                ? `${formatDateShortRu(item.date)}: ${item.absent}`
+                                ? `${formatDateShortRu(item.date)}: ${item.value}`
                                 : `${formatDateShortRu(item.date)}: нет отметки`
                         }
                     >
@@ -216,8 +335,8 @@ function AttendanceBars({ items }: { items: Stats["attendance"]["daily"] }) {
                                 <div className="h-full w-full max-w-3 rounded-t border border-danger/40 bg-danger/25" />
                             ) : (
                                 <div
-                                    className={`w-full max-w-3 rounded-t ${item.absent > 0 ? "bg-warning" : "bg-success/60"}`}
-                                    style={{ height: `${Math.max(3, (item.absent / max) * 100)}%` }}
+                                    className={`w-full max-w-3 rounded-t ${item.value > 0 ? "bg-warning" : "bg-success/60"}`}
+                                    style={{ height: `${Math.max(3, (item.value / max) * 100)}%` }}
                                 />
                             )}
                         </div>
@@ -227,7 +346,7 @@ function AttendanceBars({ items }: { items: Stats["attendance"]["daily"] }) {
                     </div>
                 ))}
             </div>
-            <div className="mt-1 flex gap-3 text-[10px] text-fg-muted">
+            <div className="mt-1 flex flex-wrap gap-3 text-[10px] text-fg-muted">
                 <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-warning" /> пропуски</span>
                 <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-success/60" /> без пропусков</span>
                 <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-danger/50" /> нет отметки</span>
@@ -236,7 +355,20 @@ function AttendanceBars({ items }: { items: Stats["attendance"]["daily"] }) {
     );
 }
 
-function ViolationBars({ items }: { items: Stats["violations"]["byMonth"] }) {
+function ViolationBars({
+    items,
+}: {
+    items: Array<{
+        month: string;
+        count: number;
+        resolved: number;
+        unresolved: number;
+    }>;
+}) {
+    if (items.length === 0) {
+        return <EmptyState icon={AlertTriangle} title="Нет данных за период" compact />;
+    }
+
     const max = Math.max(1, ...items.map(item => item.count));
 
     return (
