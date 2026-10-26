@@ -6,8 +6,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
     CircleAlert,
-    ClipboardCheck,
-    HelpCircle,
     History,
     Inbox,
     Key,
@@ -16,7 +14,6 @@ import {
     Sparkles,
     Ticket,
     UserCheck,
-    X,
 } from "lucide-react";
 import { useAccess } from "@/components/access/AccessProvider";
 import { KeysProvider, useKeys } from "@/components/keys/KeysProvider";
@@ -94,8 +91,6 @@ function QuickActionsInner({
     const [quickClassId, setQuickClassId] = useState("");
     const [attendanceMarked, setAttendanceMarked] = useState<boolean | null>(null);
     const [quickAction, setQuickAction] = useState<QuickAction | null>(null);
-    const [helpOpen, setHelpOpen] = useState(false);
-    const helpWasOpen = useRef(false);
     const [quickData, setQuickData] = useState<{
         students: Array<{ id: string | number; name: string }>;
         existingPasses: Array<{ students?: Array<{ id: string | number; name: string }> }>;
@@ -169,34 +164,6 @@ function QuickActionsInner({
             cancelled = true;
         };
     }, [quickClass]);
-
-    useEffect(() => {
-        if (!menu) {
-            helpWasOpen.current = false;
-            setHelpOpen(false);
-            return;
-        }
-
-        if (!helpWasOpen.current) {
-            helpWasOpen.current = true;
-            try {
-                if (window.localStorage.getItem("quick-help-hidden") !== "1") {
-                    setHelpOpen(true);
-                }
-            } catch {
-                setHelpOpen(true);
-            }
-        }
-    }, [menu]);
-
-    const hideHelpForever = () => {
-        setHelpOpen(false);
-        try {
-            window.localStorage.setItem("quick-help-hidden", "1");
-        } catch {
-            // приватный режим — просто скрываем на текущий сеанс
-        }
-    };
 
     useEffect(() => {
         if (!menu) return;
@@ -339,79 +306,6 @@ function QuickActionsInner({
                 />
             )}
 
-            {menu !== null && helpOpen && (
-                <div className="pointer-events-none fixed inset-x-0 top-20 z-40 flex justify-center px-4">
-                    <div className="pointer-events-auto w-full max-w-md rounded-2xl border border-accent/25 bg-surface/95 p-3 shadow-raised backdrop-blur-sm">
-                        <div className="flex items-start gap-2">
-                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent-text">
-                                <HelpCircle size={17} aria-hidden />
-                            </span>
-                            <div className="min-w-0 flex-1">
-                                <p className="text-sm font-semibold text-fg">Что означают кнопки</p>
-                                <p className="text-[11px] text-fg-subtle">Кнопки расположены вокруг главной</p>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setHelpOpen(false)}
-                                aria-label="Закрыть подсказку"
-                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-control text-fg-muted hover:bg-surface-hover hover:text-fg"
-                            >
-                                <X size={15} aria-hidden />
-                            </button>
-                        </div>
-
-                        <div className="mt-2.5 space-y-1.5">
-                            {showKeys && (
-                                <div className="flex items-center gap-2 rounded-control bg-surface-2 px-2.5 py-1.5">
-                                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent-soft text-accent-text">
-                                        <Key size={14} aria-hidden />
-                                    </span>
-                                    <p className="text-xs text-fg-muted">
-                                        <b className="text-fg">Слева</b> — взять ключ, сдать ключ
-                                    </p>
-                                </div>
-                            )}
-                            {canViolations && (
-                                <div className="flex items-center gap-2 rounded-control bg-surface-2 px-2.5 py-1.5">
-                                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-danger-soft text-danger">
-                                        <CircleAlert size={14} aria-hidden />
-                                    </span>
-                                    <p className="text-xs text-fg-muted">
-                                        <b className="text-fg">Сверху</b> — отметить нарушение, история
-                                    </p>
-                                </div>
-                            )}
-                            {showClassActions && (
-                                <div className="flex items-center gap-2 rounded-control bg-surface-2 px-2.5 py-1.5">
-                                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-info-soft text-info">
-                                        <ClipboardCheck size={14} aria-hidden />
-                                    </span>
-                                    <p className="text-xs text-fg-muted">
-                                        <b className="text-fg">Справа</b> — отметить присутствие, выписать пропуск
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="mt-2.5 flex items-center justify-between gap-2">
-                            <button
-                                type="button"
-                                onClick={hideHelpForever}
-                                className="text-[11px] text-fg-subtle underline-offset-2 hover:text-fg hover:underline"
-                            >
-                                Больше не показывать
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setHelpOpen(false)}
-                                className="rounded-full bg-accent-solid px-3 py-1.5 text-xs font-medium text-accent-fg"
-                            >
-                                Понятно
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-4 sm:bottom-6">
                 <div ref={rootRef} className="relative">

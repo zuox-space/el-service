@@ -133,10 +133,10 @@ export default function PortalPage() {
 
             <main className="mx-auto w-full max-w-5xl space-y-4 px-4 py-5">
                 {/* Приветствие + статистика сотрудника */}
-                <div className="relative md:grid md:grid-cols-[minmax(0,1fr)_300px] md:items-start md:gap-3">
+                <div className="relative md:grid md:grid-cols-[minmax(0,1fr)_300px] md:items-stretch md:gap-3">
                     <Card
                         padding="md"
-                        className="relative cursor-pointer overflow-hidden md:cursor-default"
+                        className="relative cursor-pointer overflow-hidden md:h-full md:cursor-default"
                         onClick={() => setProfileOpen(value => !value)}
                     >
                         <div
@@ -322,7 +322,7 @@ function UserStatsCard({
     onClose: () => void;
 }) {
     return (
-        <div className="rounded-card border border-border bg-surface p-3 shadow-raised md:shadow-card">
+        <div className="flex h-full flex-col rounded-card border border-border bg-surface p-3 shadow-raised md:shadow-card">
             <div className="flex items-center justify-between gap-2">
                 <p className="flex items-center gap-1.5 text-sm font-semibold text-fg">
                     <BarChart3 size={16} className="text-accent-text" aria-hidden />
