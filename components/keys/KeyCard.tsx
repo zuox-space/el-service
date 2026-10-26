@@ -224,7 +224,7 @@ export function KeyCard({
                             </button>
                         )}
                     </div>
-                    <div className="-mr-3 flex shrink-0 items-center gap-1.5 sm:mr-0">
+                    <div className="flex shrink-0 items-center gap-1.5">
                         {cabinetActions()}
                     </div>
                 </div>
