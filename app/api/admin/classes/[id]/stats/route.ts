@@ -162,10 +162,31 @@ export async function GET(
             }
         }
 
-        const dailyStats = [...daily.values()].sort((a, b) => a.date.localeCompare(b.date));
-        const markedDays = dailyStats.length;
         const effectiveEnd = to > today ? today : to;
         const schoolDays = countSchoolDays(from, effectiveEnd);
+
+        // Добавляем учебные дни без отметки: они не должны пропадать из графика.
+        const cursor = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+        const lastDay = new Date(effectiveEnd.getFullYear(), effectiveEnd.getMonth(), effectiveEnd.getDate());
+        while (cursor <= lastDay) {
+            const weekday = cursor.getDay();
+            if (weekday !== 0 && weekday !== 6) {
+                const date = toLocalISODate(cursor);
+                if (!daily.has(date)) {
+                    daily.set(date, {
+                        date,
+                        present: 0,
+                        absent: 0,
+                        marked: false,
+                        reasons: {},
+                    });
+                }
+            }
+            cursor.setDate(cursor.getDate() + 1);
+        }
+
+        const dailyStats = [...daily.values()].sort((a, b) => a.date.localeCompare(b.date));
+        const markedDays = dailyStats.filter(item => item.marked).length;
         const attendancePercent = schoolDays > 0 ? Math.min(100, Math.round((markedDays / schoolDays) * 100)) : 0;
 
         type ResolutionCount = { resolved: number; unresolved: number };
