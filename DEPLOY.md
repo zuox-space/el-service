@@ -74,6 +74,10 @@ DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DBNAME"
 NEXTAUTH_URL="https://school.example.ru"
 NEXTAUTH_SECRET="длинная случайная строка"
 
+# Рейтинг сотрудника и классного руководителя (функция в разработке)
+# false — блоки статистики скрыты; true — показываются
+SHOW_RAITING=false
+
 # Планшет охраны (свой вход, без Яндекса)
 GUARD_LOGIN=guard-tablet
 GUARD_PASSWORD=сложный-пароль

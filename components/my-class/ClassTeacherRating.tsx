@@ -27,7 +27,7 @@ export function ClassTeacherRating() {
         fetch("/api/portal", { cache: "no-store" })
             .then(response => (response.ok ? response.json() : null))
             .then(data => {
-                if (!cancelled) setRating(data?.rating ?? null);
+                if (!cancelled) setRating(data?.showRating === true ? data.rating ?? null : null);
             })
             .catch(() => {
                 if (!cancelled) setRating(null);

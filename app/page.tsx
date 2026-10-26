@@ -42,6 +42,7 @@ interface PortalService {
 interface PortalData {
     user: { name: string; email: string; roles: string[] };
     myClass: { available: boolean; classes: string[]; studentsCount: number };
+    showRating: boolean;
     services: PortalService[];
 }
 
@@ -99,6 +100,7 @@ export default function PortalPage() {
     };
 
     const services = data?.services ?? [];
+    const showRating = data?.showRating === true;
     // «Ключи» — обычный кабинет сотрудника, а не раздел админки.
     const adminServices = services.filter(service => service.id !== "keys");
     const hasAdminServices = adminServices.length > 0;
@@ -133,11 +135,17 @@ export default function PortalPage() {
 
             <main className="mx-auto w-full max-w-5xl space-y-4 px-4 py-5">
                 {/* Приветствие + статистика сотрудника */}
-                <div className="relative md:grid md:grid-cols-[minmax(0,1fr)_300px] md:items-stretch md:gap-3">
+                <div
+                    className={`relative ${
+                        showRating ? "md:grid md:grid-cols-[minmax(0,1fr)_300px] md:items-stretch md:gap-3" : ""
+                    }`}
+                >
                     <Card
                         padding="md"
-                        className="relative cursor-pointer overflow-hidden md:h-full md:cursor-default"
-                        onClick={() => setProfileOpen(value => !value)}
+                        className={`relative overflow-hidden ${
+                            showRating ? "cursor-pointer md:h-full md:cursor-default" : ""
+                        }`}
+                        onClick={showRating ? () => setProfileOpen(value => !value) : undefined}
                     >
                         <div
                             className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-accent/10 blur-2xl"
@@ -152,16 +160,18 @@ export default function PortalPage() {
                                 ? "Выберите сервис — доступные разделы уже собраны для вас."
                                 : "Пока сервисы не назначены. Обратитесь к администратору — он выдаст нужные разделы."}
                         </p>
-                        <span className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface text-fg-muted md:hidden">
-                            <ChevronDown
-                                size={16}
-                                className={`transition-transform ${profileOpen ? "rotate-180" : ""}`}
-                                aria-hidden
-                            />
-                        </span>
+                        {showRating && (
+                            <span className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface text-fg-muted md:hidden">
+                                <ChevronDown
+                                    size={16}
+                                    className={`transition-transform ${profileOpen ? "rotate-180" : ""}`}
+                                    aria-hidden
+                                />
+                            </span>
+                        )}
                     </Card>
 
-                    {profileOpen && (
+                    {showRating && profileOpen && (
                         <div
                             className="fixed inset-0 z-10 bg-backdrop/50 md:hidden"
                             onClick={() => setProfileOpen(false)}
@@ -169,13 +179,15 @@ export default function PortalPage() {
                         />
                     )}
 
-                    <div
-                        className={`${
-                            profileOpen ? "absolute left-0 right-0 top-full z-20 mt-2 block" : "hidden"
-                        } md:static md:mt-0 md:block`}
-                    >
-                        <UserStatsCard onClose={() => setProfileOpen(false)} />
-                    </div>
+                    {showRating && (
+                        <div
+                            className={`${
+                                profileOpen ? "absolute left-0 right-0 top-full z-20 mt-2 block" : "hidden"
+                            } md:static md:mt-0 md:block`}
+                        >
+                            <UserStatsCard onClose={() => setProfileOpen(false)} />
+                        </div>
+                    )}
                 </div>
 
                 {error && (

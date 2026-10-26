@@ -6,6 +6,7 @@ import { getSessionAccess } from "@/lib/access/server";
 import { ACCESS_SECTIONS } from "@/lib/access/registry";
 import { prisma } from "@/lib/prisma";
 import { countSchoolDays, toLocalISODate } from "@/lib/date";
+import { isRatingVisible } from "@/lib/features";
 import { getStudentsGroupedByClass } from "@/lib/mysql_db";
 
 /**
@@ -67,13 +68,16 @@ export async function GET() {
 
     // Личный рейтинг считаем только по своим классам. Общие классы
     // (ClassShare) не дают классного руководства и в рейтинг не входят.
+    // Личный рейтинг — функция в разработке: включается только SHOW_RAITING=true.
+    // Пока флаг выключен, рейтинг не считается и не отдаётся клиенту.
+    const showRating = isRatingVisible();
     let rating: {
         className: string;
         attendance: { marked: number; total: number; percent: number };
         violations: { resolved: number; total: number; percent: number };
     } | null = null;
 
-    if (owned.length > 0) {
+    if (showRating && owned.length > 0) {
         const now = new Date();
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
         const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
@@ -141,6 +145,7 @@ export async function GET() {
             studentsCount,
         },
         rating,
+        showRating,
         services,
     });
 }
