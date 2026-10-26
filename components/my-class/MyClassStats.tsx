@@ -318,41 +318,43 @@ function AttendanceBars({
     const max = Math.max(1, ...values.map(item => item.value));
 
     return (
-        <div className="overflow-x-auto">
-            <div className="flex h-32 min-w-[360px] items-end gap-1">
-                {values.map(item => (
-                    <div
-                        key={item.date}
-                        className="flex min-w-2.5 flex-1 flex-col items-center gap-1"
-                        title={
-                            item.marked
-                                ? `${formatDateShortRu(item.date)}: ${item.value}`
-                                : `${formatDateShortRu(item.date)}: нет отметки`
-                        }
-                    >
-                        <div className="flex h-24 w-full flex-col items-center justify-end gap-0.5">
-                            <span className="text-[8px] tabular-nums text-fg-subtle">
-                                {item.marked ? item.value : "—"}
-                            </span>
-                            {!item.marked ? (
-                                <div className="h-20 w-full max-w-3 rounded-t border border-danger/40 bg-danger/25" />
-                            ) : (
-                                <div
-                                    className={`w-full max-w-3 rounded-t ${item.value > 0 ? "bg-warning" : "bg-success/60"}`}
-                                    style={{ height: `${Math.max(3, (item.value / max) * 100)}%` }}
-                                />
-                            )}
-                        </div>
-                        <span className="origin-left rotate-45 whitespace-nowrap text-[7px] text-fg-subtle">
-                            {formatDateShortRu(item.date)}
-                        </span>
-                    </div>
-                ))}
-            </div>
-            <div className="mt-1 flex flex-wrap gap-3 text-[10px] text-fg-muted">
+        <div>
+            <div className="mb-2 flex flex-wrap gap-3 text-[10px] text-fg-muted">
                 <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-warning" /> пропуски</span>
                 <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-success/60" /> без пропусков</span>
                 <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-danger/50" /> нет отметки</span>
+            </div>
+            <div className="overflow-x-auto pb-4">
+                <div className="flex h-32 min-w-[360px] items-end gap-1">
+                    {values.map(item => (
+                        <div
+                            key={item.date}
+                            className="flex min-w-2.5 flex-1 flex-col items-center gap-1"
+                            title={
+                                item.marked
+                                    ? `${formatDateShortRu(item.date)}: ${item.value}`
+                                    : `${formatDateShortRu(item.date)}: нет отметки`
+                            }
+                        >
+                            <div className="flex h-24 w-full flex-col items-center justify-end gap-0.5">
+                                <span className="text-[8px] tabular-nums text-fg-subtle">
+                                    {item.marked ? item.value : "—"}
+                                </span>
+                                {!item.marked ? (
+                                    <div className="h-20 w-full max-w-3 rounded-t border border-danger/40 bg-danger/25" />
+                                ) : (
+                                    <div
+                                        className={`w-full max-w-3 rounded-t ${item.value > 0 ? "bg-warning" : "bg-success/60"}`}
+                                        style={{ height: `${Math.max(3, (item.value / max) * 100)}%` }}
+                                    />
+                                )}
+                            </div>
+                            <span className="origin-left rotate-45 whitespace-nowrap text-[7px] text-fg-subtle">
+                                {formatDateShortRu(item.date)}
+                            </span>
+                        </div>
+                    ))}
+                </div>
             </div>
         </div>
     );

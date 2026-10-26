@@ -718,38 +718,8 @@ function DailyBars({
     const max = Math.max(1, ...values.map(item => item.value));
 
     return (
-        <div className="overflow-x-auto">
-            <div className="flex h-36 min-w-[420px] items-end gap-1">
-                {values.map(item => (
-                    <div
-                        key={item.date}
-                        className="flex min-w-3 flex-1 flex-col items-center gap-1"
-                        title={
-                            item.marked
-                                ? `${formatDateShortRu(item.date)}: ${item.value}`
-                                : `${formatDateShortRu(item.date)}: нет отметки`
-                        }
-                    >
-                        <div className="flex h-28 w-full flex-col items-center justify-end gap-0.5">
-                            <span className="text-[9px] tabular-nums text-fg-subtle">
-                                {item.marked ? item.value : "—"}
-                            </span>
-                            {!item.marked ? (
-                                <div className="h-24 w-full max-w-4 rounded-t border border-danger/40 bg-danger/25" />
-                            ) : (
-                                <div
-                                    className={`w-full max-w-4 rounded-t ${item.value > 0 ? "bg-warning" : "bg-success/60"}`}
-                                    style={{ height: `${Math.max(3, (item.value / max) * 100)}%` }}
-                                />
-                            )}
-                        </div>
-                        <span className="origin-left rotate-45 whitespace-nowrap text-[8px] text-fg-subtle">
-                            {formatDateShortRu(item.date)}
-                        </span>
-                    </div>
-                ))}
-            </div>
-            <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-fg-muted">
+        <div>
+            <div className="mb-2 flex flex-wrap gap-3 text-[11px] text-fg-muted">
                 <span className="flex items-center gap-1">
                     <span className="h-2 w-2 rounded-full bg-warning" /> пропуски
                 </span>
@@ -759,6 +729,38 @@ function DailyBars({
                 <span className="flex items-center gap-1">
                     <span className="h-2 w-2 rounded-full bg-danger/50" /> нет отметки
                 </span>
+            </div>
+            <div className="overflow-x-auto pb-4">
+                <div className="flex h-36 min-w-[420px] items-end gap-1">
+                    {values.map(item => (
+                        <div
+                            key={item.date}
+                            className="flex min-w-3 flex-1 flex-col items-center gap-1"
+                            title={
+                                item.marked
+                                    ? `${formatDateShortRu(item.date)}: ${item.value}`
+                                    : `${formatDateShortRu(item.date)}: нет отметки`
+                            }
+                        >
+                            <div className="flex h-28 w-full flex-col items-center justify-end gap-0.5">
+                                <span className="text-[9px] tabular-nums text-fg-subtle">
+                                    {item.marked ? item.value : "—"}
+                                </span>
+                                {!item.marked ? (
+                                    <div className="h-24 w-full max-w-4 rounded-t border border-danger/40 bg-danger/25" />
+                                ) : (
+                                    <div
+                                        className={`w-full max-w-4 rounded-t ${item.value > 0 ? "bg-warning" : "bg-success/60"}`}
+                                        style={{ height: `${Math.max(3, (item.value / max) * 100)}%` }}
+                                    />
+                                )}
+                            </div>
+                            <span className="origin-left rotate-45 whitespace-nowrap text-[8px] text-fg-subtle">
+                                {formatDateShortRu(item.date)}
+                            </span>
+                        </div>
+                    ))}
+                </div>
             </div>
         </div>
     );
