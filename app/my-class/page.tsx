@@ -142,6 +142,16 @@ export default function HomePage() {
         setViolationsLimit(3);
         setPassesLimit(3);
     }, [selectedClass?.id, selectedDate]);
+
+    // Запоминаем последний выбранный класс для быстрых действий на других страницах.
+    useEffect(() => {
+        if (!selectedClass?.id) return;
+        try {
+            window.localStorage.setItem("my-class-id", selectedClass.id);
+        } catch {
+            // приватный режим — не критично
+        }
+    }, [selectedClass?.id]);
     // Все нарушения класса — ниже сегодняшних, со статусами и отработкой
     const [classViolations, setClassViolations] = useState<any[]>([]);
     const [isLoadingClassViolations, setIsLoadingClassViolations] = useState(false);

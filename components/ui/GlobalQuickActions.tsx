@@ -4,7 +4,16 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { CircleAlert, History, Inbox, KeyRound, Undo2 } from "lucide-react";
+import {
+    CircleAlert,
+    ClipboardCheck,
+    History,
+    Inbox,
+    KeyRound,
+    Ticket,
+    Undo2,
+    UserCheck,
+} from "lucide-react";
 import { useAccess } from "@/components/access/AccessProvider";
 import { KeysProvider, useKeys } from "@/components/keys/KeysProvider";
 import {
@@ -12,14 +21,23 @@ import {
     type EmployeeActionMode,
 } from "@/components/keys/EmployeeActionsModal";
 import ViolationModal from "@/components/ui/ViolationModal";
+import PassModal from "@/components/ui/PassModal";
+import AttendanceModal from "@/components/ui/AttendanceModal";
 import { useToast } from "@/components/ui/kit";
+import { toLocalISODate } from "@/lib/date";
 
-type Menu = "keys" | "violations";
+type Menu = "keys" | "violations" | "quick";
+type QuickAction = "pass" | "attendance";
+
+interface QuickClass {
+    id: string;
+    name: string;
+    students: Array<{ id: string | number; name: string }>;
+}
 
 /**
- * Две кнопки в нижнем овальном блоке: «Ключи» и «Нарушения».
- * По нажатию над блоком раскрываются соответствующие действия.
- * Под блоком есть распорка, чтобы он не перекрывал конец страницы.
+ * Нижний овальный блок быстрых действий: ключи, нарушения и быстрые
+ * пропуск/посещаемость. Функции раскрываются вверх над блоком.
  */
 export function GlobalQuickActions() {
     const { status } = useSession();
@@ -37,12 +55,17 @@ export function GlobalQuickActions() {
         status === "authenticated" &&
         !loading &&
         (can("myClass") || can("violations"));
+    const canMyClass = !loading && can("myClass");
 
-    if (loading || hidden || (!canKeys && !canViolations)) return null;
+    if (loading || hidden || (!canKeys && !canViolations && !canMyClass)) return null;
 
     return (
         <KeysProvider enabled={canKeys}>
-            <QuickActionsInner canKeys={canKeys} canViolations={canViolations} />
+            <QuickActionsInner
+                canKeys={canKeys}
+                canViolations={canViolations}
+                canMyClass={canMyClass}
+            />
         </KeysProvider>
     );
 }
@@ -50,9 +73,11 @@ export function GlobalQuickActions() {
 function QuickActionsInner({
     canKeys,
     canViolations,
+    canMyClass,
 }: {
     canKeys: boolean;
     canViolations: boolean;
+    canMyClass: boolean;
 }) {
     const { state } = useKeys();
     const router = useRouter();
@@ -60,12 +85,87 @@ function QuickActionsInner({
     const [menu, setMenu] = useState<Menu | null>(null);
     const [mode, setMode] = useState<EmployeeActionMode | null>(null);
     const [violationOpen, setViolationOpen] = useState(false);
+    const [classes, setClasses] = useState<QuickClass[]>([]);
+    const [quickClassId, setQuickClassId] = useState("");
+    const [attendanceMarked, setAttendanceMarked] = useState<boolean | null>(null);
+    const [quickAction, setQuickAction] = useState<QuickAction | null>(null);
+    const [quickData, setQuickData] = useState<{
+        students: Array<{ id: string | number; name: string }>;
+        existingPasses: Array<{ students?: Array<{ id: string | number; name: string }> }>;
+        existingAttendance: {
+            presentStudents?: Array<string | number>;
+            absentStudents?: Array<string | number>;
+            absentReasons?: Record<string, string>;
+        } | null;
+    } | null>(null);
     const rootRef = useRef<HTMLDivElement | null>(null);
 
     const showKeys = canKeys && Boolean(state?.canRequest);
     const incoming = (state?.requests ?? []).filter(
         item => item.type === "TRANSFER" && item.status === "PENDING" && item.targetUserId === state?.me.id,
     );
+    const quickClass =
+        classes.find(item => item.id === quickClassId) ??
+        classes[0] ??
+        null;
+
+    useEffect(() => {
+        if (!canMyClass) return;
+        let cancelled = false;
+
+        fetch("/api/classes", { cache: "no-store" })
+            .then(response => response.json())
+            .then(data => {
+                if (cancelled || !Array.isArray(data)) return;
+                const next = data as QuickClass[];
+                setClasses(next);
+                const stored = window.localStorage.getItem("my-class-id");
+                setQuickClassId(
+                    next.some(item => item.id === stored)
+                        ? (stored as string)
+                        : next[0]?.id ?? "",
+                );
+            })
+            .catch(() => {
+                if (!cancelled) setClasses([]);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [canMyClass]);
+
+    useEffect(() => {
+        if (menu !== "quick" || classes.length === 0) return;
+        const stored = window.localStorage.getItem("my-class-id");
+        if (stored && classes.some(item => item.id === stored)) {
+            setQuickClassId(stored);
+        }
+    }, [menu, classes]);
+
+    useEffect(() => {
+        if (!quickClass) {
+            setAttendanceMarked(null);
+            return;
+        }
+
+        let cancelled = false;
+        const date = toLocalISODate();
+        fetch(`/api/attendance?classId=${encodeURIComponent(quickClass.id)}&date=${date}`, {
+            cache: "no-store",
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (!cancelled) setAttendanceMarked(Boolean(data));
+            })
+            .catch(() => {
+                if (!cancelled) setAttendanceMarked(null);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [quickClass]);
 
     useEffect(() => {
         if (!menu) return;
@@ -88,6 +188,86 @@ function QuickActionsInner({
         setMenu(null);
         setMode(next);
     };
+
+    const openQuickAction = async (next: QuickAction) => {
+        setMenu(null);
+        if (!quickClass) {
+            router.push("/my-class");
+            return;
+        }
+
+        const date = toLocalISODate();
+        const students = quickClass.students ?? [];
+
+        try {
+            const [attendanceResponse, passesResponse] = await Promise.all([
+                fetch(`/api/attendance?classId=${encodeURIComponent(quickClass.id)}&date=${date}`, {
+                    cache: "no-store",
+                }),
+                fetch(`/api/passes?classId=${encodeURIComponent(quickClass.id)}&date=${date}`, {
+                    cache: "no-store",
+                }),
+            ]);
+            const [attendance, passes] = await Promise.all([
+                attendanceResponse.json().catch(() => null),
+                passesResponse.json().catch(() => []),
+            ]);
+
+            setQuickData({
+                students,
+                existingPasses: Array.isArray(passes) ? passes : [],
+                existingAttendance: attendance ?? null,
+            });
+            setQuickAction(next);
+        } catch {
+            toast.show({
+                title: "Не удалось открыть быстрые действия",
+                description: "Проверьте соединение и повторите",
+                tone: "danger",
+            });
+        }
+    };
+
+    const submitQuickPass = async (data: {
+        date: string;
+        students: Array<{ id: string | number; name: string }>;
+        exitTime: string;
+        reason: string;
+    }) => {
+        if (!quickClass) throw new Error("Класс не выбран");
+
+        const response = await fetch("/api/passes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...data, classId: quickClass.id }),
+        });
+        if (!response.ok) throw new Error("Не удалось оформить пропуск");
+        toast.show({ title: "Пропуск оформлен", tone: "success" });
+    };
+
+    const submitQuickAttendance = async (data: {
+        date: string;
+        presentStudents: string[];
+        absentStudents: string[];
+        absentReasons: Record<string, string>;
+    }) => {
+        if (!quickClass) throw new Error("Класс не выбран");
+
+        const response = await fetch("/api/attendance", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...data, classId: quickClass.id }),
+        });
+        if (!response.ok) throw new Error("Не удалось сохранить отметку");
+        setAttendanceMarked(true);
+        toast.show({ title: "Присутствие отмечено", tone: "success" });
+    };
+
+    const closeQuick = () => {
+        setQuickAction(null);
+        setQuickData(null);
+    };
+
 
     const handleSubmitViolation = async (data: {
         studentId: string;
@@ -113,7 +293,7 @@ function QuickActionsInner({
         });
     };
 
-    if (!showKeys && !canViolations) return null;
+    if (!showKeys && !canViolations && !(canMyClass && quickClass)) return null;
 
     return (
         <>
@@ -171,6 +351,26 @@ function QuickActionsInner({
                         </div>
                     )}
 
+                    {menu === "quick" && quickClass && (
+                        <div className="absolute bottom-full left-1/2 mb-2 flex min-w-40 -translate-x-1/2 flex-col items-center gap-2 rounded-2xl border border-border bg-surface p-1.5 shadow-raised">
+                            <p className="px-2 pt-1 text-[11px] font-medium text-fg-subtle">
+                                {quickClass.name}
+                            </p>
+                            <IconAction
+                                icon={Ticket}
+                                label="Выписать пропуск"
+                                onClick={() => void openQuickAction("pass")}
+                                className="border-warning/40 bg-warning-soft text-warning hover:bg-warning/20"
+                            />
+                            <IconAction
+                                icon={UserCheck}
+                                label="Отметить присутствие"
+                                onClick={() => void openQuickAction("attendance")}
+                                className="border-success/40 bg-success-soft text-success hover:bg-success/20"
+                            />
+                        </div>
+                    )}
+
                     <div className="flex items-center gap-1.5 rounded-full border border-border bg-surface p-1.5 shadow-raised">
                         {showKeys && (
                             <MainAction
@@ -193,6 +393,18 @@ function QuickActionsInner({
                                 className="border-danger/40 bg-danger-soft text-danger hover:bg-danger/20"
                             />
                         )}
+                        {canMyClass && quickClass && (
+                            <MainAction
+                                icon={ClipboardCheck}
+                                label="Пропуск и присутствие"
+                                active={menu === "quick"}
+                                hasBadge={attendanceMarked === false}
+                                onClick={() =>
+                                    setMenu(current => (current === "quick" ? null : "quick"))
+                                }
+                                className="border-info/40 bg-info-soft text-info hover:bg-info/20"
+                            />
+                        )}
                     </div>
                 </div>
             </div>
@@ -207,6 +419,25 @@ function QuickActionsInner({
                 isOpen={violationOpen}
                 onClose={() => setViolationOpen(false)}
                 onSubmit={handleSubmitViolation}
+            />
+
+            <PassModal
+                isOpen={quickAction === "pass" && quickData !== null}
+                onClose={closeQuick}
+                selectedDate={new Date()}
+                onSubmit={submitQuickPass}
+                existingPasses={quickData?.existingPasses ?? []}
+                absentStudentsOnDate={quickData?.existingAttendance?.absentStudents ?? []}
+                studentsList={quickData?.students ?? []}
+            />
+
+            <AttendanceModal
+                isOpen={quickAction === "attendance" && quickData !== null}
+                onClose={closeQuick}
+                selectedDate={new Date()}
+                onSubmit={submitQuickAttendance}
+                existingAttendance={quickData?.existingAttendance ?? null}
+                studentsList={quickData?.students ?? []}
             />
         </>
     );
