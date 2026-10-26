@@ -7,9 +7,14 @@ import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import {
     ArrowRight,
+    BarChart3,
+    ChevronDown,
     KeyRound,
     School,
     ShieldCheck,
+    Star,
+    Users,
+    X,
 } from "lucide-react";
 import { Badge, Button, Card, EmptyState, Skeleton } from "@/components/ui/kit";
 import { EmployeeHeader } from "@/components/shell/EmployeeHeader";
@@ -59,6 +64,7 @@ export default function PortalPage() {
     const [data, setData] = useState<PortalData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [profileOpen, setProfileOpen] = useState(false);
 
     useEffect(() => {
         setMounted(true);
@@ -127,22 +133,46 @@ export default function PortalPage() {
             />
 
             <main className="mx-auto w-full max-w-5xl space-y-4 px-4 py-5">
-                {/* Приветствие */}
-                <Card padding="md" className="relative overflow-hidden">
+                {/* Приветствие + статистика сотрудника */}
+                <div className="relative md:grid md:grid-cols-[minmax(0,1fr)_300px] md:items-start md:gap-3">
+                    <Card
+                        padding="md"
+                        className="relative cursor-pointer overflow-hidden md:cursor-default"
+                        onClick={() => setProfileOpen(value => !value)}
+                    >
+                        <div
+                            className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-accent/10 blur-2xl"
+                            aria-hidden
+                        />
+                        <p className="text-xs uppercase tracking-wide text-fg-subtle">Электронные сервисы школы</p>
+                        <h1 className="mt-1 text-xl font-semibold text-fg sm:text-2xl">
+                            Здравствуйте, {shortName(data?.user.name ?? session.user.name)}
+                        </h1>
+                        <p className="mt-1 max-w-xl truncate text-sm text-fg-muted">
+                            {hasMyClass || hasKeys || hasAdminServices
+                                ? "Выберите сервис — доступные разделы уже собраны для вас."
+                                : "Пока сервисы не назначены. Обратитесь к администратору — он выдаст нужные разделы."}
+                        </p>
+                        <span className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface text-fg-muted md:hidden">
+                            <ChevronDown
+                                size={16}
+                                className={`transition-transform ${profileOpen ? "rotate-180" : ""}`}
+                                aria-hidden
+                            />
+                        </span>
+                    </Card>
+
                     <div
-                        className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-accent/10 blur-2xl"
-                        aria-hidden
-                    />
-                    <p className="text-xs uppercase tracking-wide text-fg-subtle">Электронные сервисы школы</p>
-                    <h1 className="mt-1 text-xl font-semibold text-fg sm:text-2xl">
-                        Здравствуйте, {shortName(data?.user.name ?? session.user.name)}
-                    </h1>
-                    <p className="mt-1 max-w-xl text-sm text-fg-muted">
-                        {hasMyClass || hasKeys || hasAdminServices
-                            ? "Выберите сервис — доступные разделы уже собраны для вас."
-                            : "Пока сервисы не назначены. Обратитесь к администратору — он выдаст нужные разделы."}
-                    </p>
-                </Card>
+                        className={`${
+                            profileOpen ? "absolute left-0 right-0 top-full z-20 mt-2 block" : "hidden"
+                        } md:static md:mt-0 md:block`}
+                    >
+                        <UserStatsCard
+                            data={data}
+                            onClose={() => setProfileOpen(false)}
+                        />
+                    </div>
+                </div>
 
                 {error && (
                     <Card padding="md" className="border-danger/40 bg-danger-soft">
@@ -167,8 +197,8 @@ export default function PortalPage() {
                             className="group block rounded-card border border-dashed border-border bg-surface p-4 shadow-card transition-colors hover:border-accent/50 hover:bg-surface-hover"
                         >
                             <div className="flex items-start gap-3">
-                                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-control bg-accent-soft text-accent-text">
-                                    <School size={22} aria-hidden />
+                                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-control bg-accent-soft text-accent-text">
+                                    <School size={26} aria-hidden />
                                 </span>
                                 <div className="min-w-0 flex-1">
                                     <div className="flex flex-wrap items-center gap-2">
@@ -179,7 +209,7 @@ export default function PortalPage() {
                                             </Badge>
                                         ))}
                                     </div>
-                                    <p className="mt-1 text-sm text-fg-muted">
+                                    <p className="mt-1 truncate text-sm text-fg-muted">
                                         Посещаемость, нарушения, выход из школы и др.
                                     </p>
                                 </div>
@@ -207,12 +237,12 @@ export default function PortalPage() {
                             className="group block rounded-card border border-dashed border-border bg-surface p-4 shadow-card transition-colors hover:border-accent/50 hover:bg-surface-hover"
                         >
                             <div className="flex items-start gap-3">
-                                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-control bg-accent-soft text-accent-text">
-                                    <KeyRound size={22} aria-hidden />
+                                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-control bg-accent-soft text-accent-text">
+                                    <KeyRound size={26} aria-hidden />
                                 </span>
                                 <div className="min-w-0 flex-1">
                                     <h3 className="text-base font-semibold text-fg">Ключи</h3>
-                                    <p className="mt-1 text-sm text-fg-muted">
+                                    <p className="mt-1 truncate text-sm text-fg-muted">
                                         Взять, сдать или передать ключ, мои ключи и заявки
                                     </p>
                                 </div>
@@ -240,8 +270,8 @@ export default function PortalPage() {
                             className="group block rounded-card border border-dashed border-border bg-surface p-4 shadow-card transition-colors hover:border-accent/50 hover:bg-surface-hover"
                         >
                             <div className="flex items-start gap-3">
-                                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-control bg-accent-soft text-accent-text">
-                                    <ShieldCheck size={22} aria-hidden />
+                                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-control bg-accent-soft text-accent-text">
+                                    <ShieldCheck size={26} aria-hidden />
                                 </span>
                                 <div className="min-w-0 flex-1">
                                     <div className="flex flex-wrap items-center gap-2">
@@ -251,7 +281,7 @@ export default function PortalPage() {
                                             {adminServices.length === 1 ? "раздел" : adminServices.length < 5 ? "раздела" : "разделов"}
                                         </Badge>
                                     </div>
-                                    <p className="mt-1 text-sm text-fg-muted">
+                                    <p className="mt-1 truncate text-sm text-fg-muted">
                                         Администрирование и аналитика
                                     </p>
                                 </div>
@@ -278,6 +308,69 @@ export default function PortalPage() {
                     Электронный пропуск · вход {data?.user.email ?? session.user.email}
                 </p>
             </main>
+        </div>
+    );
+}
+
+function UserStatsCard({
+    data,
+    onClose,
+}: {
+    data: PortalData | null;
+    onClose: () => void;
+}) {
+    const classesCount = data?.myClass.classes.length ?? 0;
+    const studentsCount = data?.myClass.studentsCount ?? 0;
+    const servicesCount = data?.services.length ?? 0;
+    const hasKeys = data?.services.some(service => service.id === "keys") ?? false;
+
+    return (
+        <div className="rounded-card border border-border bg-surface p-3 shadow-raised md:shadow-card">
+            <div className="flex items-center justify-between gap-2">
+                <p className="flex items-center gap-1.5 text-sm font-semibold text-fg">
+                    <BarChart3 size={16} className="text-accent-text" aria-hidden />
+                    Статистика сотрудника
+                </p>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    aria-label="Закрыть статистику"
+                    className="flex h-7 w-7 items-center justify-center rounded-control text-fg-muted hover:bg-surface-hover hover:text-fg md:hidden"
+                >
+                    <X size={16} aria-hidden />
+                </button>
+            </div>
+
+            <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="rounded-control border border-border bg-surface-2 px-2 py-1.5">
+                    <p className="text-[10px] text-fg-subtle">Классов</p>
+                    <p className="text-lg font-semibold tabular-nums text-fg">{classesCount}</p>
+                </div>
+                <div className="rounded-control border border-border bg-surface-2 px-2 py-1.5">
+                    <p className="text-[10px] text-fg-subtle">Учеников</p>
+                    <p className="text-lg font-semibold tabular-nums text-fg">{studentsCount}</p>
+                </div>
+                <div className="rounded-control border border-border bg-surface-2 px-2 py-1.5">
+                    <p className="text-[10px] text-fg-subtle">Сервисов</p>
+                    <p className="text-lg font-semibold tabular-nums text-fg">{servicesCount}</p>
+                </div>
+            </div>
+
+            <div className="mt-2 flex items-center gap-2 rounded-control border border-dashed border-border px-2.5 py-2 text-xs text-fg-muted">
+                <Star size={14} className="shrink-0 text-warning" aria-hidden />
+                <span className="min-w-0 flex-1">Рейтинг сотрудника</span>
+                <Badge tone="neutral">скоро</Badge>
+            </div>
+
+            <div className="mt-2 flex items-center gap-2 text-[11px] text-fg-subtle">
+                <Users size={13} aria-hidden />
+                <span>{data?.user.roles.length ? data.user.roles.join(" · ") : "Сотрудник"}</span>
+                {hasKeys && (
+                    <span className="ml-auto flex items-center gap-1">
+                        <KeyRound size={12} aria-hidden /> ключи
+                    </span>
+                )}
+            </div>
         </div>
     );
 }

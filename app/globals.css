@@ -408,6 +408,18 @@ input[type="date"]:invalid::-webkit-datetime-edit {
   }
 }
 
+/* Кнопки быстрых команд «вытекают» вверх из главной кнопки */
+@keyframes quickIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @keyframes sheetUp {
   from {
     transform: translateY(12px);
