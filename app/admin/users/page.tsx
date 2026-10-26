@@ -341,7 +341,7 @@ export default function AdminUsersPage() {
         const email = createForm.email.trim();
 
         if (name.length < 3) {
-            setCreateError("Укажите имя и фамилию — минимум 3 символа");
+            setCreateError("Укажите фамилию и имя — минимум 3 символа");
             return;
         }
         if (!EMAIL_PATTERN.test(email)) {
@@ -759,7 +759,7 @@ export default function AdminUsersPage() {
                     <FormError message={createError} />
 
                     <Input
-                        label="Имя и фамилия"
+                        label="Фамилия, имя, отчество"
                         value={createForm.name}
                         onChange={event => setCreateForm(previous => ({ ...previous, name: event.target.value }))}
                         placeholder="Иванова Мария Петровна"

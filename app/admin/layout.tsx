@@ -36,7 +36,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         pathname === "/admin" &&
         !can("dashboard") &&
         ACCESS_SECTIONS.some(
-            item => item.href && item.id !== "myClass" && !item.adminOnly && can(item.id),
+            item =>
+                item.group === "admin" &&
+                item.href &&
+                item.id !== "myClass" &&
+                !item.adminOnly &&
+                can(item.id),
         );
 
     if (showAdminHome) {

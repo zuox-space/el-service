@@ -26,17 +26,14 @@ export function GuardNotReturnedTab({
     onConfirmReturn: (key: KeyItemDto) => Promise<void>;
 }) {
     const [keyQuery, setKeyQuery] = useState("");
-    const [employeeQuery, setEmployeeQuery] = useState("");
 
     const filtered = useMemo(() => {
         const keyQ = keyQuery.trim().toLowerCase();
-        const employeeQ = employeeQuery.trim().toLowerCase();
         return keys
             .filter(key => {
                 if (keyQ && !`${key.roomNumber} ${key.roomName} ${key.buildingName}`.toLowerCase().includes(keyQ)) {
                     return false;
                 }
-                if (employeeQ && !(key.holderName ?? "").toLowerCase().includes(employeeQ)) return false;
                 return true;
             })
             .sort((a, b) => {
@@ -44,7 +41,7 @@ export function GuardNotReturnedTab({
                 const right = b.issuedAt ? new Date(b.issuedAt).getTime() : 0;
                 return left - right;
             });
-    }, [keys, keyQuery, employeeQuery]);
+    }, [keys, keyQuery]);
 
     const after18 = keys.some(
         key => key.issuedAt && new Date(key.issuedAt).getHours() < 18 && new Date().getHours() >= 18,
@@ -63,18 +60,12 @@ export function GuardNotReturnedTab({
                 <Badge tone={keys.length > 0 ? "warning" : "success"}>{filtered.length}</Badge>
             </div>
 
-            <div className="mb-2 grid gap-2 sm:grid-cols-2">
+            <div className="mb-2 max-w-sm">
                 <Input
                     label="Ключ"
                     value={keyQuery}
                     onChange={event => setKeyQuery(event.target.value)}
                     placeholder="Номер, кабинет или здание"
-                />
-                <Input
-                    label="Сотрудник"
-                    value={employeeQuery}
-                    onChange={event => setEmployeeQuery(event.target.value)}
-                    placeholder="Фамилия держателя"
                 />
             </div>
 
@@ -83,7 +74,7 @@ export function GuardNotReturnedTab({
                     <EmptyState
                         icon={KeyRound}
                         title={keys.length === 0 ? "Все ключи сданы" : "Ничего не найдено"}
-                        description={keys.length === 0 ? "На руках у сотрудников нет ключей" : "Измените ключ или фамилию"}
+                        description={keys.length === 0 ? "На руках у сотрудников нет ключей" : "Измените фильтр по ключу"}
                         compact
                     />
                 ) : (

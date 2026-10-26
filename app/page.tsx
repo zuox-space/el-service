@@ -47,7 +47,8 @@ const shortName = (fullName: string | null | undefined): string => {
     const parts = fullName.trim().split(/\s+/);
     if (parts.length < 2) return parts[0] ?? "Коллега";
 
-    return `${parts[1]} ${parts[0][0]}.${parts[2] ? ` ${parts[2][0]}.` : ""}`;
+    // Всегда «Фамилия И.О.».
+    return `${parts[0]} ${parts[1][0]}.${parts[2] ? ` ${parts[2][0]}.` : ""}`;
 };
 
 export default function PortalPage() {

@@ -109,7 +109,8 @@ export function shortName(fullName: string | null | undefined): string {
     if (!fullName) return "Сотрудник";
     const parts = fullName.trim().split(/\s+/);
     if (parts.length < 2) return parts[0] ?? "Сотрудник";
-    return `${parts[1]} ${parts[0][0]}.${parts[2] ? ` ${parts[2][0]}.` : ""}`;
+    // Всегда «Фамилия И.О.», даже если исходная строка пришла в другом порядке.
+    return `${parts[0]} ${parts[1][0]}.${parts[2] ? ` ${parts[2][0]}.` : ""}`;
 }
 
 function toRequest(row: RequestRow): KeyRequestDto {

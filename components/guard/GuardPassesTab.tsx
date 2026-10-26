@@ -3,7 +3,7 @@
 // components/guard/GuardPassesTab.tsx
 import { useMemo, useState } from "react";
 import { Clock, LogOut, Undo2, UserRound } from "lucide-react";
-import { Badge, Button, Card, EmptyState, Input, Tabs } from "@/components/ui/kit";
+import { Badge, Button, Card, EmptyState, Select, Tabs } from "@/components/ui/kit";
 import { AlphabetFilter, surnameLetter } from "./AlphabetFilter";
 
 export interface GuardPass {
@@ -22,13 +22,10 @@ function names(pass: GuardPass): string[] {
     return pass.students.map(student => student.name ?? "").filter(Boolean);
 }
 
-function matches(pass: GuardPass, query: string, letter: string): boolean {
+function matches(pass: GuardPass, letter: string, className: string): boolean {
+    if (className !== "all" && pass.className !== className) return false;
     const students = names(pass);
     if (letter !== "all" && !students.some(name => surnameLetter(name) === letter)) return false;
-    if (query.trim()) {
-        const haystack = `${pass.className} ${students.join(" ")} ${pass.reason} ${pass.teacherName}`.toLowerCase();
-        if (!haystack.includes(query.trim().toLowerCase())) return false;
-    }
     return true;
 }
 
@@ -49,10 +46,17 @@ export function GuardPassesTab({
     onUndo: (id: string) => Promise<void>;
 }) {
     const [tab, setTab] = useState<"active" | "used">("active");
-    const [query, setQuery] = useState("");
     const [letter, setLetter] = useState("all");
+    const [className, setClassName] = useState("all");
 
-    const filtered = useMemo(() => passes.filter(pass => matches(pass, query, letter)), [passes, query, letter]);
+    const classes = useMemo(
+        () => [...new Set(passes.map(pass => pass.className))].sort((a, b) => a.localeCompare(b, "ru")),
+        [passes],
+    );
+    const filtered = useMemo(
+        () => passes.filter(pass => matches(pass, letter, className)),
+        [passes, letter, className],
+    );
     const active = filtered.filter(pass => !pass.used);
     const used = filtered.filter(pass => pass.used);
     const current = tab === "active" ? active : used;
@@ -60,12 +64,15 @@ export function GuardPassesTab({
     return (
         <div className="flex h-full min-h-0 flex-col gap-2">
             <div className="flex flex-wrap items-center gap-2">
-                <Input
-                    value={query}
-                    onChange={event => setQuery(event.target.value)}
-                    placeholder="Ученик, класс, причина или кто выписал"
-                    aria-label="Поиск пропуска"
-                    wrapperClassName="w-full sm:w-80"
+                <Select
+                    aria-label="Класс"
+                    value={className}
+                    onChange={setClassName}
+                    options={[
+                        { value: "all", label: "Все классы" },
+                        ...classes.map(item => ({ value: item, label: item })),
+                    ]}
+                    wrapperClassName="w-full sm:w-56"
                 />
                 <div className="ml-auto text-xs text-fg-subtle">
                     {tab === "active" ? "Ещё в школе" : "Выход отмечен"}

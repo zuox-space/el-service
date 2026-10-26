@@ -3,7 +3,7 @@
 // components/guard/GuardSelfExitsTab.tsx
 import { useMemo, useState } from "react";
 import { CalendarCheck } from "lucide-react";
-import { Badge, Card, EmptyState, Input } from "@/components/ui/kit";
+import { Badge, Card, EmptyState, Select } from "@/components/ui/kit";
 import { AlphabetFilter, surnameLetter } from "./AlphabetFilter";
 
 export interface GuardSelfExit {
@@ -17,20 +17,22 @@ export interface GuardSelfExit {
 }
 
 export function GuardSelfExitsTab({ items }: { items: GuardSelfExit[] }) {
-    const [query, setQuery] = useState("");
     const [letter, setLetter] = useState("all");
+    const [className, setClassName] = useState("all");
+
+    const classes = useMemo(
+        () => [...new Set(items.map(item => item.className))].sort((a, b) => a.localeCompare(b, "ru")),
+        [items],
+    );
 
     const filtered = useMemo(
         () =>
             items.filter(item => {
+                if (className !== "all" && item.className !== className) return false;
                 if (letter !== "all" && surnameLetter(item.studentName) !== letter) return false;
-                if (query.trim()) {
-                    const haystack = `${item.studentName} ${item.className} ${item.reason ?? ""}`.toLowerCase();
-                    if (!haystack.includes(query.trim().toLowerCase())) return false;
-                }
                 return true;
             }),
-        [items, query, letter],
+        [items, letter, className],
     );
 
     return (
@@ -45,12 +47,15 @@ export function GuardSelfExitsTab({ items }: { items: GuardSelfExit[] }) {
                 </Badge>
             </div>
 
-            <Input
-                value={query}
-                onChange={event => setQuery(event.target.value)}
-                placeholder="Поиск по имени ребёнка"
-                aria-label="Поиск по имени ребёнка"
-                wrapperClassName="mb-2 w-full sm:w-72"
+            <Select
+                aria-label="Класс"
+                value={className}
+                onChange={setClassName}
+                options={[
+                    { value: "all", label: "Все классы" },
+                    ...classes.map(item => ({ value: item, label: item })),
+                ]}
+                wrapperClassName="mb-2 w-full sm:w-56"
             />
             <div className="mb-2">
                 <AlphabetFilter value={letter} onChange={setLetter} />
@@ -61,7 +66,7 @@ export function GuardSelfExitsTab({ items }: { items: GuardSelfExit[] }) {
                     <EmptyState
                         icon={CalendarCheck}
                         title={items.length === 0 ? "Самовыходов нет" : "Никого не найдено"}
-                        description={items.length === 0 ? "На сегодня разрешений нет" : "Измените имя или букву"}
+                        description={items.length === 0 ? "На сегодня разрешений нет" : "Измените класс или букву"}
                         compact
                     />
                 ) : (

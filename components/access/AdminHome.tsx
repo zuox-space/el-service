@@ -45,7 +45,11 @@ export function AdminHome() {
     const { can } = useAccess();
 
     const sections = ACCESS_SECTIONS.filter(
-        section => section.href && section.id !== "myClass" && can(section.id),
+        section =>
+            section.group === "admin" &&
+            section.href &&
+            section.id !== "myClass" &&
+            can(section.id),
     );
 
     return (
