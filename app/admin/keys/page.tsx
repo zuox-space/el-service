@@ -339,6 +339,7 @@ function KeyAccessModal({
     const toast = useToast();
     const [scope, setScope] = useState<"ALL" | "RESTRICTED">("ALL");
     const [buildingId, setBuildingId] = useState("");
+    const [roomName, setRoomName] = useState("");
     const [selected, setSelected] = useState<string[]>([]);
     const [userQuery, setUserQuery] = useState("");
     const [loading, setLoading] = useState(false);
@@ -347,11 +348,13 @@ function KeyAccessModal({
         if (!keyItem) {
             setSelected([]);
             setScope("ALL");
+            setRoomName("");
             return;
         }
 
         setLoading(true);
         setBuildingId(keyItem.buildingId);
+        setRoomName(keyItem.roomName ?? "");
         fetch(`/api/keys/${keyItem.id}/permissions`, { cache: "no-store" })
             .then(response => response.json())
             .then(data => {
@@ -364,15 +367,19 @@ function KeyAccessModal({
     const save = async () => {
         if (!keyItem) return;
 
-        if (buildingId && buildingId !== keyItem.buildingId) {
-            const moved = await fetch(`/api/keys/${keyItem.id}`, {
+        const changes: { buildingId?: string; roomName?: string } = {};
+        if (buildingId && buildingId !== keyItem.buildingId) changes.buildingId = buildingId;
+        if (roomName.trim() !== (keyItem.roomName ?? "")) changes.roomName = roomName.trim();
+
+        if (Object.keys(changes).length > 0) {
+            const updated = await fetch(`/api/keys/${keyItem.id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ buildingId }),
+                body: JSON.stringify(changes),
             });
-            const movedData = await moved.json().catch(() => ({}));
-            if (!moved.ok) {
-                toast.show({ title: "Ошибка", description: movedData.error, tone: "danger" });
+            const updatedData = await updated.json().catch(() => ({}));
+            if (!updated.ok) {
+                toast.show({ title: "Ошибка", description: updatedData.error, tone: "danger" });
                 return;
             }
         }
@@ -397,10 +404,16 @@ function KeyAccessModal({
             open={Boolean(keyItem)}
             onClose={onClose}
             title={keyItem ? `Изменить ключ ${keyItem.roomNumber}` : "Изменить ключ"}
-            description="Здание и права доступа"
+            description="Название, здание и права доступа"
             footer={<ModalFooter onCancel={onClose} onSubmit={() => void save()} submitLabel="Сохранить" loading={loading} />}
         >
             <div className="space-y-3">
+                <Input
+                    label="Название кабинета"
+                    value={roomName}
+                    onChange={event => setRoomName(event.target.value)}
+                    placeholder="Например: кабинет физики"
+                />
                 <Select
                     label="Здание"
                     value={buildingId}
