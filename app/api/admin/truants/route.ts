@@ -85,6 +85,19 @@ export async function GET(req: NextRequest) {
             classMap.set(cls.id, cls.name);
         });
 
+        // В AIS классы приходят в виде «5-А», а в PostgreSQL канонический
+        // формат — «5А». Без нормализации фильтры по классу и зданию
+        // сравнивали разные строки и не находили совпадений.
+        const normalizeClassName = (value: string) =>
+            value.replace(/\s*[-–—]\s*/g, "").replace(/\s+/g, "").toUpperCase();
+        const canonicalClassNames = new Map(
+            allClasses.map(cls => [normalizeClassName(cls.name), cls.name]),
+        );
+        const canonicalClassName = (value: string) => {
+            const normalized = normalizeClassName(value);
+            return canonicalClassNames.get(normalized) ?? normalized;
+        };
+
         // 3. Собираем ВСЕХ студентов из MySQL
         const allStudentsFromMySQL = await query<{
             aisId: string;
@@ -161,7 +174,7 @@ export async function GET(req: NextRequest) {
                     absenceMap.set(studentId, {
                         studentId: studentId,
                         name: studentInfo.name,
-                        currentClass: studentInfo.className,
+                        currentClass: canonicalClassName(studentInfo.className),
                         totalAbsences: 0,
                         absences: [],
                         reasons: {}

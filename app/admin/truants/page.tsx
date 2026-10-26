@@ -44,12 +44,10 @@ const REASONS = [
 const reasonLabel = (id: string) => REASONS.find(reason => reason.id === id)?.label ?? id;
 const reasonTone = (id: string) => REASONS.find(reason => reason.id === id)?.tone ?? "neutral";
 
-const GRADE_GROUPS = [
-    { id: "1-3", label: "1–3 классы", grades: [1, 2, 3] },
-    { id: "4-6", label: "4–6 классы", grades: [4, 5, 6] },
-    { id: "7-9", label: "7–9 классы", grades: [7, 8, 9] },
-    { id: "10-11", label: "10–11 классы", grades: [10, 11] },
-];
+const GRADE_OPTIONS = Array.from({ length: 11 }, (_, index) => {
+    const grade = index + 1;
+    return { id: String(grade), label: String(grade) };
+});
 
 // Ъ, Ы и Ь не могут начинать имя или фамилию — в фильтре они только мешают.
 const ALPHABET = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЭЮЯ".split("");
@@ -165,7 +163,7 @@ export default function TruantsPage() {
 
     const rows = useMemo(() => {
         const query = search.trim().toLowerCase();
-        const group = GRADE_GROUPS.find(item => item.id === gradeGroup);
+        const grade = gradeGroup ? Number.parseInt(gradeGroup, 10) : null;
         const buildingClassNames = buildingId
             ? new Set((buildings.find(item => item.id === buildingId)?.classes ?? []).map(item => item.name))
             : null;
@@ -173,7 +171,7 @@ export default function TruantsPage() {
 
         const filtered = truants.filter(truant => {
             if (query && !truant.name.toLowerCase().includes(query)) return false;
-            if (group && !group.grades.includes(truant.grade)) return false;
+            if (grade !== null && truant.grade !== grade) return false;
             if (className && truant.className !== className) return false;
             if (buildingClassNames && !buildingClassNames.has(truant.className)) return false;
             if (letter && truant.name.charAt(0).toUpperCase() !== letter) return false;
@@ -384,7 +382,7 @@ export default function TruantsPage() {
                                     setGradeGroup(value);
                                     setClassName("");
                                 }}
-                                options={GRADE_GROUPS.map(group => ({ value: group.id, label: group.label }))}
+                                options={GRADE_OPTIONS.map(option => ({ value: option.id, label: option.label }))}
                             />
                             <Select
                                 aria-label="Здание"
