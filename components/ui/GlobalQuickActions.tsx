@@ -7,13 +7,16 @@ import { useSession } from "next-auth/react";
 import {
     CircleAlert,
     ClipboardCheck,
+    HelpCircle,
     History,
     Inbox,
+    Key,
     KeyRound,
+    RotateCcw,
     Sparkles,
     Ticket,
-    Undo2,
     UserCheck,
+    X,
 } from "lucide-react";
 import { useAccess } from "@/components/access/AccessProvider";
 import { KeysProvider, useKeys } from "@/components/keys/KeysProvider";
@@ -91,6 +94,8 @@ function QuickActionsInner({
     const [quickClassId, setQuickClassId] = useState("");
     const [attendanceMarked, setAttendanceMarked] = useState<boolean | null>(null);
     const [quickAction, setQuickAction] = useState<QuickAction | null>(null);
+    const [helpOpen, setHelpOpen] = useState(false);
+    const helpWasOpen = useRef(false);
     const [quickData, setQuickData] = useState<{
         students: Array<{ id: string | number; name: string }>;
         existingPasses: Array<{ students?: Array<{ id: string | number; name: string }> }>;
@@ -170,6 +175,34 @@ function QuickActionsInner({
             cancelled = true;
         };
     }, [quickClass]);
+
+    useEffect(() => {
+        if (!menu) {
+            helpWasOpen.current = false;
+            setHelpOpen(false);
+            return;
+        }
+
+        if (!helpWasOpen.current) {
+            helpWasOpen.current = true;
+            try {
+                if (window.localStorage.getItem("quick-help-hidden") !== "1") {
+                    setHelpOpen(true);
+                }
+            } catch {
+                setHelpOpen(true);
+            }
+        }
+    }, [menu]);
+
+    const hideHelpForever = () => {
+        setHelpOpen(false);
+        try {
+            window.localStorage.setItem("quick-help-hidden", "1");
+        } catch {
+            // приватный режим — просто скрываем на текущий сеанс
+        }
+    };
 
     useEffect(() => {
         if (!menu) return;
@@ -297,6 +330,73 @@ function QuickActionsInner({
         });
     };
 
+    const keysPanel = (
+        <div className="absolute bottom-full left-1/2 mb-2 flex -translate-x-1/2 flex-col items-center gap-2 rounded-full border border-border bg-surface p-1.5 shadow-raised animate-[quickIn_180ms_ease-out]">
+            <IconAction
+                icon={Key}
+                label="Взять ключ"
+                onClick={() => openMode("take")}
+                className="border-accent/40 bg-accent-soft text-accent-text hover:bg-accent/20"
+            />
+            <IconAction
+                icon={RotateCcw}
+                label="Сдать ключ"
+                onClick={() => openMode("my")}
+                className="border-success/40 bg-success-soft text-success hover:bg-success/20"
+            />
+            {incoming.length > 0 && (
+                <IconAction
+                    icon={Inbox}
+                    label="Принять переданный ключ"
+                    badge={incoming.length}
+                    onClick={() => openMode("incoming")}
+                    className="border-warning/40 bg-warning-soft text-warning hover:bg-warning/20"
+                />
+            )}
+        </div>
+    );
+
+    const violationsPanel = (
+        <div className="absolute bottom-full left-1/2 mb-2 flex -translate-x-1/2 flex-col items-center gap-2 rounded-full border border-border bg-surface p-1.5 shadow-raised animate-[quickIn_180ms_ease-out]">
+            <IconAction
+                icon={CircleAlert}
+                label="Зафиксировать нарушение"
+                onClick={() => {
+                    setMenu(null);
+                    setViolationOpen(true);
+                }}
+                className="border-danger/40 bg-danger-soft text-danger hover:bg-danger/20"
+            />
+            <IconAction
+                icon={History}
+                label="История моих фиксаций"
+                onClick={() => {
+                    setMenu(null);
+                    router.push("/my-violations");
+                }}
+                className="border-border bg-surface-2 text-fg-muted hover:bg-surface-3 hover:text-fg"
+            />
+        </div>
+    );
+
+    const classPanel = quickClass ? (
+        <div className="absolute bottom-full left-1/2 mb-2 flex -translate-x-1/2 flex-col items-center gap-2 rounded-full border border-border bg-surface p-1.5 shadow-raised animate-[quickIn_180ms_ease-out]">
+            <IconAction
+                icon={Ticket}
+                label="Выписать пропуск"
+                onClick={() => void openQuickAction("pass")}
+                className="border-warning/40 bg-warning-soft text-warning hover:bg-warning/20"
+            />
+            <IconAction
+                icon={UserCheck}
+                label="Отметить присутствие"
+                alert={attendanceMarked === false}
+                onClick={() => void openQuickAction("attendance")}
+                className="border-success/40 bg-success-soft text-success hover:bg-success/20"
+            />
+        </div>
+    ) : null;
+
     if (!showKeys && !canViolations && !showClassActions) return null;
 
     return (
@@ -312,111 +412,111 @@ function QuickActionsInner({
                 />
             )}
 
-            {menu !== null && (
+            {menu !== null && helpOpen && (
                 <div className="pointer-events-none fixed inset-x-0 top-20 z-40 flex justify-center px-4">
-                    <div className="flex max-w-full flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-full border border-border bg-surface/95 px-3 py-1.5 text-[11px] text-fg-muted shadow-raised backdrop-blur-sm">
-                        {showKeys && <span><b className="text-fg">Ключи</b> — взять, сдать, принять</span>}
-                        {canViolations && <span><b className="text-fg">Нарушения</b> — фиксация и история</span>}
-                        {showClassActions && <span><b className="text-fg">Класс</b> — пропуск и присутствие</span>}
+                    <div className="pointer-events-auto w-full max-w-md rounded-2xl border border-accent/25 bg-surface/95 p-3 shadow-raised backdrop-blur-sm">
+                        <div className="flex items-start gap-2">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent-text">
+                                <HelpCircle size={17} aria-hidden />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-sm font-semibold text-fg">Что означают кнопки</p>
+                                <p className="text-[11px] text-fg-subtle">Нажмите на значок — откроются действия</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setHelpOpen(false)}
+                                aria-label="Закрыть подсказку"
+                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-control text-fg-muted hover:bg-surface-hover hover:text-fg"
+                            >
+                                <X size={15} aria-hidden />
+                            </button>
+                        </div>
+
+                        <div className="mt-2.5 space-y-1.5">
+                            {showKeys && (
+                                <div className="flex items-center gap-2 rounded-control bg-surface-2 px-2.5 py-1.5">
+                                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent-soft text-accent-text">
+                                        <Key size={14} aria-hidden />
+                                    </span>
+                                    <p className="text-xs text-fg-muted">
+                                        <b className="text-fg">Ключи</b> — взять, сдать, принять
+                                    </p>
+                                </div>
+                            )}
+                            {canViolations && (
+                                <div className="flex items-center gap-2 rounded-control bg-surface-2 px-2.5 py-1.5">
+                                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-danger-soft text-danger">
+                                        <CircleAlert size={14} aria-hidden />
+                                    </span>
+                                    <p className="text-xs text-fg-muted">
+                                        <b className="text-fg">Нарушения</b> — зафиксировать, история
+                                    </p>
+                                </div>
+                            )}
+                            {showClassActions && (
+                                <div className="flex items-center gap-2 rounded-control bg-surface-2 px-2.5 py-1.5">
+                                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-info-soft text-info">
+                                        <ClipboardCheck size={14} aria-hidden />
+                                    </span>
+                                    <p className="text-xs text-fg-muted">
+                                        <b className="text-fg">Класс</b> — выписать пропуск, отметить присутствие
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="mt-2.5 flex items-center justify-between gap-2">
+                            <button
+                                type="button"
+                                onClick={hideHelpForever}
+                                className="text-[11px] text-fg-subtle underline-offset-2 hover:text-fg hover:underline"
+                            >
+                                Больше не показывать
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setHelpOpen(false)}
+                                className="rounded-full bg-accent-solid px-3 py-1.5 text-xs font-medium text-accent-fg"
+                            >
+                                Понятно
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
 
             <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-4 sm:bottom-6">
                 <div ref={rootRef} className="relative">
-                    {menu !== null && (
-                        <div className="absolute bottom-full left-1/2 mb-2 flex -translate-x-1/2 flex-col items-center gap-2">
-                            {menu === "keys" && (
-                                <div className="flex animate-[quickIn_180ms_ease-out] flex-col items-center gap-2 rounded-full border border-border bg-surface p-1.5 shadow-raised">
-                                    <IconAction
-                                        icon={KeyRound}
-                                        label="Взять ключ"
-                                        onClick={() => openMode("take")}
-                                        className="border-accent/40 bg-accent-soft text-accent-text hover:bg-accent/20"
-                                    />
-                                    <IconAction
-                                        icon={Undo2}
-                                        label="Сдать ключ"
-                                        onClick={() => openMode("my")}
-                                        className="border-success/40 bg-success-soft text-success hover:bg-success/20"
-                                    />
-                                    {incoming.length > 0 && (
-                                        <IconAction
-                                            icon={Inbox}
-                                            label="Принять переданный ключ"
-                                            badge={incoming.length}
-                                            onClick={() => openMode("incoming")}
-                                            className="border-warning/40 bg-warning-soft text-warning hover:bg-warning/20"
-                                        />
-                                    )}
-                                </div>
-                            )}
-
-                            {menu === "violations" && (
-                                <div className="flex animate-[quickIn_180ms_ease-out] flex-col items-center gap-2 rounded-full border border-border bg-surface p-1.5 shadow-raised">
-                                    <IconAction
-                                        icon={CircleAlert}
-                                        label="Зафиксировать нарушение"
-                                        onClick={() => {
-                                            setMenu(null);
-                                            setViolationOpen(true);
-                                        }}
-                                        className="border-danger/40 bg-danger-soft text-danger hover:bg-danger/20"
-                                    />
-                                    <IconAction
-                                        icon={History}
-                                        label="История моих фиксаций"
-                                        onClick={() => {
-                                            setMenu(null);
-                                            router.push("/my-violations");
-                                        }}
-                                        className="border-border bg-surface-2 text-fg-muted hover:bg-surface-3 hover:text-fg"
-                                    />
-                                </div>
-                            )}
-
-                            {menu === "quick" && quickClass && (
-                                <div className="flex animate-[quickIn_180ms_ease-out] flex-col items-center gap-2 rounded-full border border-border bg-surface p-1.5 shadow-raised">
-                                    <IconAction
-                                        icon={Ticket}
-                                        label="Выписать пропуск"
-                                        onClick={() => void openQuickAction("pass")}
-                                        className="border-warning/40 bg-warning-soft text-warning hover:bg-warning/20"
-                                    />
-                                    <IconAction
-                                        icon={UserCheck}
-                                        label="Отметить присутствие"
-                                        alert={attendanceMarked === false}
-                                        onClick={() => void openQuickAction("attendance")}
-                                        className="border-success/40 bg-success-soft text-success hover:bg-success/20"
-                                    />
-                                </div>
-                            )}
-                        </div>
-                    )}
 
                     {menu !== null && (showKeys || canViolations) && (
                         <div className="absolute right-full top-1/2 mr-2 -translate-y-1/2">
                             <div className="flex animate-[quickIn_220ms_ease-out] items-center gap-1.5 rounded-full border border-border bg-surface p-1.5 shadow-raised">
                                 {showKeys && (
-                                    <IconAction
-                                        icon={KeyRound}
-                                        label="Ключи"
-                                        onClick={() => setMenu(current => (current === "keys" ? "root" : "keys"))}
-                                        className={`border-accent/40 bg-accent-soft text-accent-text hover:bg-accent/20 ${
-                                            menu === "keys" ? "ring-2 ring-accent/35" : ""
-                                        }`}
-                                    />
+                                    <div className="relative">
+                                        <IconAction
+                                            icon={KeyRound}
+                                            label="Ключи"
+                                            onClick={() => setMenu(current => (current === "keys" ? "root" : "keys"))}
+                                            className={`border-accent/40 bg-accent-soft text-accent-text hover:bg-accent/20 ${
+                                                menu === "keys" ? "ring-2 ring-accent/35" : ""
+                                            }`}
+                                        />
+                                        {menu === "keys" && keysPanel}
+                                    </div>
                                 )}
                                 {canViolations && (
-                                    <IconAction
-                                        icon={CircleAlert}
-                                        label="Нарушения"
-                                        onClick={() => setMenu(current => (current === "violations" ? "root" : "violations"))}
-                                        className={`border-danger/40 bg-danger-soft text-danger hover:bg-danger/20 ${
-                                            menu === "violations" ? "ring-2 ring-accent/35" : ""
-                                        }`}
-                                    />
+                                    <div className="relative">
+                                        <IconAction
+                                            icon={CircleAlert}
+                                            label="Нарушения"
+                                            onClick={() => setMenu(current => (current === "violations" ? "root" : "violations"))}
+                                            className={`border-danger/40 bg-danger-soft text-danger hover:bg-danger/20 ${
+                                                menu === "violations" ? "ring-2 ring-accent/35" : ""
+                                            }`}
+                                        />
+                                        {menu === "violations" && violationsPanel}
+                                    </div>
                                 )}
                             </div>
                         </div>
@@ -425,15 +525,18 @@ function QuickActionsInner({
                     {menu !== null && showClassActions && (
                         <div className="absolute left-full top-1/2 ml-2 -translate-y-1/2">
                             <div className="flex animate-[quickIn_220ms_ease-out] items-center rounded-full border border-border bg-surface p-1.5 shadow-raised">
-                                <IconAction
-                                    icon={ClipboardCheck}
-                                    label="Пропуск и присутствие"
-                                    alert={attendanceMarked === false}
-                                    onClick={() => setMenu(current => (current === "quick" ? "root" : "quick"))}
-                                    className={`border-info/40 bg-info-soft text-info hover:bg-info/20 ${
-                                        menu === "quick" ? "ring-2 ring-accent/35" : ""
-                                    }`}
-                                />
+                                <div className="relative">
+                                    <IconAction
+                                        icon={ClipboardCheck}
+                                        label="Пропуск и присутствие"
+                                        alert={attendanceMarked === false}
+                                        onClick={() => setMenu(current => (current === "quick" ? "root" : "quick"))}
+                                        className={`border-info/40 bg-info-soft text-info hover:bg-info/20 ${
+                                            menu === "quick" ? "ring-2 ring-accent/35" : ""
+                                        }`}
+                                    />
+                                    {menu === "quick" && classPanel}
+                                </div>
                             </div>
                         </div>
                     )}
