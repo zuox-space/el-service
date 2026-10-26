@@ -901,51 +901,8 @@ export default function HomePage() {
                 onLogout={() => void handleLogout()}
             />
 
-            <main className="mx-auto w-full max-w-[1440px] px-4 py-4">
-                <div className="md:grid md:grid-cols-[240px_minmax(0,1fr)] md:items-start md:gap-4">
-                    <aside className="hidden space-y-3 md:sticky md:top-16 md:block">
-                        <ClassSelector
-                            selectedClass={selectedClass}
-                            onClassChange={handleClassChange}
-                            classes={classes}
-                            currentTeacherId={session.user?.id}
-                        />
-                        <div className="rounded-card border border-border bg-surface p-2 shadow-card">
-                            <p className="px-2 py-1.5 text-[11px] font-medium uppercase tracking-wide text-fg-subtle">
-                                Разделы класса
-                            </p>
-                            <nav aria-label="Разделы класса" className="space-y-0.5">
-                                {tabItems.map(item => {
-                                    const TabIcon = item.icon;
-                                    const selected = item.id === activeTab;
-                                    return (
-                                        <button
-                                            key={item.id}
-                                            type="button"
-                                            onClick={() => setActiveTab(item.id)}
-                                            aria-current={selected ? "page" : undefined}
-                                            className={`flex w-full items-center gap-2 rounded-control px-2.5 py-2 text-left text-sm transition-colors ${
-                                                selected
-                                                    ? "bg-accent-soft font-medium text-accent-text"
-                                                    : "text-fg-muted hover:bg-surface-hover hover:text-fg"
-                                            }`}
-                                        >
-                                            {TabIcon && <TabIcon size={17} aria-hidden />}
-                                            <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                                            {typeof item.count === "number" && item.count > 0 && (
-                                                <span className="shrink-0 text-[11px] tabular-nums text-fg-subtle">
-                                                    {item.count}
-                                                </span>
-                                            )}
-                                        </button>
-                                    );
-                                })}
-                            </nav>
-                        </div>
-                    </aside>
-
-                    <div className="min-w-0 space-y-3">
-                <div className="sticky top-14 z-30 -mx-4 space-y-2 border-b border-border bg-bg/95 px-4 py-2 backdrop-blur-sm md:hidden">
+            <main className="mx-auto w-full max-w-3xl space-y-3 px-4 py-4">
+                <div className="sticky top-14 z-30 -mx-4 space-y-2 border-b border-border bg-bg/95 px-4 py-2 backdrop-blur-sm md:static md:mx-0 md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none">
                 {/* Класс */}
                 <ClassSelector
                     selectedClass={selectedClass}
@@ -1457,8 +1414,6 @@ export default function HomePage() {
                     <MyClassStats classId={selectedClass.id} className={selectedClass.name} />
                 )}
 
-                    </div>
-                </div>
             </main>
 
 
