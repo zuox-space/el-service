@@ -450,7 +450,7 @@ function QuickActionsInner({
 
                             {canViolations && (
                                 <div className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2">
-                                    <div className="flex animate-[quickIn_220ms_ease-out] items-center gap-1.5 rounded-full border border-border bg-surface p-1.5 shadow-raised">
+                                    <div className="flex animate-[quickIn_220ms_ease-out] flex-col items-center gap-1.5 rounded-full border border-border bg-surface p-1.5 shadow-raised">
                                         <IconAction
                                             icon={CircleAlert}
                                             label="Отметить нарушение"
