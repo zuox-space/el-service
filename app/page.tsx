@@ -94,7 +94,9 @@ export default function PortalPage() {
     };
 
     const services = data?.services ?? [];
-    const hasServices = services.length > 0;
+    // «Ключи» — обычный кабинет сотрудника, а не раздел админки.
+    const adminServices = services.filter(service => service.id !== "keys");
+    const hasAdminServices = adminServices.length > 0;
     const hasMyClass = Boolean(data?.myClass.available);
     const hasKeys = services.some(service => service.id === "keys");
     const roles = (data?.user.roles ?? []) as string[];
@@ -136,7 +138,7 @@ export default function PortalPage() {
                         Здравствуйте, {shortName(data?.user.name ?? session.user.name)}
                     </h1>
                     <p className="mt-1 max-w-xl text-sm text-fg-muted">
-                        {hasMyClass || hasServices
+                        {hasMyClass || hasKeys || hasAdminServices
                             ? "Выберите сервис — доступные разделы уже собраны для вас."
                             : "Пока сервисы не назначены. Обратитесь к администратору — он выдаст нужные разделы."}
                     </p>
@@ -224,8 +226,8 @@ export default function PortalPage() {
                     </section>
                 )}
 
-                {/* Админ панель — одна карточка: внутри уже показываются доступные разделы */}
-                {hasServices && (
+                {/* Админ панель — только если есть хотя бы один административный раздел */}
+                {hasAdminServices && (
                     <section aria-labelledby="admin-title">
                         <h2
                             id="admin-title"
@@ -245,8 +247,8 @@ export default function PortalPage() {
                                     <div className="flex flex-wrap items-center gap-2">
                                         <h3 className="text-base font-semibold text-fg">Админ панель</h3>
                                         <Badge tone="info">
-                                            {services.length}{" "}
-                                            {services.length === 1 ? "раздел" : services.length < 5 ? "раздела" : "разделов"}
+                                            {adminServices.length}{" "}
+                                            {adminServices.length === 1 ? "раздел" : adminServices.length < 5 ? "раздела" : "разделов"}
                                         </Badge>
                                     </div>
                                     <p className="mt-1 text-sm text-fg-muted">
@@ -262,7 +264,7 @@ export default function PortalPage() {
                         </Link>
                     </section>
                 )}
-                {!hasMyClass && !hasServices && (
+                {!hasMyClass && !hasKeys && !hasAdminServices && (
                     <Card padding="none">
                         <EmptyState
                             icon={School}

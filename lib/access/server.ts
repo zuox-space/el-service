@@ -43,16 +43,18 @@ export async function getAccessForUser(userId: string): Promise<AccessInfo | nul
 
     if (!user) return null;
 
-    return buildAccess({
-        id: user.id,
-        email: user.email,
-        roles: user.userRoles.map(item => ({
-            name: item.role.name,
-            defaultSections: item.role.defaultSections,
-        })),
-        override: user.accessOverride,
-        rows: user.sectionAccess.filter(row => row.allowed).map(row => row.section),
-    });
+    return enrichAccess(
+        buildAccess({
+            id: user.id,
+            email: user.email,
+            roles: user.userRoles.map(item => ({
+                name: item.role.name,
+                defaultSections: item.role.defaultSections,
+            })),
+            override: user.accessOverride,
+            rows: user.sectionAccess.filter(row => row.allowed).map(row => row.section),
+        }),
+    );
 }
 
 /** Доступы текущей сессии. */
@@ -80,16 +82,49 @@ export async function getSessionAccess(): Promise<AccessInfo | null> {
         };
     }
 
-    return buildAccess({
-        id: user.id,
-        email: user.email,
-        roles: user.userRoles.map(item => ({
-            name: item.role.name,
-            defaultSections: item.role.defaultSections,
-        })),
-        override: user.accessOverride,
-        rows: user.sectionAccess.filter(row => row.allowed).map(row => row.section),
-    });
+    return enrichAccess(
+        buildAccess({
+            id: user.id,
+            email: user.email,
+            roles: user.userRoles.map(item => ({
+                name: item.role.name,
+                defaultSections: item.role.defaultSections,
+            })),
+            override: user.accessOverride,
+            rows: user.sectionAccess.filter(row => row.allowed).map(row => row.section),
+        }),
+    );
+}
+
+/**
+ * Базовые права сотрудника поверх ролей:
+ *  • ключи доступны каждому сотруднику (это не админ-раздел);
+ *  • «Мой класс» появляется, если у сотрудника есть свой или расшаренный класс,
+ *    даже если роль/индивидуальные доступы этот раздел не выдают.
+ */
+async function enrichAccess(access: AccessInfo): Promise<AccessInfo> {
+    if (access.isAdmin) return access;
+
+    const sections = new Set<AccessSectionId>(access.sections);
+    sections.add("keys");
+
+    if (!sections.has("myClass")) {
+        const classRow = await prisma.class.findFirst({
+            where: {
+                OR: [
+                    { ownerId: access.userId },
+                    { sharedWith: { some: { teacherId: access.userId } } },
+                ],
+            },
+            select: { id: true },
+        });
+        if (classRow) sections.add("myClass");
+    }
+
+    return {
+        ...access,
+        sections: [...sections],
+    };
 }
 
 function buildAccess(input: {

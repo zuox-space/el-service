@@ -146,7 +146,7 @@ export const ACCESS_SECTIONS: AccessSection[] = [
         description: "Кто отсутствует по классам, причины, кто не отметился",
         group: "analytics",
         href: "/admin/absent",
-        defaultRoles: ["ADMIN", "HEAD_TEACHER", "METHODIST", "CLASS_TEACHER"],
+        defaultRoles: ["ADMIN", "HEAD_TEACHER", "METHODIST"],
     },
     {
         id: "keys",
