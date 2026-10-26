@@ -20,6 +20,8 @@ export interface ViolationType {
     id: string;
     label: string;
     shortLabel: string;
+    /** Формулировка для сообщения родителю — в именительном падеже */
+    parentLabel: string;
     /** Иконка типа нарушения */
     Icon: LucideIcon;
     /** Цвет иконки — семантический статус */
@@ -35,6 +37,7 @@ export const VIOLATION_TYPES: ViolationType[] = [
         id: "uniform",
         label: "Нарушение формы одежды",
         shortLabel: "Форма",
+        parentLabel: "несоблюдение школьной формы",
         Icon: Shirt,
         color: "text-warning",
         bgColor: "bg-warning-soft",
@@ -44,6 +47,7 @@ export const VIOLATION_TYPES: ViolationType[] = [
         id: "late",
         label: "Опоздание",
         shortLabel: "Опоздание",
+        parentLabel: "опоздание",
         Icon: Clock,
         color: "text-warning",
         bgColor: "bg-warning-soft",
@@ -53,6 +57,7 @@ export const VIOLATION_TYPES: ViolationType[] = [
         id: "property",
         label: "Порча имущества",
         shortLabel: "Имущество",
+        parentLabel: "порча имущества",
         Icon: Hammer,
         color: "text-danger",
         bgColor: "bg-danger-soft",
@@ -62,6 +67,7 @@ export const VIOLATION_TYPES: ViolationType[] = [
         id: "phone",
         label: "Использование телефона",
         shortLabel: "Телефон",
+        parentLabel: "использование телефона",
         Icon: Smartphone,
         color: "text-info",
         bgColor: "bg-info-soft",
@@ -71,6 +77,7 @@ export const VIOLATION_TYPES: ViolationType[] = [
         id: "behavior",
         label: "Нарушение поведения",
         shortLabel: "Поведение",
+        parentLabel: "нарушение поведения",
         Icon: AlertTriangle,
         color: "text-warning",
         bgColor: "bg-warning-soft",
@@ -80,6 +87,7 @@ export const VIOLATION_TYPES: ViolationType[] = [
         id: "disrespect",
         label: "Неуважение к персоналу",
         shortLabel: "Неуважение",
+        parentLabel: "неуважение к персоналу",
         Icon: Ban,
         color: "text-danger",
         bgColor: "bg-danger-soft",
@@ -89,6 +97,7 @@ export const VIOLATION_TYPES: ViolationType[] = [
         id: "smoking",
         label: "Курение",
         shortLabel: "Курение",
+        parentLabel: "курение",
         Icon: Cigarette,
         color: "text-fg-muted",
         bgColor: "bg-surface-2",
@@ -98,6 +107,7 @@ export const VIOLATION_TYPES: ViolationType[] = [
         id: "other",
         label: "Другое нарушение",
         shortLabel: "Другое",
+        parentLabel: "иное нарушение",
         Icon: FileText,
         color: "text-fg-muted",
         bgColor: "bg-surface-2",

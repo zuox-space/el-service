@@ -2,15 +2,17 @@
 
 // components/ui/ResolveViolationModal.tsx
 import { useEffect, useState } from "react";
-import { CheckCheck, RotateCcw } from "lucide-react";
+import { CheckCheck, RotateCcw, Share2 } from "lucide-react";
 import {
     Button,
     FormError,
     ModalFooter,
     Sheet,
     Textarea,
+    useToast,
 } from "@/components/ui/kit";
 import { getViolationType } from "@/lib/violations";
+import { buildParentViolationMessage, shareViolationMessage } from "@/lib/violation-message";
 import { formatDateTimeMoscow } from "@/lib/date";
 
 /**
@@ -30,7 +32,11 @@ const COMMENT_PRESETS = [
 export interface ResolvableViolation {
     id: string;
     studentName: string;
+    className?: string;
     violationType: string;
+    comment?: string | null;
+    teacherName?: string | null;
+    date?: string;
     resolvedAt?: string | null;
     resolvedByName?: string | null;
     resolutionComment?: string | null;
@@ -49,17 +55,51 @@ interface ResolveViolationModalProps {
 export function ResolveViolationModal({ open, onClose, violations, onDone, source }: ResolveViolationModalProps) {
     const [comment, setComment] = useState("");
     const [error, setError] = useState<string | null>(null);
+    const [shareError, setShareError] = useState<string | null>(null);
+    const [sharing, setSharing] = useState(false);
     const [busy, setBusy] = useState<"resolve" | "unresolve" | null>(null);
+    const toast = useToast();
 
     const allResolved = violations.length > 0 && violations.every(item => Boolean(item.resolvedAt));
     const single = violations.length === 1 ? violations[0] : null;
+    const canShare = source === "class_teacher" && single !== null;
+    const sharePayload = single
+        ? buildParentViolationMessage({
+              studentName: single.studentName,
+              violationType: single.violationType,
+              teacherName: single.teacherName,
+              comment: single.comment,
+          })
+        : null;
 
     useEffect(() => {
         if (!open) return;
 
         setError(null);
+        setShareError(null);
         setComment(single?.resolutionComment ?? "");
     }, [open, single?.id, single?.resolutionComment]);
+
+    const shareToParent = async () => {
+        if (!sharePayload) return;
+
+        setShareError(null);
+        setSharing(true);
+        try {
+            const result = await shareViolationMessage(sharePayload);
+            if (result === "copied") {
+                toast.show({
+                    title: "Сообщение скопировано",
+                    description: "Вставьте его в MAX, Telegram, WhatsApp или другой мессенджер",
+                    tone: "success",
+                });
+            }
+        } catch (e) {
+            setShareError(e instanceof Error ? e.message : "Не удалось поделиться сообщением");
+        } finally {
+            setSharing(false);
+        }
+    };
 
     const submit = async (resolved: boolean) => {
         setError(null);
@@ -162,6 +202,45 @@ export function ResolveViolationModal({ open, onClose, violations, onDone, sourc
                         ))}
                     </div>
                 </div>
+
+                {canShare && sharePayload && (
+                    <div className="rounded-control border border-accent/25 bg-accent-soft/30 p-3">
+                        <div className="flex items-start gap-2">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent-text">
+                                <Share2 size={15} aria-hidden />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium text-fg">Сообщение родителю</p>
+                                <p className="mt-0.5 text-[11px] text-fg-subtle">
+                                    Готовый текст откроется в меню мессенджеров или скопируется.
+                                </p>
+                            </div>
+                        </div>
+
+                        <details className="mt-2 rounded-control border border-border/70 bg-surface px-2.5 py-2">
+                            <summary className="cursor-pointer text-[11px] font-medium text-fg-muted">
+                                Показать текст
+                            </summary>
+                            <p className="mt-2 whitespace-pre-line text-[11px] leading-relaxed text-fg-muted">
+                                {sharePayload.text}
+                            </p>
+                        </details>
+
+                        <Button
+                            fullWidth
+                            size="sm"
+                            variant="secondary"
+                            leftIcon={Share2}
+                            className="mt-2"
+                            onClick={() => void shareToParent()}
+                            loading={sharing}
+                            disabled={sharing}
+                        >
+                            Поделиться в мессенджере
+                        </Button>
+                        <FormError message={shareError} />
+                    </div>
+                )}
 
                 {allResolved && (
                     <Button

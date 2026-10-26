@@ -2,7 +2,7 @@
 
 // components/ui/ViolationAccordion.tsx
 import { useState } from "react";
-import { ChevronDown, History } from "lucide-react";
+import { CheckCheck, ChevronDown, History } from "lucide-react";
 import { Badge, Button, Card, EmptyState } from "@/components/ui/kit";
 import { formatDateTimeMoscow } from "@/lib/date";
 import { getViolationType, resolverLabel } from "@/lib/violations";
@@ -151,16 +151,17 @@ export function ViolationAccordion({
                                             </p>
                                         </>
                                     ) : (
-                                        <div className="flex items-center justify-between gap-2">
-                                            <p className="text-warning">Ждёт отработки.</p>
+                                        <div className="space-y-2 rounded-control border border-warning/25 bg-warning-soft/40 p-2.5">
+                                            <p className="text-xs text-warning">Ждёт отработки.</p>
                                             {canResolve && onResolve && (
                                                 <Button
+                                                    fullWidth
                                                     size="sm"
                                                     variant="secondary"
-                                                    className="ml-auto shrink-0"
+                                                    leftIcon={CheckCheck}
                                                     onClick={() => onResolve(item)}
                                                 >
-                                                    Отработать
+                                                    Отработать нарушение
                                                 </Button>
                                             )}
                                         </div>
