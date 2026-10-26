@@ -30,7 +30,7 @@ const ABSENCE_REASONS = [
     { value: "sick", label: "Болен" },
     { value: "family", label: "По заявлению родителей" },
     { value: "other", label: "Причина неясна" },
-    { value: "vacation", label: "Отпуск / каникулы" },
+    { value: "vacation", label: "В отпуске" },
     { value: "competition", label: "Соревнования" },
 ];
 

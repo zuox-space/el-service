@@ -98,7 +98,7 @@ const ABSENCE_REASONS: Record<
     sick: { label: "Болен", Icon: Thermometer, tone: "danger" },
     family: { label: "По заявлению родителей", Icon: FileText, tone: "warning" },
     other: { label: "Причина неясна", Icon: HelpCircle, tone: "neutral" },
-    vacation: { label: "Отпуск", Icon: Plane, tone: "info" },
+    vacation: { label: "В отпуске", Icon: Plane, tone: "info" },
     competition: { label: "Соревнования", Icon: Trophy, tone: "accent" },
 };
 

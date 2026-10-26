@@ -11,9 +11,6 @@ import {
     DataTable,
     EmptyState,
     FormError,
-    List,
-    ListItem,
-    Modal,
     PageHeader,
     SearchInput,
     Skeleton,
@@ -75,7 +72,6 @@ export default function AdminClassesPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [search, setSearch] = useState("");
-    const [detail, setDetail] = useState<SchoolClass | null>(null);
 
     useEffect(() => {
         setMounted(true);
@@ -233,11 +229,13 @@ export default function AdminClassesPage() {
                         rows={rows}
                         rowKey={cls => cls.id}
                         loading={isLoading}
-                        onRowClick={cls => setDetail(cls)}
+                        onRowClick={cls => router.push(`/admin/classes/${cls.id}`)}
                         mobileTitle={cls => cls.name}
-                        mobileSubtitle={cls =>
-                            `${cls.owner?.name || "Не назначен"} · ${cls.students?.length ?? 0} учеников`
-                        }
+                        mobileSubtitle={cls => {
+                            const rate = cls.attendance;
+                            return `${cls.owner?.name || "Не назначен"} · ${cls.students?.length ?? 0} учеников · ${rate?.percent ?? 0}% отметок`;
+                        }}
+                        mobileDetailKeys={["students", "attendance"]}
                         emptyTitle="Классов нет"
                         caption="Классы и классные руководители"
                     />
@@ -248,39 +246,6 @@ export default function AdminClassesPage() {
                     делятся на число учебных дней (пн–пт). Нажмите на класс, чтобы посмотреть список учеников.
                 </p>
             </main>
-
-            <Modal
-                open={Boolean(detail)}
-                onClose={() => setDetail(null)}
-                title={detail?.name ?? "Класс"}
-                description={
-                    detail
-                        ? `${detail.owner?.name || "Классный руководитель не назначен"} · учеников: ${detail.students?.length ?? 0}`
-                        : undefined
-                }
-                size="md"
-            >
-                {detail &&
-                    (detail.students && detail.students.length > 0 ? (
-                        <List>
-                            {detail.students.map(student => (
-                                <li key={student.id}>
-                                    <ListItem
-                                        title={student.name}
-                                        meta={`ID: ${student.id}`}
-                                        density="compact"
-                                    />
-                                </li>
-                            ))}
-                        </List>
-                    ) : (
-                        <EmptyState
-                            title="В классе нет учеников"
-                            description="Проверьте, что класс заполнен в базе АИС"
-                            compact
-                        />
-                    ))}
-            </Modal>
         </div>
     );
 }

@@ -38,7 +38,7 @@ const REASONS = [
     { id: "sick", label: "Болен", tone: "danger" as const, Icon: Thermometer },
     { id: "family", label: "По заявлению родителей", tone: "warning" as const, Icon: FileText },
     { id: "other", label: "Причина неясна", tone: "neutral" as const, Icon: HelpCircle },
-    { id: "vacation", label: "Отпуск / каникулы", tone: "info" as const, Icon: Plane },
+    { id: "vacation", label: "В отпуске", tone: "info" as const, Icon: Plane },
     { id: "competition", label: "Соревнования", tone: "accent" as const, Icon: Trophy },
 ];
 

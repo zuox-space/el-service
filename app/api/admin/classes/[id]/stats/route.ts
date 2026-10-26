@@ -1,0 +1,273 @@
+// app/api/admin/classes/[id]/stats/route.ts
+export const dynamic = "force-dynamic";
+
+import { NextRequest, NextResponse } from "next/server";
+import { requireSection } from "@/lib/access/server";
+import { prisma } from "@/lib/prisma";
+import { normalizeClassName } from "@/lib/class-name";
+import { getStudentsGroupedByClass } from "@/lib/mysql_db";
+import {
+    countSchoolDays,
+    getAcademicYearStart,
+    getDayRange,
+    parseLocalDate,
+    toLocalISODate,
+} from "@/lib/date";
+
+function parseArray(value: string | null | undefined): string[] {
+    if (!value) return [];
+    try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch {
+        return [];
+    }
+}
+
+function parseRecord(value: string | null | undefined): Record<string, string> {
+    if (!value) return {};
+    try {
+        const parsed = JSON.parse(value);
+        return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+        return {};
+    }
+}
+
+function attendanceLevel(percent: number): "excellent" | "good" | "bad" | "veryBad" {
+    return percent >= 90 ? "excellent" : percent >= 80 ? "good" : percent >= 50 ? "bad" : "veryBad";
+}
+
+function monthKey(date: Date): string {
+    return toLocalISODate(date).slice(0, 7);
+}
+
+export async function GET(
+    request: NextRequest,
+    { params }: { params: { id: string } },
+) {
+    const guard = await requireSection("classes");
+    if (!guard.ok) return guard.response;
+
+    const { searchParams } = new URL(request.url);
+    const today = new Date();
+    const fromParam = searchParams.get("from");
+    const toParam = searchParams.get("to");
+    const from = parseLocalDate(fromParam || getAcademicYearStart(today));
+    const to = parseLocalDate(toParam || today);
+
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || to < from) {
+        return NextResponse.json({ error: "Некорректный период" }, { status: 400 });
+    }
+
+    try {
+        const classInfo = await prisma.class.findUnique({
+            where: { id: params.id },
+            include: {
+                owner: { select: { id: true, name: true, email: true } },
+                building: { select: { id: true, name: true } },
+                sharedWith: {
+                    select: { teacher: { select: { id: true, name: true, email: true } } },
+                },
+            },
+        });
+
+        if (!classInfo) {
+            return NextResponse.json({ error: "Класс не найден" }, { status: 404 });
+        }
+
+        const className = normalizeClassName(classInfo.name);
+        const fromRange = getDayRange(from);
+        const toRange = getDayRange(to);
+
+        let students: Array<{ id: string; name: string }> = [];
+        try {
+            const grouped = await getStudentsGroupedByClass();
+            students = (grouped.get(className) ?? []).map(student => ({
+                id: String(student.aisId),
+                name: student.name,
+            }));
+        } catch {
+            // Если АИС временно недоступна, остальная статистика всё равно полезна.
+        }
+
+        const [attendanceRows, violationRows, activeSchoolRecords] = await Promise.all([
+            prisma.attendance.findMany({
+                where: {
+                    classId: classInfo.id,
+                    date: { gte: fromRange.start, lte: toRange.end },
+                },
+                orderBy: { date: "asc" },
+            }),
+            prisma.violation.findMany({
+                where: {
+                    className,
+                    date: { gte: fromRange.start, lte: toRange.end },
+                },
+                orderBy: { date: "desc" },
+                select: {
+                    id: true,
+                    studentId: true,
+                    studentName: true,
+                    violationType: true,
+                    date: true,
+                    resolvedAt: true,
+                    resolvedByName: true,
+                    teacherName: true,
+                },
+            }),
+            prisma.schoolRecord.count({ where: { className, isActive: true } }),
+        ]);
+
+        type DayStat = {
+            date: string;
+            present: number;
+            absent: number;
+            marked: boolean;
+        };
+        const daily = new Map<string, DayStat>();
+        const reasonCounts: Record<string, number> = {};
+        const absentByStudent = new Map<string, number>();
+        let totalPresent = 0;
+        let totalAbsent = 0;
+        let lastMarkedAt: string | null = null;
+
+        for (const row of attendanceRows) {
+            const date = toLocalISODate(row.date);
+            const present = parseArray(row.presentStudents);
+            const absent = parseArray(row.absentStudents);
+            const reasons = parseRecord(row.absentReasons);
+            const current = daily.get(date) ?? { date, present: 0, absent: 0, marked: false };
+            current.present += present.length;
+            current.absent += absent.length;
+            current.marked = true;
+            daily.set(date, current);
+
+            totalPresent += present.length;
+            totalAbsent += absent.length;
+            lastMarkedAt = date;
+
+            for (const id of absent) {
+                const reason = reasons[id] || reasons[String(Number(id))] || "unknown";
+                reasonCounts[reason] = (reasonCounts[reason] ?? 0) + 1;
+                absentByStudent.set(id, (absentByStudent.get(id) ?? 0) + 1);
+            }
+        }
+
+        const dailyStats = [...daily.values()].sort((a, b) => a.date.localeCompare(b.date));
+        const markedDays = dailyStats.length;
+        const effectiveEnd = to > today ? today : to;
+        const schoolDays = countSchoolDays(from, effectiveEnd);
+        const attendancePercent = schoolDays > 0 ? Math.min(100, Math.round((markedDays / schoolDays) * 100)) : 0;
+
+        type MonthCount = { month: string; count: number };
+        const violationsByMonth = new Map<string, number>();
+        const violationsByType = new Map<string, number>();
+        const violationsByStudent = new Map<string, { id: string; name: string; count: number }>();
+        const uniformByMonth = new Map<string, number>();
+        let resolvedCount = 0;
+        let uniformCount = 0;
+
+        for (const row of violationRows) {
+            const month = monthKey(row.date);
+            violationsByMonth.set(month, (violationsByMonth.get(month) ?? 0) + 1);
+            violationsByType.set(row.violationType, (violationsByType.get(row.violationType) ?? 0) + 1);
+
+            const student = violationsByStudent.get(row.studentId) ?? {
+                id: row.studentId,
+                name: row.studentName,
+                count: 0,
+            };
+            student.count += 1;
+            violationsByStudent.set(row.studentId, student);
+
+            if (row.resolvedAt) resolvedCount += 1;
+            if (row.violationType === "uniform") {
+                uniformCount += 1;
+                uniformByMonth.set(month, (uniformByMonth.get(month) ?? 0) + 1);
+            }
+        }
+
+        const toMonths = (source: Map<string, number>): MonthCount[] =>
+            [...source.entries()]
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([month, count]) => ({ month, count }));
+
+        const studentName = (id: string) =>
+            students.find(item => item.id === id)?.name ||
+            violationRows.find(item => item.studentId === id)?.studentName ||
+            "Неизвестный ученик";
+
+        const truants = [...absentByStudent.entries()]
+            .map(([id, count]) => ({ id, name: studentName(id), count }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 10);
+
+        const recentViolations = violationRows.slice(0, 12).map(row => ({
+            id: row.id,
+            studentId: row.studentId,
+            studentName: row.studentName,
+            violationType: row.violationType,
+            date: row.date.toISOString(),
+            resolvedAt: row.resolvedAt ? row.resolvedAt.toISOString() : null,
+            resolvedByName: row.resolvedByName,
+            teacherName: row.teacherName,
+        }));
+
+        return NextResponse.json({
+            classInfo: {
+                id: classInfo.id,
+                name: classInfo.name,
+                grade: classInfo.grade,
+                letter: classInfo.letter,
+                building: classInfo.building,
+                owner: classInfo.owner,
+                sharedTeachers: classInfo.sharedWith.map(item => item.teacher),
+            },
+            period: { from: toLocalISODate(from), to: toLocalISODate(to) },
+            students,
+            summary: {
+                studentCount: students.length,
+                markedDays,
+                schoolDays,
+                attendancePercent,
+                attendanceLevel: attendanceLevel(attendancePercent),
+                presentCount: totalPresent,
+                absentCount: totalAbsent,
+                lastMarkedAt,
+                violationsTotal: violationRows.length,
+                violationsResolved: resolvedCount,
+                violationsUnresolved: violationRows.length - resolvedCount,
+                resolutionPercent: violationRows.length > 0
+                    ? Math.round((resolvedCount / violationRows.length) * 100)
+                    : 0,
+                uniformCount,
+                activeSchoolRecords,
+            },
+            attendance: {
+                daily: dailyStats,
+                reasons: Object.entries(reasonCounts)
+                    .map(([reason, count]) => ({ reason, count }))
+                    .sort((a, b) => b.count - a.count),
+            },
+            violations: {
+                byType: [...violationsByType.entries()]
+                    .map(([type, count]) => ({ type, count }))
+                    .sort((a, b) => b.count - a.count),
+                byMonth: toMonths(violationsByMonth),
+                topStudents: [...violationsByStudent.values()]
+                    .sort((a, b) => b.count - a.count)
+                    .slice(0, 10),
+                recent: recentViolations,
+            },
+            uniform: {
+                total: uniformCount,
+                byMonth: toMonths(uniformByMonth),
+            },
+            truants,
+        });
+    } catch (error) {
+        console.error("Error loading class stats:", error);
+        return NextResponse.json({ error: "Не удалось загрузить статистику класса" }, { status: 500 });
+    }
+}
