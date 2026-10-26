@@ -1,0 +1,236 @@
+# Pre-deploy аудит el-service
+
+Дата: 26.10.2026  
+Ветка: `pre-deploy-2` (от `pre-deploy`, база `d6ab94e`)  
+Режим: Standard mode; PTC не использовался.  
+Деплой и `git push` не выполнялись.
+
+## 1. Исходное состояние
+
+### Что уже было хорошо
+
+- Next.js 14 App Router + TypeScript, `strict: true`.
+- `next build` проходит, все основные маршруты собираются.
+- Есть интеграционные проверки API: охрана, ключи, регрессия БД, контракты модалок.
+- Доступ к API в основном проверяется через `requireSection`/`requireAnySection`.
+- Есть проверка доступа к конкретному классу (`lib/access/classes.ts`).
+- Есть индексы для основных таблиц посещаемости, пропусков и нарушений.
+- Есть кэш справочника учеников MySQL (stale-while-revalidate).
+- Модалки имеют focus-trap, мобильные шторки, loading/empty states.
+- Docker production-образ содержит healthcheck и entrypoint с ожиданием БД.
+- SSE ключей рассчитан на одну реплику; это важно для деплоя.
+
+### Чего не хватало
+
+- `pnpm lint` не работал: `next lint` в Next 14 запрашивал интерактивную настройку,
+  flat-config ESLint 9 не подхватывался.
+- Не было security-заголовков (`X-Frame-Options`, `Referrer-Policy`, HSTS и т. д.).
+- HTML админки не имел серверной проверки: layout был клиентским, API были закрыты,
+  но оболочка `/admin` отдавалась любому авторизованному сотруднику.
+- Загрузка файлов принимала любое расширение, без ограничения размера и с абсолютным
+  путём `/home/kknayduk`.
+- Просмотр загруженных файлов не был защищён и допускал path traversal.
+- Общего rate limiting не было (только попытки входа охраны).
+- Создание сотрудника и выдача роли шли двумя независимыми запросами.
+- Удаление нарушения при повторном запросе возвращало 500 вместо идемпотентного ответа.
+- В API было много `console.log` с email, ФИО и составом отсутствующих.
+- Неиспользуемый demo-роут `/api/init` мог создать класс `7А` любому сотруднику.
+- `DB_QUEUE_LIMIT=0` у MySQL-пула: очередь запросов не ограничена.
+- Не хватало индексов `Class.ownerId`, `ClassShare.teacherId`, `UserRole.roleId`,
+  `Violation.resolvedBy`.
+
+## 2. План аудита и приоритеты
+
+1. Безопасность: серверная граница админки, загрузки, rate limiting, заголовки,
+   утечки в логи, зависимости.
+2. Целостность данных: транзакции, идемпотентность, валидация.
+3. Критические баги и deploy readiness: lint, type-check, build, healthcheck.
+4. Производительность: пулы БД, индексы, размер бандла, поведение при конкуренции.
+5. UI/UX и a11y: контраст, фокус, alt, состояния загрузки/ошибок.
+6. Тесты: unit/integration/e2e, покрытие критических сценариев.
+
+## 3. Найденные проблемы
+
+### Безопасность
+
+| Серьёзность | Проблема | Статус |
+|---|---|---|
+| Критично | `next@14.2.35` имеет опубликованные RCE/DoS-уязвимости; patched-версии начинаются с Next 15.5.24/15.5.28 | **Не исправлено**, требуется отдельный upgrade |
+| Критично | `next-pwa` тянет build-time `ejs@3.1.6` с critical advisory | **Не исправлено**, транзитивная зависимость |
+| Высоко | `/admin` HTML отдавался без серверной проверки роли | Исправлено |
+| Высоко | Загрузка файлов: произвольное расширение, нет лимита размера, path traversal при чтении | Исправлено |
+| Высоко | Не было общих security-заголовков | Исправлено |
+| Высоко | PII/email/ФИО в логах API | Частично исправлено (share, attendance, students, init) |
+| Средне | Rate limiting только для входа охраны | Добавлен для загрузок и создания нарушений; общий лимит не сделан |
+| Средне | Demo `/api/init` доступен в production | Отключён в production |
+| Средне | `xlsx@0.18.5` (unused) имеет high advisories | **Не исправлено**: lockfile требует отдельного обновления |
+| Низко | `proxy.ts` — мёртвый NextAuth-middleware, не подключён | Оставлен как технический долг |
+
+`pnpm audit --prod --registry=https://registry.npmjs.org`: **43 уязвимости**:
+4 critical, 18 high, 16 moderate, 5 low. Главные источники — Next 14, `next-pwa`
+и неиспользуемый `xlsx`. Это блокер для production-деплоя, требующий отдельного
+контролируемого обновления Next/React и проверки всех маршрутов.
+
+### Логика и данные
+
+| Серьёзность | Проблема | Статус |
+|---|---|---|
+| Высоко | Создание сотрудника и роли не были одной транзакцией | Исправлено |
+| Средне | Удаление нарушения не было идемпотентным | Исправлено |
+| Средне | `DB_QUEUE_LIMIT=0` мог копить неограниченную очередь к MySQL | Исправлено |
+| Средне | Нет индексов на частые проверки владельца/шаринга класса и `resolvedBy` | Исправлено |
+| Средне | `photoUrl` указывал на `/uploads`, а новый API — на `/api/upload`; старые файлы и public-каталог требуют отдельного решения | Частично |
+| Низко | Валидация входных DTO не унифицирована | Не исправлено |
+
+### Тесты
+
+- Есть хорошие интеграционные скрипты, но нет unit-тестов и E2E.
+- Не было автоматической проверки security-границ (`/admin`, upload, headers).
+- Добавлен `scripts/predeploy-test.mjs` (10 проверок).
+- Не покрыты: транзакция создания сотрудника, path traversal, rate limiting,
+  повторное удаление, конкурентные записи.
+
+### Производительность
+
+- Shared JS: 87.3 kB first load; `/my-class` 152 kB, `/keys` 138 kB.
+- Raw JS/CSS в `.next/static`: около 1.5 MB (сумма всех чанков, не first-load).
+- Prisma pool не настраивался в коде; для 200–300 параллельных запросов нужно
+  задать `connection_limit`/`pool_timeout` в `DATABASE_URL` (описано в env example).
+- MySQL pool: было 10 соединений и неограниченная очередь; стало настраиваемым
+  (по умолчанию 15, очередь 200).
+- N+1 в справочнике учеников уже закрыт кэшем и групповой выборкой.
+- Load smoke: 300 одновременных GET `/login` на локальном production — 300/300 успешно,
+  p50 641 ms, p95 654 ms, max 655 ms. Это read-only проверка, не имитация 300 записей в БД;
+  при 100 одновременных запросах было p50 183 ms, p95 271 ms.
+
+### UI/UX и доступность
+
+- В целом есть aria-label, focus-trap, адаптивные шторки, состояния загрузки.
+- Нет автоматической WCAG 2.2 AA проверки (axe/Lighthouse).
+- Не проверены контраст, alt-текст и клавиатурная навигация на всех страницах.
+- Не исправлялось в этой задаче, чтобы не менять визуальное поведение без ревью.
+
+## 4. Что исправлено
+
+### `ac2422a` — lint и security headers
+
+- `package.json`: `lint` → `eslint .`.
+- `eslint.config.mjs`: flat config, legacy-правила React Compiler переведены в
+  предупреждения/отключены; игнорируются generated PWA-файлы.
+- `next.config.js`: `poweredByHeader: false`, security headers.
+- Результат: lint запускается и не блокирует деплой (0 errors, 116 warnings).
+
+### `d129784` — серверная защита админки
+
+- `app/admin/layout.tsx` стал server component.
+- `components/access/AdminLayoutClient.tsx` — прежний UI-каркас.
+- Нет сессии → `/login?callbackUrl=/admin`; нет админского раздела → `/`.
+
+### `e5b855a` — безопасная загрузка и rate limit
+
+- `app/api/upload/route.ts`: allowlist MIME, проверка сигнатуры JPG/PNG/WEBP/GIF/PDF,
+  лимит 10 МБ, random UUID имя, безопасный путь, 20 загрузок/мин на сотрудника.
+- `app/api/upload/[...path]/route.ts`: auth-проверка, защита от `../`,
+  allowlist MIME, `private` cache, `nosniff`.
+- `lib/rate-limit.ts`: in-memory limiter для одной реплики.
+- `app/api/init/route.ts`: в production возвращает 404.
+
+### `78c79bc` — транзакция и логи
+
+- `app/api/admin/users/route.ts`: пользователь + роль + `UserRole` в `$transaction`;
+  нормализация email; `P2002` → 400.
+- `app/api/violations/route.ts`: rate limit на создание; `deleteMany` для идемпотентного DELETE.
+- Удалены PII-логи из `/api/share`, `/api/attendance`, `/api/students/[aisId]`, `/api/init`.
+
+### `4056da2` — БД и индексы
+
+- `lib/mysql_db.ts`: `DB_POOL_SIZE`, `DB_QUEUE_LIMIT` с безопасными границами.
+- `prisma/schema.prisma` + `20260914130000_add_access_indexes`: индексы
+  `Class.ownerId`, `ClassShare.teacherId`, `UserRole.roleId`, `Violation.resolvedBy`.
+- `deploy/env.production.example`: пул, `UPLOAD_DIR`, `SHOW_RAITING`.
+
+### `4587a0b` — pre-deploy проверки
+
+- `scripts/predeploy-test.mjs`: заголовки, `/admin`, `/api/admin/users`,
+  `/api/portal`, POST upload, просмотр upload.
+- `package.json`: `predeploy:test`.
+
+## 5. Проверки после исправлений
+
+| Проверка | Было | Стало |
+|---|---|---|
+| `pnpm lint` | интерактивный запрос, exit 1 | 0 errors, 116 warnings |
+| `tsc --noEmit` | pass | pass |
+| `next build` | pass | pass |
+| guard-test | 16/16 | 16/16 |
+| keys-test | 25/25 | 25/25 |
+| devdb-test | 45/45 | 45/45 |
+| devdb-modal-test | 14/14 | 14/14 |
+| predeploy-test | не было | 10/10 |
+| `/admin` без сессии | HTML оболочки | redirect на `/login?callbackUrl=/admin` |
+| security headers | отсутствовали | присутствуют |
+| upload с поддельным PNG | принимался | 415 |
+| 300 параллельных GET `/login` | не измерялось | 300/300, p95 654 ms |
+
+## 6. Что не исправлено и почему
+
+1. **Next.js 14 critical advisories.** Обновление до Next 15.5.28 требует React 19
+   и проверки async `params`/`cookies`, PWA и всех route handlers. Это отдельная
+   миграция, которую нельзя безопасно сделать в аудиторской ветке без E2E.
+2. **`next-pwa` → `ejs` critical.** Транзитивная build-time зависимость; нужно
+   обновить/заменить `next-pwa` и пересобрать service worker.
+3. **`xlsx` high.** Пакет не используется в коде. Удаление требует корректного
+   обновления `pnpm-lock.yaml`; локальный `pnpm` не смог пересоздать store из-за
+   ограничения окружения. Рекомендую `pnpm remove xlsx` в чистом окружении и проверить build.
+4. **Общий rate limiting.** Сделан только для загрузок и создания нарушений.
+   Для всех mutation-API нужен Redis/Upstash при нескольких репликах.
+5. **CSP.** Не добавлен: текущий UI использует inline styles/scripts и PWA;
+   нужен отдельный аудит и nonce/hash-подход.
+6. **Хранение загрузок.** Новые файлы идут через auth-API; старые public-файлы
+   и путь `photoUrl` требуют миграции/очистки. На production нужен volume и
+   `UPLOAD_DIR`.
+7. **E2E и WCAG.** Нет Playwright и axe/Lighthouse; это следующий этап.
+8. **Prisma connection limit.** Настраивается через `DATABASE_URL`; код не
+   переписывает URL, чтобы не сломать существующие окружения.
+
+## 7. Рекомендации перед деплоем
+
+1. Не деплоить с Next 14 без решения по critical advisories. Спланировать
+   upgrade Next 15.5.28 + React 19 + PWA replacement, с E2E на ключевые сценарии.
+2. Применить миграции:
+   `pnpm prisma migrate deploy` или `pnpm db:push` (в зависимости от процесса).
+3. Задать в production:
+   `DATABASE_URL=...&connection_limit=15&pool_timeout=20`,
+   `DB_POOL_SIZE=15`, `DB_QUEUE_LIMIT=200`, `UPLOAD_DIR=/data/uploads`.
+4. Подключить persistent volume для `UPLOAD_DIR`.
+5. Настроить мониторинг: 5xx, p95 latency, Prisma pool, MySQL pool, disk, healthcheck.
+6. Добавить rate limiting на уровне reverse proxy/Dokploy для `/api/*`.
+7. Провести staging load test (k6/autocannon) на запись/удаление/чтение,
+   с бэкапом и отдельной БД.
+8. Добавить Playwright E2E на: вход, админку, создание нарушения, отработку,
+   загрузку заявления, ключи, охрану.
+9. Проверить WCAG 2.2 AA через axe и ручную клавиатурную навигацию.
+10. Удалить/архивировать публичные старые `/uploads` после миграции.
+
+## 8. Ветка и коммиты
+
+Ветка: `pre-deploy-2` (не запушена).
+
+```
+4587a0b test: pre-deploy проверки границ безопасности
+4056da2 perf: пул MySQL и индексы проверок доступа
+78c79bc fix: транзакционное создание сотрудника и меньше PII в логах
+e5b855a security: безопасная загрузка файлов и rate limit
+d129784 security: серверная защита админского HTML
+ac2422a chore: рабочий lint и security-заголовки
+```
+
+База: `d6ab94e` (ветка `pre-deploy`).
+
+## 9. Вопросы владельцу продукта
+
+1. Обновляемся ли на Next 15.5.28 сейчас или деплоим с принятым риском?
+2. Где хранить заявления: persistent volume, S3 или существующий путь?
+3. Нужен ли общий rate limit на все API и какой порог на пользователя?
+4. Включать ли `SHOW_RAITING=true` в production?
+5. Какая политика для старых public-файлов `/uploads`: миграция, удаление или закрытие?
