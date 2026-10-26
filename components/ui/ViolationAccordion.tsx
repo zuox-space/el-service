@@ -132,6 +132,10 @@ export function ViolationAccordion({
                             {expanded && (
                                 <div className="space-y-1.5 border-t border-border bg-surface-2 px-3 py-2.5 text-xs">
                                     <p className="text-fg-muted">
+                                        <span className="text-fg-subtle">Нарушение выставил: </span>
+                                        {item.teacherName?.trim() || "—"}
+                                    </p>
+                                    <p className="text-fg-muted">
                                         <span className="text-fg-subtle">Комментарий: </span>
                                         {item.comment?.trim() ? item.comment : "—"}
                                     </p>

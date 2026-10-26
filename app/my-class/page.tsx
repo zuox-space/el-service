@@ -1090,6 +1090,7 @@ export default function HomePage() {
                         <ViolationAccordion
                             items={todayViolations.slice(0, violationsLimit)}
                             isLoading={isLoadingViolations}
+                            showTeacher
                             canResolve={isClassTeacher}
                             onResolve={violation => setResolveTargets([violation])}
                             emptyTitle={
@@ -1258,6 +1259,7 @@ export default function HomePage() {
                         <ViolationAccordion
                             items={classViolations}
                             isLoading={isLoadingClassViolations}
+                            showTeacher
                             canResolve={isClassTeacher}
                             onResolve={violation => setResolveTargets([violation])}
                             emptyTitle="Нарушений по классу нет"
