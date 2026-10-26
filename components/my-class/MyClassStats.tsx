@@ -330,9 +330,12 @@ function AttendanceBars({
                                 : `${formatDateShortRu(item.date)}: нет отметки`
                         }
                     >
-                        <div className="flex h-24 w-full items-end justify-center">
+                        <div className="flex h-24 w-full flex-col items-center justify-end gap-0.5">
+                            <span className="text-[8px] tabular-nums text-fg-subtle">
+                                {item.marked ? item.value : "—"}
+                            </span>
                             {!item.marked ? (
-                                <div className="h-full w-full max-w-3 rounded-t border border-danger/40 bg-danger/25" />
+                                <div className="h-20 w-full max-w-3 rounded-t border border-danger/40 bg-danger/25" />
                             ) : (
                                 <div
                                     className={`w-full max-w-3 rounded-t ${item.value > 0 ? "bg-warning" : "bg-success/60"}`}
@@ -380,6 +383,7 @@ function ViolationBars({
                         className="flex min-w-8 flex-1 flex-col items-center gap-1"
                         title={`${monthLabel(item.month)}: отработано ${item.resolved}, в работе ${item.unresolved}`}
                     >
+                        <span className="text-[9px] font-medium tabular-nums text-fg">{item.count}</span>
                         <div className="flex h-24 w-full max-w-8 flex-col-reverse overflow-hidden rounded-t bg-surface-2">
                             <div className="w-full bg-warning" style={{ height: `${(item.unresolved / max) * 100}%` }} />
                             <div className="w-full bg-success" style={{ height: `${(item.resolved / max) * 100}%` }} />

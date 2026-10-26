@@ -730,9 +730,12 @@ function DailyBars({
                                 : `${formatDateShortRu(item.date)}: нет отметки`
                         }
                     >
-                        <div className="flex h-28 w-full items-end justify-center">
+                        <div className="flex h-28 w-full flex-col items-center justify-end gap-0.5">
+                            <span className="text-[9px] tabular-nums text-fg-subtle">
+                                {item.marked ? item.value : "—"}
+                            </span>
                             {!item.marked ? (
-                                <div className="h-full w-full max-w-4 rounded-t border border-danger/40 bg-danger/25" />
+                                <div className="h-24 w-full max-w-4 rounded-t border border-danger/40 bg-danger/25" />
                             ) : (
                                 <div
                                     className={`w-full max-w-4 rounded-t ${item.value > 0 ? "bg-warning" : "bg-success/60"}`}
@@ -775,12 +778,12 @@ function ViolationChart({ items }: { items: ViolationMonth[] }) {
                     const resolvedPercent = item.count > 0 ? (item.resolved / item.count) * 100 : 0;
                     return (
                         <div key={item.month} className="flex min-w-10 flex-1 flex-col items-center gap-1" title={`${monthLabel(item.month)}: отработано ${item.resolved}, не отработано ${item.unresolved}`}>
+                            <span className="text-[10px] font-medium tabular-nums text-fg">{item.count}</span>
                             <div className="flex h-28 w-full max-w-10 flex-col-reverse overflow-hidden rounded-t bg-surface-2">
                                 <div className="w-full bg-warning" style={{ height: `${(item.unresolved / max) * 100}%` }} />
                                 <div className="w-full bg-success" style={{ height: `${(item.resolved / max) * 100}%` }} />
                             </div>
-                            <span className="truncate text-[9px] text-fg-subtle">{monthLabel(item.month)}</span>
-                            <span className="text-[10px] tabular-nums text-fg">{item.count}</span>
+                            <span className="text-[9px] text-fg-subtle">{monthLabel(item.month)}</span>
                             <span className="text-[9px] tabular-nums text-success">{Math.round(resolvedPercent)}%</span>
                         </div>
                     );

@@ -45,6 +45,7 @@ export function GlobalQuickActions() {
     const { can, loading } = useAccess();
 
     const hidden =
+        pathname !== "/" ||
         pathname.startsWith("/login") ||
         pathname.startsWith("/offline") ||
         pathname.startsWith("/admin") ||
