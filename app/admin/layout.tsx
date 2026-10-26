@@ -1,51 +1,30 @@
-"use client";
-
-// app/admin/layout.tsx
-import { usePathname } from "next/navigation";
-import { AppShell } from "@/components/shell/AppShell";
-import { useAccess } from "@/components/access/AccessProvider";
-import { NoAccess } from "@/components/access/NoAccess";
-import { AdminHome } from "@/components/access/AdminHome";
-import { ACCESS_SECTIONS, isAdminSection, sectionForPath } from "@/lib/access/registry";
+import { redirect } from "next/navigation";
+import AdminLayoutClient from "@/components/access/AdminLayoutClient";
+import { getSessionAccess } from "@/lib/access/server";
+import { ACCESS_SECTIONS, isAdminSection } from "@/lib/access/registry";
 
 /**
- * Каркас административного раздела.
+ * Серверная граница админки.
  *
- * Навигация (нижний таб-бар на мобильном, сайдбар на планшете и десктопе)
- * и шапка живут здесь, а не в каждой странице — поэтому разделы больше не
- * дублируют меню и не расходятся между собой.
- *
- * Здесь же единая проверка доступа к странице: раздел определяется по адресу
- * (реестр разделов), поэтому новую страницу не нужно отдельно защищать —
- * достаточно указать её href в registry.ts.
- *
- * Особый случай — сам `/admin`: если «Контроль выхода» не выдан, но есть другие
- * разделы, показываем первый экран со списком доступного. Никаких автопереходов:
- * человек сам выбирает раздел.
+ * Клиентский layout раньше показывал «Нет доступа» только после загрузки
+ * /api/access. Это защищало данные (API уже проверяет разделы), но сам HTML
+ * админки отдавался любому авторизованному сотруднику. Теперь до рендера
+ * проверяем сессию и наличие хотя бы одного админского раздела.
  */
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
-    const pathname = usePathname() ?? "/admin";
-    const { loading, can } = useAccess();
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+    const access = await getSessionAccess();
 
-    const section = sectionForPath(pathname);
-    const denied = !loading && section ? !can(section.id) : false;
-
-    // Первый экран админки вместо автоперехода в «первый доступный» раздел
-    const showAdminHome =
-        !loading &&
-        pathname === "/admin" &&
-        !can("dashboard") &&
-        ACCESS_SECTIONS.some(
-            item => isAdminSection(item) && !item.adminOnly && can(item.id),
-        );
-
-    if (showAdminHome) {
-        return (
-            <AppShell>
-                <AdminHome />
-            </AppShell>
-        );
+    if (!access) {
+        redirect("/login?callbackUrl=/admin");
     }
 
-    return <AppShell>{denied ? <NoAccess title={`Нет доступа: ${section?.label}`} /> : children}</AppShell>;
+    const hasAdminSection = ACCESS_SECTIONS.some(
+        section => isAdminSection(section) && access.sections.includes(section.id),
+    );
+
+    if (!hasAdminSection) {
+        redirect("/");
+    }
+
+    return <AdminLayoutClient>{children}</AdminLayoutClient>;
 }
