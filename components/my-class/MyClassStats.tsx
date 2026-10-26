@@ -3,7 +3,7 @@
 // components/my-class/MyClassStats.tsx
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CalendarCheck, ChevronDown } from "lucide-react";
-import { EmptyState, FormError, Skeleton } from "@/components/ui/kit";
+import { EmptyState, FormError, Select, Skeleton } from "@/components/ui/kit";
 import {
     addMonths,
     formatDateShortRu,
@@ -168,21 +168,9 @@ export function MyClassStats({
                 </span>
             </div>
 
-            <div className="rounded-card border border-border bg-surface px-3 py-2">
-                <p className="flex items-center gap-1 text-[11px] text-fg-subtle">
-                    <AlertTriangle size={13} aria-hidden /> Нарушения
-                </p>
-                <p className="mt-0.5 text-2xl font-semibold tabular-nums text-fg">
-                    {stats.summary.violationsTotal}
-                </p>
-                <p className="text-[10px] text-fg-subtle">
-                    отработано {stats.summary.violationsResolved} · в работе {stats.summary.violationsUnresolved}
-                </p>
-            </div>
-
             <CollapsibleSection
                 title="Посещаемость"
-                description={`Класс ${className} · нажмите на причину, чтобы изменить график`}
+                description={`Класс ${className} · выберите причину, чтобы изменить график`}
                 icon={CalendarCheck}
             >
                 {stats.attendance.daily.length === 0 ? (
@@ -190,23 +178,39 @@ export function MyClassStats({
                 ) : (
                     <div className="space-y-2">
                         {stats.attendance.reasons.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5">
-                                <FilterButton
-                                    active={selectedReason === "all"}
-                                    onClick={() => setSelectedReason("all")}
-                                >
-                                    Все причины
-                                </FilterButton>
-                                {stats.attendance.reasons.map(item => (
+                            <>
+                                <div className="md:hidden">
+                                    <Select
+                                        aria-label="Причина отсутствия"
+                                        value={selectedReason}
+                                        onChange={setSelectedReason}
+                                        options={[
+                                            { value: "all", label: "Все причины" },
+                                            ...stats.attendance.reasons.map(item => ({
+                                                value: item.reason,
+                                                label: `${REASON_LABEL[item.reason] ?? item.reason} · ${item.count}`,
+                                            })),
+                                        ]}
+                                    />
+                                </div>
+                                <div className="hidden flex-wrap gap-1.5 md:flex">
                                     <FilterButton
-                                        key={item.reason}
-                                        active={selectedReason === item.reason}
-                                        onClick={() => setSelectedReason(item.reason)}
+                                        active={selectedReason === "all"}
+                                        onClick={() => setSelectedReason("all")}
                                     >
-                                        {REASON_LABEL[item.reason] ?? item.reason} · {item.count}
+                                        Все причины
                                     </FilterButton>
-                                ))}
-                            </div>
+                                    {stats.attendance.reasons.map(item => (
+                                        <FilterButton
+                                            key={item.reason}
+                                            active={selectedReason === item.reason}
+                                            onClick={() => setSelectedReason(item.reason)}
+                                        >
+                                            {REASON_LABEL[item.reason] ?? item.reason} · {item.count}
+                                        </FilterButton>
+                                    ))}
+                                </div>
+                            </>
                         )}
                         <AttendanceBars items={stats.attendance.daily} selectedReason={selectedReason} />
                     </div>
@@ -215,14 +219,28 @@ export function MyClassStats({
 
             <CollapsibleSection
                 title="Динамика нарушений"
-                description="По месяцам · нажмите на тип, чтобы изменить график"
+                description="По месяцам · выберите тип, чтобы изменить график"
                 icon={AlertTriangle}
             >
                 {stats.violations.byMonth.length === 0 ? (
                     <EmptyState icon={AlertTriangle} title="Нарушений нет" compact />
                 ) : (
                     <div className="space-y-2">
-                        <div className="flex flex-wrap gap-1.5">
+                        <div className="md:hidden">
+                            <Select
+                                aria-label="Тип нарушения"
+                                value={selectedType}
+                                onChange={setSelectedType}
+                                options={[
+                                    { value: "all", label: `Все нарушения · ${stats.summary.violationsTotal}` },
+                                    ...stats.violations.byType.map(item => ({
+                                        value: item.type,
+                                        label: `${getViolationType(item.type).shortLabel} · ${item.count}`,
+                                    })),
+                                ]}
+                            />
+                        </div>
+                        <div className="hidden flex-wrap gap-1.5 md:flex">
                             <FilterButton
                                 active={selectedType === "all"}
                                 onClick={() => setSelectedType("all")}
@@ -391,6 +409,9 @@ function ViolationBars({
                             <div className="w-full bg-success" style={{ height: `${(item.resolved / max) * 100}%` }} />
                         </div>
                         <span className="text-[9px] text-fg-subtle">{monthLabel(item.month)}</span>
+                        <span className="text-[9px] font-medium tabular-nums text-success">
+                            {item.count > 0 ? `${Math.round((item.resolved / item.count) * 100)}%` : "0%"}
+                        </span>
                     </div>
                 ))}
             </div>
