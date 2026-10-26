@@ -71,8 +71,11 @@ export function getPool(): mysql.Pool {
             database: process.env.DB_NAME || '',
             port: parseInt(process.env.DB_PORT || '3306'),
             waitForConnections: true,
-            connectionLimit: 10,
-            queueLimit: 0,
+            // 200–300 одновременных запросов не должны открывать сотни
+            // соединений к внешней АИС. Очередь ограничена, чтобы при
+            // перегрузке запросы завершались ошибкой, а не копились в памяти.
+            connectionLimit: Math.min(50, Math.max(2, Number.parseInt(process.env.DB_POOL_SIZE || '15', 10) || 15)),
+            queueLimit: Math.min(2000, Math.max(10, Number.parseInt(process.env.DB_QUEUE_LIMIT || '200', 10) || 200)),
             connectTimeout: 10000,
             acquireTimeout: 10000,
             timeout: 10000,

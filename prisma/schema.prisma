@@ -87,6 +87,7 @@ model UserRole {
   role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@unique([userId, roleId])
+  @@index([roleId])
 }
 
 model Class {
@@ -107,6 +108,7 @@ model Class {
   /// Имя класса — каноническое («5А»); дубли недопустимы
   @@unique([name])
   @@index([buildingId])
+  @@index([ownerId])
   
   // Обратная связь для шарингов
   sharedWith ClassShare[]
@@ -122,6 +124,7 @@ model ClassShare {
   teacher User  @relation(fields: [teacherId], references: [id])
 
   @@unique([classId, teacherId])
+  @@index([teacherId])
 }
 
 model Pass {
@@ -232,6 +235,7 @@ model Violation {
   @@index([studentId])
   @@index([teacherId])
   @@index([resolvedAt])
+  @@index([resolvedBy])
 }
 model SchoolRecord {
   id               String    @id @default(cuid())
