@@ -64,6 +64,61 @@ export async function GET() {
             group: section.group,
         }));
 
+    // Личный рейтинг считаем только по своим классам. Общие классы
+    // (ClassShare) не дают классного руководства и в рейтинг не входят.
+    let rating: {
+        className: string;
+        attendance: { present: number; total: number; percent: number };
+        violationsResolved: number;
+    } | null = null;
+
+    if (owned.length > 0) {
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+        const ownedIds = owned.map(item => item.id);
+        const ownedNames = owned.map(item => item.name);
+
+        const [attendanceRows, violationsResolved] = await Promise.all([
+            prisma.attendance.findMany({
+                where: { classId: { in: ownedIds }, date: { gte: monthStart, lte: monthEnd } },
+                select: { presentStudents: true, absentStudents: true },
+            }),
+            prisma.violation.count({
+                where: {
+                    className: { in: ownedNames },
+                    resolvedBy: access.userId,
+                    resolvedAt: { gte: monthStart, lte: monthEnd },
+                },
+            }),
+        ]);
+
+        let present = 0;
+        let total = 0;
+        for (const row of attendanceRows) {
+            try {
+                const presentStudents = JSON.parse(row.presentStudents);
+                const absentStudents = JSON.parse(row.absentStudents);
+                const presentCount = Array.isArray(presentStudents) ? presentStudents.length : 0;
+                const absentCount = Array.isArray(absentStudents) ? absentStudents.length : 0;
+                present += presentCount;
+                total += presentCount + absentCount;
+            } catch {
+                // Старая/битая запись не должна ломать карточку
+            }
+        }
+
+        rating = {
+            className: owned.map(item => item.name).join(", "),
+            attendance: {
+                present,
+                total,
+                percent: total > 0 ? Math.round((present / total) * 100) : 0,
+            },
+            violationsResolved,
+        };
+    }
+
     return NextResponse.json({
         user: {
             name: user?.name ?? "",
@@ -75,6 +130,7 @@ export async function GET() {
             classes: classes.map(item => item.name),
             studentsCount,
         },
+        rating,
         services,
     });
 }

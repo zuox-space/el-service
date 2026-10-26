@@ -8,7 +8,9 @@ import { signOut, useSession } from "next-auth/react";
 import {
     ArrowRight,
     BarChart3,
+    CalendarCheck,
     ChevronDown,
+    ClipboardCheck,
     KeyRound,
     School,
     ShieldCheck,
@@ -42,6 +44,11 @@ interface PortalService {
 interface PortalData {
     user: { name: string; email: string; roles: string[] };
     myClass: { available: boolean; classes: string[]; studentsCount: number };
+    rating: {
+        className: string;
+        attendance: { present: number; total: number; percent: number };
+        violationsResolved: number;
+    } | null;
     services: PortalService[];
 }
 
@@ -174,7 +181,10 @@ export default function PortalPage() {
                             profileOpen ? "absolute left-0 right-0 top-full z-20 mt-2 block" : "hidden"
                         } md:static md:mt-0 md:block`}
                     >
-                        <UserStatsCard onClose={() => setProfileOpen(false)} />
+                        <UserStatsCard
+                            rating={data?.rating ?? null}
+                            onClose={() => setProfileOpen(false)}
+                        />
                     </div>
                 </div>
 
@@ -317,8 +327,10 @@ export default function PortalPage() {
 }
 
 function UserStatsCard({
+    rating,
     onClose,
 }: {
+    rating: PortalData["rating"];
     onClose: () => void;
 }) {
     return (
@@ -338,14 +350,57 @@ function UserStatsCard({
                 </button>
             </div>
 
-            <div className="mt-3 flex items-center gap-2 rounded-control border border-dashed border-border bg-surface-2 px-3 py-3">
-                <Star size={18} className="shrink-0 text-warning" aria-hidden />
-                <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-fg">Мой рейтинг</p>
-                    <p className="text-[11px] text-fg-subtle">Здесь появится ваш рейтинг сотрудника</p>
+            {rating ? (
+                <div className="mt-3 flex flex-1 flex-col">
+                    <div className="flex items-center justify-between gap-2 text-[11px] text-fg-subtle">
+                        <span className="truncate">{rating.className}</span>
+                        <span className="shrink-0">текущий месяц</span>
+                    </div>
+
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                        <div className="rounded-control border border-accent/20 bg-accent-soft/50 p-2.5">
+                            <p className="flex items-center gap-1 text-[10px] font-medium text-accent-text">
+                                <CalendarCheck size={13} aria-hidden />
+                                Присутствие
+                            </p>
+                            <p className="mt-1 text-xl font-semibold tabular-nums text-fg">
+                                {rating.attendance.percent}%
+                            </p>
+                            <p className="text-[10px] text-fg-subtle">
+                                {rating.attendance.total > 0
+                                    ? `${rating.attendance.present} из ${rating.attendance.total} отметок`
+                                    : "Нет отметок"}
+                            </p>
+                            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface">
+                                <div
+                                    className="h-full rounded-full bg-accent-solid"
+                                    style={{ width: `${Math.min(100, Math.max(0, rating.attendance.percent))}%` }}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="rounded-control border border-success/20 bg-success-soft/50 p-2.5">
+                            <p className="flex items-center gap-1 text-[10px] font-medium text-success">
+                                <ClipboardCheck size={13} aria-hidden />
+                                Отработано
+                            </p>
+                            <p className="mt-1 text-xl font-semibold tabular-nums text-fg">
+                                {rating.violationsResolved}
+                            </p>
+                            <p className="text-[10px] text-fg-subtle">нарушений</p>
+                        </div>
+                    </div>
                 </div>
-                <Badge tone="neutral">скоро</Badge>
-            </div>
+            ) : (
+                <div className="mt-3 flex flex-1 items-center gap-2 rounded-control border border-dashed border-border bg-surface-2 px-3 py-3">
+                    <Star size={18} className="shrink-0 text-warning" aria-hidden />
+                    <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-fg">Мой рейтинг</p>
+                        <p className="text-[11px] text-fg-subtle">Появится, когда у вас будет свой класс</p>
+                    </div>
+                    <Badge tone="neutral">скоро</Badge>
+                </div>
+            )}
         </div>
     );
 }
