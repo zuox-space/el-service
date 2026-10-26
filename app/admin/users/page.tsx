@@ -42,8 +42,12 @@ import { formatDateRu } from "@/lib/date";
 interface RoleInfo {
     id: string;
     name: string;
+    displayName?: string | null;
     description?: string | null;
 }
+
+const roleDisplayName = (role: Pick<RoleInfo, "name" | "displayName">) =>
+    role.displayName?.trim() || roleLabel(role.name);
 
 interface StaffUser {
     id: string;
@@ -169,7 +173,7 @@ export default function AdminUsersPage() {
                 const matches =
                     user.name.toLowerCase().includes(query) ||
                     user.email.toLowerCase().includes(query) ||
-                    rolesOf(user).some(role => roleLabel(role.name).toLowerCase().includes(query));
+                    rolesOf(user).some(role => roleDisplayName(role).toLowerCase().includes(query));
                 if (!matches) return false;
             }
 
@@ -221,7 +225,7 @@ export default function AdminUsersPage() {
             await loadAccess(user.id);
             toast.show({
                 title: checked ? "Роль выдана" : "Роль снята",
-                description: `${roleLabel(role.name)} · ${user.name}`,
+                description: `${roleDisplayName(role)} · ${user.name}`,
                 tone: "success",
             });
         } catch (e) {
@@ -382,7 +386,7 @@ export default function AdminUsersPage() {
             await fetchData();
             toast.show({
                 title: "Сотрудник добавлен",
-                description: `${name} · ${selected.map(role => roleLabel(role.name)).join(", ")}`,
+                description: `${name} · ${selected.map(role => roleDisplayName(role)).join(", ")}`,
                 tone: "success",
             });
 
@@ -424,7 +428,7 @@ export default function AdminUsersPage() {
                     <div className="flex flex-wrap gap-1">
                         {userRoles.map(role => (
                             <Badge key={role.id} tone={roleTone(role.name)}>
-                                {roleLabel(role.name)}
+                                {roleDisplayName(role)}
                             </Badge>
                         ))}
                     </div>
@@ -503,7 +507,7 @@ export default function AdminUsersPage() {
                                     onClick={() => setRoleFilter(roleFilter === role.name ? "all" : role.name)}
                                     count={roleCounts[role.name] ?? 0}
                                 >
-                                    {roleLabel(role.name)}
+                                    {roleDisplayName(role)}
                                 </Chip>
                             ))}
                             <Chip
@@ -550,7 +554,7 @@ export default function AdminUsersPage() {
                         mobileSubtitle={user =>
                             rolesOf(user).length === 0
                                 ? "без роли — доступ закрыт"
-                                : rolesOf(user).map(role => roleLabel(role.name)).join(" · ")
+                                : rolesOf(user).map(role => roleDisplayName(role)).join(" · ")
                         }
                         emptyTitle="Сотрудники не найдены"
                         caption="Сотрудники и их роли"
@@ -633,7 +637,7 @@ export default function AdminUsersPage() {
                                             checked={assigned}
                                             disabled={busyRoleId === role.id}
                                             onChange={checked => void toggleRole(editingUser, role, checked)}
-                                            label={roleLabel(role.name)}
+                                            label={roleDisplayName(role)}
                                             description={description}
                                         />
                                     );
@@ -791,7 +795,7 @@ export default function AdminUsersPage() {
                                             checked ? [...previous, role.id] : previous.filter(id => id !== role.id),
                                         )
                                     }
-                                    label={roleLabel(role.name)}
+                                    label={roleDisplayName(role)}
                                     description={role.description ?? undefined}
                                 />
                             ))}

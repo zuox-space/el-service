@@ -38,11 +38,23 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
 
     const description = typeof body.description === "string" ? body.description.trim() : role.description;
+    const displayName =
+        body.displayName === undefined
+            ? role.displayName
+            : typeof body.displayName === "string" && body.displayName.trim()
+                ? body.displayName.trim()
+                : null;
+
+    if (displayName && (displayName.length < 2 || displayName.length > 60)) {
+        return NextResponse.json({ error: "Название роли: от 2 до 60 символов" }, { status: 400 });
+    }
+
     const defaultSections = body.defaultSections === undefined ? role.defaultSections : normalizeSections(body.defaultSections);
 
     const updated = await prisma.role.update({
         where: { id: params.id },
         data: {
+            displayName,
             description: description || null,
             defaultSections,
         },
@@ -53,6 +65,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         role: {
             id: updated.id,
             name: updated.name,
+            displayName: updated.displayName,
             description: updated.description,
             defaultSections: updated.defaultSections,
         },

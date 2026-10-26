@@ -63,6 +63,8 @@ model SectionAccess {
 model Role {
   id          String   @id @default(cuid())
   name        String   @unique
+  /// Отображаемое название роли, например «Завуч». Тег остаётся в name.
+  displayName String?
   description String?
   createdAt   DateTime @default(now())
 

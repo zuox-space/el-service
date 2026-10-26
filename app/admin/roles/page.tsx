@@ -37,11 +37,15 @@ import { roleLabel, roleTone } from "@/lib/roles";
 interface RoleRow {
     id: string;
     name: string;
+    displayName: string | null;
     description: string | null;
     defaultSections: string[];
     registryDefaults?: string[];
     usersCount: number;
 }
+
+const roleTitle = (role: { name: string; displayName?: string | null }) =>
+    role.displayName?.trim() || roleLabel(role.name);
 
 
 
@@ -60,7 +64,7 @@ export default function RolesPage() {
 
     const [sheetOpen, setSheetOpen] = useState(false);
     const [editing, setEditing] = useState<RoleRow | null>(null);
-    const [form, setForm] = useState({ name: "", description: "" });
+    const [form, setForm] = useState({ name: "", tag: "", description: "" });
     const [sections, setSections] = useState<AccessSectionId[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
@@ -106,13 +110,13 @@ export default function RolesPage() {
     // При создании стандартной роли сразу показываем её доступы из реестра.
     useEffect(() => {
         if (!sheetOpen || editing) return;
-        const roleName = form.name.trim().toUpperCase().replace(/\s+/g, "_");
-        setSections(sectionsForRole(roleName));
-    }, [form.name, editing, sheetOpen]);
+        const roleTag = form.tag.trim().toUpperCase().replace(/\s+/g, "_");
+        setSections(sectionsForRole(roleTag));
+    }, [form.tag, editing, sheetOpen]);
 
     const openCreate = () => {
         setEditing(null);
-        setForm({ name: "", description: "" });
+        setForm({ name: "", tag: "", description: "" });
         setSections([]);
         setFormError(null);
         setSheetOpen(true);
@@ -120,7 +124,11 @@ export default function RolesPage() {
 
     const openEdit = (role: RoleRow) => {
         setEditing(role);
-        setForm({ name: role.name, description: role.description ?? "" });
+        setForm({
+            name: role.displayName?.trim() || roleLabel(role.name),
+            tag: role.name,
+            description: role.description ?? "",
+        });
         // Показываем: что реально действует — сохранённое или значения из реестра
         setSections(
             (role.defaultSections.length > 0 ? role.defaultSections : role.registryDefaults ?? []) as AccessSectionId[],
@@ -138,8 +146,16 @@ export default function RolesPage() {
     const save = async () => {
         setFormError(null);
 
-        if (!editing && !/^[A-Z][A-Z0-9_]{1,39}$/.test(form.name.trim().toUpperCase())) {
-            setFormError("Название роли: латиница в верхнем регистре, от 2 до 40 символов (например, METHODIST)");
+        const displayName = form.name.trim();
+        const tag = form.tag.trim().toUpperCase().replace(/\s+/g, "_");
+
+        if (displayName.length < 2 || displayName.length > 60) {
+            setFormError("Название роли: от 2 до 60 символов");
+            return;
+        }
+
+        if (!editing && !/^[A-Z][A-Z0-9_]{1,39}$/.test(tag)) {
+            setFormError("Тег роли: латиница в верхнем регистре, от 2 до 40 символов (например, HEAD_TEACHER)");
             return;
         }
 
@@ -149,13 +165,14 @@ export default function RolesPage() {
                 ? await fetch(`/api/admin/roles/${editing.id}`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ description: form.description, defaultSections: sections }),
+                    body: JSON.stringify({ displayName, description: form.description, defaultSections: sections }),
                 })
                 : await fetch("/api/admin/roles", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        name: form.name,
+                        name: tag,
+                        displayName,
                         description: form.description,
                         defaultSections: sections,
                     }),
@@ -170,7 +187,7 @@ export default function RolesPage() {
             setSheetOpen(false);
             toast.show({
                 title: editing ? "Роль обновлена" : "Роль создана",
-                description: `${roleLabel(editing?.name ?? form.name.trim().toUpperCase())} · разделов: ${sections.length}`,
+                description: `${displayName} · разделов: ${sections.length}`,
                 tone: "success",
             });
         } catch (e) {
@@ -195,7 +212,7 @@ export default function RolesPage() {
             }
 
             await fetchRoles();
-            toast.show({ title: "Роль удалена", description: roleLabel(role.name), tone: "success" });
+            toast.show({ title: "Роль удалена", description: roleTitle(role), tone: "success" });
         } catch (e) {
             toast.show({
                 title: e instanceof Error ? e.message : "Не удалось удалить роль",
@@ -276,7 +293,7 @@ export default function RolesPage() {
                                         <div className="min-w-0">
                                             <div className="flex flex-wrap items-center gap-2">
                                                 <h2 className="truncate text-base font-semibold text-fg">
-                                                    {roleLabel(role.name)}
+                                                    {roleTitle(role)}
                                                 </h2>
                                                 <Badge tone={roleTone(role.name)}>{role.name}</Badge>
                                                 {isAdminRole && <Badge tone="accent">полный доступ</Badge>}
@@ -323,7 +340,7 @@ export default function RolesPage() {
                                             onClick={() => openEdit(role)}
                                             disabled={isAdminRole}
                                         >
-                                            Изменить доступы
+                                            Изменить
                                         </Button>
                                         <Button
                                             size="sm"
@@ -357,11 +374,11 @@ export default function RolesPage() {
             <Sheet
                 open={sheetOpen}
                 onClose={() => setSheetOpen(false)}
-                title={editing ? roleLabel(editing.name) : "Новая роль"}
+                title={editing ? roleTitle(editing) : "Новая роль"}
                 description={
                     editing
-                        ? "Доступы по умолчанию: что увидит сотрудник с этой ролью"
-                        : "Название латиницей, например METHODIST"
+                        ? "Название, описание и доступы по умолчанию"
+                        : "Название роли и технический тег"
                 }
                 footer={
                     <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -377,15 +394,29 @@ export default function RolesPage() {
                 <div className="space-y-4">
                     <FormError message={formError} />
 
-                    {!editing && (
+                    <Input
+                        label="Название роли"
+                        value={form.name}
+                        onChange={event => setForm(previous => ({ ...previous, name: event.target.value }))}
+                        placeholder="Завуч"
+                        hint="Как роль видна администратору и сотрудникам"
+                        required
+                    />
+
+                    {!editing ? (
                         <Input
-                            label="Название роли"
-                            value={form.name}
-                            onChange={event => setForm(previous => ({ ...previous, name: event.target.value }))}
-                            placeholder="METHODIST"
+                            label="Тег роли"
+                            value={form.tag}
+                            onChange={event => setForm(previous => ({ ...previous, tag: event.target.value }))}
+                            placeholder="HEAD_TEACHER"
                             hint="Латиница в верхнем регистре: так роль хранится в базе"
                             required
                         />
+                    ) : (
+                        <div className="rounded-control border border-border bg-surface-2 px-3 py-2">
+                            <p className="text-xs text-fg-subtle">Тег роли</p>
+                            <p className="mt-0.5 font-mono text-sm text-fg">{form.tag}</p>
+                        </div>
                     )}
 
                     <Input
@@ -436,7 +467,7 @@ export default function RolesPage() {
                 open={Boolean(pendingDelete)}
                 onClose={() => setPendingDelete(null)}
                 title="Удалить роль?"
-                description={pendingDelete ? roleLabel(pendingDelete.name) : undefined}
+                description={pendingDelete ? roleTitle(pendingDelete) : undefined}
                 size="sm"
                 footer={
                     <ModalFooter

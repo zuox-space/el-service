@@ -26,6 +26,7 @@ export async function GET() {
             roles.map(role => ({
                 id: role.id,
                 name: role.name,
+                displayName: role.displayName,
                 description: role.description,
                 defaultSections: role.defaultSections,
                 // Для встроенных ролей показываем, что даётся из реестра
@@ -49,11 +50,20 @@ export async function POST(request: NextRequest) {
     }
 
     const rawName = typeof body.name === "string" ? body.name.trim().toUpperCase().replace(/\s+/g, "_") : "";
+    const rawDisplayName = typeof body.displayName === "string" ? body.displayName.trim() : "";
+    const displayName = rawDisplayName || rawName;
     const description = typeof body.description === "string" ? body.description.trim() : "";
 
     if (!/^[A-Z][A-Z0-9_]{1,39}$/.test(rawName)) {
         return NextResponse.json(
-            { error: "Название роли: латиница в верхнем регистре, от 2 до 40 символов (например, METHODIST)" },
+            { error: "Тег роли: латиница в верхнем регистре, от 2 до 40 символов (например, HEAD_TEACHER)" },
+            { status: 400 },
+        );
+    }
+
+    if (displayName.length < 2 || displayName.length > 60) {
+        return NextResponse.json(
+            { error: "Название роли: от 2 до 60 символов" },
             { status: 400 },
         );
     }
@@ -82,6 +92,7 @@ export async function POST(request: NextRequest) {
     const role = await prisma.role.create({
         data: {
             name: rawName,
+            displayName,
             description: description || null,
             defaultSections: sections,
         },
@@ -92,6 +103,7 @@ export async function POST(request: NextRequest) {
         role: {
             id: role.id,
             name: role.name,
+            displayName: role.displayName,
             description: role.description,
             defaultSections: role.defaultSections,
             usersCount: 0,
