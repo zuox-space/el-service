@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import { useAccess } from "./AccessProvider";
 import { ACCESS_SECTIONS, isAdminSection } from "@/lib/access/registry";
-import { Badge } from "@/components/ui/kit";
 
 /**
  * Первый экран админки для сотрудника без «Контроля выхода».
@@ -86,9 +85,6 @@ export function AdminHome() {
                 })}
             </div>
 
-            <p className="mt-3 text-xs text-fg-subtle">
-                Доступы выдаёт администратор: <Badge tone="neutral">Персонал → сотрудник → Доступ к разделам</Badge>
-            </p>
         </div>
     );
 }

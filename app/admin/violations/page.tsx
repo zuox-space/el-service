@@ -132,12 +132,7 @@ function ViolationsContent() {
             router.replace("/login");
             return;
         }
-        if (status === "authenticated") {
-            const roles = (session?.user?.roles as string[]) || [];
-            if (!roles.includes("ADMIN")) {
-                router.replace("/admin");
-            }
-        }
+
     }, [session, status, router]);
 
     useEffect(() => {
@@ -148,7 +143,7 @@ function ViolationsContent() {
             .catch(() => setBuildings([]));
     }, [status]);
 
-    const isAdmin = status === "authenticated" && (((session?.user?.roles as string[]) || []).includes("ADMIN"));
+    const canManageViolations = status === "authenticated";
 
     // Ввод в поиске не должен дёргать сервер на каждую букву
     useEffect(() => {
@@ -246,14 +241,14 @@ function ViolationsContent() {
     }, [startDate, endDate, page, selectedType, selectedClass, buildingId, searchQuery, resolution]);
 
     useEffect(() => {
-        if (isAdmin) {
+        if (canManageViolations) {
             fetchViolations();
         }
-    }, [isAdmin, fetchViolations]);
+    }, [canManageViolations, fetchViolations]);
 
     // Список классов для фильтра — по всему периоду, без текущих фильтров
     useEffect(() => {
-        if (!isAdmin) return;
+        if (!canManageViolations) return;
         let cancelled = false;
 
         const loadClassOptions = async () => {
@@ -272,7 +267,7 @@ function ViolationsContent() {
 
         loadClassOptions();
         return () => { cancelled = true; };
-    }, [isAdmin, startDate, endDate]);
+    }, [canManageViolations, startDate, endDate]);
 
     const [pendingDelete, setPendingDelete] = useState<{ id: string; studentName: string } | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -421,7 +416,7 @@ function ViolationsContent() {
         return <ViolationsPageFallback />;
     }
 
-    if (!isAdmin) {
+    if (!canManageViolations) {
         return null;
     }
 

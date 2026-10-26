@@ -95,10 +95,7 @@ export default function AbsentPage() {
     useEffect(() => {
         setMounted(true);
         if (status === "unauthenticated") router.replace("/login");
-        if (status === "authenticated") {
-            const roles = (session?.user?.roles as string[]) || [];
-            if (!roles.includes("ADMIN")) router.replace("/admin");
-        }
+
     }, [session, status, router]);
 
     const fetchData = useCallback(async () => {
@@ -124,13 +121,13 @@ export default function AbsentPage() {
     }, [date]);
 
     useEffect(() => {
-        if (session?.user?.roles?.includes("ADMIN")) {
+        if (session) {
             void fetchData();
         }
     }, [session, fetchData]);
 
     useEffect(() => {
-        if (!session?.user?.roles?.includes("ADMIN")) return;
+        if (!session) return;
         fetch("/api/buildings", { cache: "no-store" })
             .then(response => response.json())
             .then(data => setBuildings(Array.isArray(data.buildings) ? data.buildings : []))
@@ -283,7 +280,7 @@ export default function AbsentPage() {
         );
     }
 
-    if (!session || !session?.user?.roles?.includes("ADMIN")) return null;
+    if (!session) return null;
 
     const markedCount = classes.filter(cls => cls.isMarked).length;
     const presentedShare =

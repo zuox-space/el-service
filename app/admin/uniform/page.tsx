@@ -99,10 +99,7 @@ export default function UniformStatsPage() {
     useEffect(() => {
         setMounted(true);
         if (status === "unauthenticated") router.replace("/login");
-        if (status === "authenticated") {
-            const roles = (session?.user?.roles as string[]) || [];
-            if (!roles.includes("ADMIN")) router.replace("/admin");
-        }
+
     }, [session, status, router]);
 
     const fetchStats = useCallback(async () => {
@@ -128,13 +125,13 @@ export default function UniformStatsPage() {
     }, [startDate, endDate, buildingId]);
 
     useEffect(() => {
-        if (session?.user?.roles?.includes("ADMIN")) {
+        if (session) {
             void fetchStats();
         }
     }, [session, fetchStats]);
 
     useEffect(() => {
-        if (!session?.user?.roles?.includes("ADMIN")) return;
+        if (!session) return;
         fetch("/api/buildings", { cache: "no-store" })
             .then(response => response.json())
             .then(data => setBuildings(Array.isArray(data.buildings) ? data.buildings : []))
@@ -275,7 +272,7 @@ export default function UniformStatsPage() {
         );
     }
 
-    if (!session || !session?.user?.roles?.includes("ADMIN")) return null;
+    if (!session) return null;
 
     return (
         <div className="min-h-full bg-bg">

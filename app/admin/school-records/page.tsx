@@ -86,10 +86,6 @@ export default function SchoolRecordsPage() {
     useEffect(() => {
         setMounted(true);
         if (status === "unauthenticated") router.replace("/login");
-        if (status === "authenticated") {
-            const roles = (session?.user?.roles as string[]) || [];
-            if (!roles.includes("ADMIN")) router.replace("/admin");
-        }
     }, [session, status, router]);
 
     const fetchRecords = useCallback(async () => {
@@ -121,7 +117,7 @@ export default function SchoolRecordsPage() {
     }, [startDate, endDate]);
 
     useEffect(() => {
-        if (session?.user?.roles?.includes("ADMIN")) {
+        if (session) {
             void fetchRecords();
         }
     }, [session, fetchRecords]);
@@ -212,7 +208,7 @@ export default function SchoolRecordsPage() {
         );
     }
 
-    if (!session || !session?.user?.roles?.includes("ADMIN")) return null;
+    if (!session) return null;
 
     const tabs = [
         { id: "overview", label: "Обзор" },

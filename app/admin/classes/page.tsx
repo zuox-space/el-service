@@ -80,10 +80,6 @@ export default function AdminClassesPage() {
     useEffect(() => {
         setMounted(true);
         if (status === "unauthenticated") router.replace("/login");
-        if (status === "authenticated") {
-            const roles = (session?.user?.roles as string[]) || [];
-            if (!roles.includes("ADMIN")) router.replace("/admin");
-        }
     }, [session, status, router]);
 
     const fetchData = useCallback(async () => {
@@ -105,7 +101,7 @@ export default function AdminClassesPage() {
     }, []);
 
     useEffect(() => {
-        if (session?.user?.roles?.includes("ADMIN")) {
+        if (session) {
             void fetchData();
         }
     }, [session, fetchData]);
@@ -180,7 +176,7 @@ export default function AdminClassesPage() {
         );
     }
 
-    if (!session || !session?.user?.roles?.includes("ADMIN")) return null;
+    if (!session) return null;
 
     return (
         <div className="min-h-full bg-bg">

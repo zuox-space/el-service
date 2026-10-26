@@ -100,10 +100,7 @@ export default function AdminDashboardPage() {
     useEffect(() => {
         setMounted(true);
         if (status === "unauthenticated") router.replace("/login");
-        if (status === "authenticated") {
-            const roles = (session?.user?.roles as string[]) || [];
-            if (!roles.includes("ADMIN")) router.replace("/");
-        }
+
     }, [session, status, router]);
 
     const fetchData = useCallback(async (nextTab: TabId) => {
@@ -136,7 +133,7 @@ export default function AdminDashboardPage() {
     }, []);
 
     useEffect(() => {
-        if (session?.user?.roles?.includes("ADMIN")) {
+        if (session) {
             void fetchData(tab);
         }
     }, [session, tab, fetchData]);
@@ -221,7 +218,7 @@ export default function AdminDashboardPage() {
     };
 
     useEffect(() => {
-        if (!session?.user?.roles?.includes("ADMIN")) return;
+        if (!session) return;
         fetch("/api/keys/buildings", { cache: "no-store" })
             .then(response => response.json())
             .then(data => setBuildings(Array.isArray(data.buildings) ? data.buildings : []))
@@ -271,7 +268,7 @@ export default function AdminDashboardPage() {
         );
     }
 
-    if (!session || !session?.user?.roles?.includes("ADMIN")) return null;
+    if (!session) return null;
 
     const emptyByTab = () => {
         if (filtersActive) {

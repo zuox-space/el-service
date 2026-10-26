@@ -35,13 +35,7 @@ export default function StudentsSearchPage() {
         if (status === "unauthenticated") {
             router.replace("/login");
         }
-        if (status === "authenticated") {
-            const roles = (session?.user?.roles as string[]) || [];
-            if (!roles.includes("ADMIN")) {
-                router.replace("/admin");
-            }
-        }
-    }, [session, status, router]);
+    }, [status, router]);
 
     // Недавние поиски — в localStorage, чтобы не искать одно и то же каждый день
     useEffect(() => {
@@ -108,7 +102,7 @@ export default function StudentsSearchPage() {
         );
     }
 
-    if (!session || !session?.user?.roles?.includes("ADMIN")) {
+    if (!session) {
         return null;
     }
 

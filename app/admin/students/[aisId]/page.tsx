@@ -160,16 +160,11 @@ export default function StudentProfilePage() {
         setMounted(true);
         if (status === "unauthenticated") {
             router.replace("/login");
-            return;
         }
-        if (status === "authenticated") {
-            const roles = (session?.user?.roles as string[]) || [];
-            if (!roles.includes("ADMIN")) router.replace("/admin");
-        }
-    }, [session, status, router]);
+    }, [status, router]);
 
     useEffect(() => {
-        if (!aisId || !session?.user?.roles?.includes("ADMIN")) return;
+        if (!aisId || !session) return;
 
         let cancelled = false;
 
@@ -286,7 +281,7 @@ export default function StudentProfilePage() {
         );
     }
 
-    if (!session || !session?.user?.roles?.includes("ADMIN")) return null;
+    if (!session) return null;
 
     if (!profile) {
         return (

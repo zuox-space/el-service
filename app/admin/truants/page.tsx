@@ -114,10 +114,7 @@ export default function TruantsPage() {
     useEffect(() => {
         setMounted(true);
         if (status === "unauthenticated") router.replace("/login");
-        if (status === "authenticated") {
-            const roles = (session?.user?.roles as string[]) || [];
-            if (!roles.includes("ADMIN")) router.replace("/admin");
-        }
+
     }, [session, status, router]);
 
     const fetchTruants = useCallback(async () => {
@@ -148,13 +145,13 @@ export default function TruantsPage() {
     }, [startDate, endDate]);
 
     useEffect(() => {
-        if (session?.user?.roles?.includes("ADMIN")) {
+        if (session) {
             void fetchTruants();
         }
     }, [session, fetchTruants]);
 
     useEffect(() => {
-        if (!session?.user?.roles?.includes("ADMIN")) return;
+        if (!session) return;
         fetch("/api/buildings", { cache: "no-store" })
             .then(response => response.json())
             .then(data => setBuildings(Array.isArray(data.buildings) ? data.buildings : []))
@@ -291,7 +288,7 @@ export default function TruantsPage() {
         );
     }
 
-    if (!session || !session?.user?.roles?.includes("ADMIN")) return null;
+    if (!session) return null;
 
     const activeFilters =
         Boolean(search || gradeGroup || className || letter) ||
