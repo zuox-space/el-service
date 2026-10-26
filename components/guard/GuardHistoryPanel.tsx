@@ -129,7 +129,7 @@ export function GuardHistoryPanel({
                 <span className="ml-auto text-[11px] text-fg-subtle">{items.length}</span>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 {loading ? (
                     <Skeleton height={100} radius="card" />
                 ) : error ? (

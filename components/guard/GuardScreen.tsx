@@ -328,7 +328,7 @@ export function GuardScreen() {
                                 />
                             </div>
 
-                            <Card padding="sm" className="flex min-h-0 flex-col">
+                            <Card padding="sm" className="flex min-h-0 flex-col" bodyClassName="flex min-h-0 flex-1 flex-col">
                                 <div className="mb-2 flex items-center justify-between gap-2">
                                     <div>
                                         <p className="text-sm font-semibold text-fg">История</p>
