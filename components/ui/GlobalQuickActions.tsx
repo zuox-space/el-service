@@ -108,6 +108,8 @@ function QuickActionsInner({
         classes.find(item => item.id === quickClassId) ??
         classes[0] ??
         null;
+    // Быстрые пропуск/посещаемость — только если реально есть доступный класс.
+    const showClassActions = canMyClass && Boolean(quickClass);
 
     useEffect(() => {
         if (!canMyClass) return;
@@ -293,7 +295,7 @@ function QuickActionsInner({
         });
     };
 
-    if (!showKeys && !canViolations && !(canMyClass && quickClass)) return null;
+    if (!showKeys && !canViolations && !showClassActions) return null;
 
     return (
         <>
@@ -393,7 +395,7 @@ function QuickActionsInner({
                                 className="border-danger/40 bg-danger-soft text-danger hover:bg-danger/20"
                             />
                         )}
-                        {canMyClass && quickClass && (
+                        {showClassActions && (
                             <MainAction
                                 icon={ClipboardCheck}
                                 label="Пропуск и присутствие"
