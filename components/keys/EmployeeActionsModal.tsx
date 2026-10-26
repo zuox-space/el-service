@@ -69,6 +69,12 @@ export function EmployeeActionsModal({
     const keys = state?.keys ?? [];
     const myKeys = keys.filter(key => key.holderId === me?.id);
     const buildings = state?.buildings ?? [];
+    const favoriteKeys = useMemo(() => {
+        const favoriteIds = new Set(state?.favorites ?? []);
+        return keys
+            .filter(key => favoriteIds.has(key.id))
+            .sort((a, b) => a.roomNumber.localeCompare(b.roomNumber, "ru", { numeric: true }));
+    }, [keys, state?.favorites]);
 
     const available = useMemo(() => {
         const q = query.trim().toLowerCase();
@@ -221,6 +227,57 @@ export function EmployeeActionsModal({
                 </div>
             ) : mode === "take" ? (
                 <div className="space-y-3">
+                    {favoriteKeys.length > 0 && (
+                        <div>
+                            <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-fg-subtle">
+                                Избранные ключи
+                            </p>
+                            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+                                {favoriteKeys.map(key => {
+                                    const selectable = key.status === "FREE" && !key.pending;
+                                    const isSelected = selected.includes(key.id);
+
+                                    return (
+                                        <button
+                                            key={key.id}
+                                            type="button"
+                                            disabled={!selectable}
+                                            aria-pressed={isSelected}
+                                            aria-label={`${key.roomNumber}${key.roomName ? `, ${key.roomName}` : ""}`}
+                                            title={
+                                                selectable
+                                                    ? `${key.roomNumber}${key.roomName ? ` · ${key.roomName}` : ""}`
+                                                    : "Ключ уже выдан или по нему есть заявка"
+                                            }
+                                            onClick={() => {
+                                                if (!selectable) return;
+                                                // Показываем ключ в списке и снимаем фильтр,
+                                                // чтобы выбранный квадрат не потерялся.
+                                                setBuildingId(key.buildingId);
+                                                setQuery("");
+                                                setSelected(current =>
+                                                    current.includes(key.id)
+                                                        ? current.filter(id => id !== key.id)
+                                                        : [...current, key.id],
+                                                );
+                                            }}
+                                            className={`flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-2xl border text-sm font-semibold transition-all active:scale-95 ${
+                                                isSelected
+                                                    ? "border-accent bg-accent-solid text-accent-fg shadow-card"
+                                                    : selectable
+                                                        ? "border-accent/30 bg-accent-soft text-accent-text hover:border-accent/60 hover:bg-accent/20"
+                                                        : "cursor-not-allowed border-border bg-surface-2 text-fg-subtle opacity-55"
+                                            }`}
+                                        >
+                                            <KeyRound size={14} aria-hidden />
+                                            <span className="mt-0.5 max-w-12 truncate">{key.roomNumber}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
                     <div className="grid gap-2 sm:grid-cols-2">
                         <Select
                             label="Здание"
