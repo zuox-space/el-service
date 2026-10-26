@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarCheck, ClipboardCheck, Gauge } from "lucide-react";
+import { CalendarCheck, ChevronDown, ClipboardCheck, Gauge } from "lucide-react";
 import { Badge } from "@/components/ui/kit";
 
 interface RatingData {
-    className: string;
     attendance: { marked: number; total: number; percent: number };
     violations: { resolved: number; total: number; percent: number };
 }
@@ -49,20 +48,21 @@ export function ClassTeacherRating() {
     const markerLabel = Math.min(92, Math.max(8, marker));
 
     return (
-        <section
-            className="rounded-card border border-border bg-surface p-3 shadow-card"
-            aria-label="Рейтинг классного руководителя"
-        >
-            <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                    <p className="flex items-center gap-1.5 text-sm font-semibold text-fg">
-                        <Gauge size={16} className="text-accent-text" aria-hidden />
-                        Рейтинг классного руководителя
-                    </p>
-                    <p className="mt-0.5 truncate text-[11px] text-fg-subtle">{rating.className}</p>
-                </div>
-                <Badge tone="neutral">текущий месяц</Badge>
-            </div>
+        <details className="group rounded-card border border-border bg-surface p-3 shadow-card">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
+                <span className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-fg">
+                    <Gauge size={16} className="shrink-0 text-accent-text" aria-hidden />
+                    <span className="truncate">Рейтинг классного руководителя</span>
+                </span>
+                <span className="flex shrink-0 items-center gap-2">
+                    <Badge tone="neutral">текущий месяц</Badge>
+                    <ChevronDown
+                        size={16}
+                        className="text-fg-muted transition-transform group-open:rotate-180"
+                        aria-hidden
+                    />
+                </span>
+            </summary>
 
             <div className="mt-3 divide-y divide-border rounded-control border border-border bg-surface-2/60">
                 <div className="flex items-center gap-2.5 px-2.5 py-2">
@@ -142,6 +142,6 @@ export function ClassTeacherRating() {
                     <span className="absolute right-0">100%</span>
                 </div>
             </div>
-        </section>
+        </details>
     );
 }
