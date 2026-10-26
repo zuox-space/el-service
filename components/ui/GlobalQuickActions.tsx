@@ -385,8 +385,12 @@ function QuickActionsInner({
                                     />
                                 </div>
                             )}
+                        </div>
+                    )}
 
-                            <div className="flex animate-[quickIn_220ms_ease-out] flex-col items-center gap-2 rounded-full border border-border bg-surface p-1.5 shadow-raised">
+                    {menu !== null && (showKeys || canViolations) && (
+                        <div className="absolute right-full top-1/2 mr-2 -translate-y-1/2">
+                            <div className="flex animate-[quickIn_220ms_ease-out] items-center gap-1.5 rounded-full border border-border bg-surface p-1.5 shadow-raised">
                                 {showKeys && (
                                     <IconAction
                                         icon={KeyRound}
@@ -407,17 +411,22 @@ function QuickActionsInner({
                                         }`}
                                     />
                                 )}
-                                {showClassActions && (
-                                    <IconAction
-                                        icon={ClipboardCheck}
-                                        label="Пропуск и присутствие"
-                                        alert={attendanceMarked === false}
-                                        onClick={() => setMenu(current => (current === "quick" ? "root" : "quick"))}
-                                        className={`border-info/40 bg-info-soft text-info hover:bg-info/20 ${
-                                            menu === "quick" ? "ring-2 ring-accent/35" : ""
-                                        }`}
-                                    />
-                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {menu !== null && showClassActions && (
+                        <div className="absolute left-full top-1/2 ml-2 -translate-y-1/2">
+                            <div className="flex animate-[quickIn_220ms_ease-out] items-center rounded-full border border-border bg-surface p-1.5 shadow-raised">
+                                <IconAction
+                                    icon={ClipboardCheck}
+                                    label="Пропуск и присутствие"
+                                    alert={attendanceMarked === false}
+                                    onClick={() => setMenu(current => (current === "quick" ? "root" : "quick"))}
+                                    className={`border-info/40 bg-info-soft text-info hover:bg-info/20 ${
+                                        menu === "quick" ? "ring-2 ring-accent/35" : ""
+                                    }`}
+                                />
                             </div>
                         </div>
                     )}
