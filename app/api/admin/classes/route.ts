@@ -27,6 +27,9 @@ export async function GET() {
     }
 
     const classes = await prisma.class.findMany({
+      include: {
+        building: { select: { id: true, name: true } },
+      },
       orderBy: [
         { grade: "asc" },
         { letter: "asc" }
@@ -76,6 +79,7 @@ export async function GET() {
 
       return {
         ...cls,
+        buildingName: cls.building?.name ?? null,
         students: students,
         owner: owner,
         teacher: owner,

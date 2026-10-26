@@ -13,6 +13,7 @@ import {
     FormError,
     PageHeader,
     SearchInput,
+    Select,
     Skeleton,
     type Column,
 } from "@/components/ui/kit";
@@ -51,6 +52,8 @@ interface SchoolClass {
     grade: number;
     letter: string;
     ownerId: string;
+    buildingId: string | null;
+    buildingName: string | null;
     owner: Teacher | null;
     students?: Student[];
     attendance?: AttendanceRate;
@@ -72,6 +75,8 @@ export default function AdminClassesPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [search, setSearch] = useState("");
+    const [gradeFilter, setGradeFilter] = useState("all");
+    const [buildingFilter, setBuildingFilter] = useState("all");
 
     useEffect(() => {
         setMounted(true);
@@ -102,15 +107,30 @@ export default function AdminClassesPage() {
         }
     }, [session, fetchData]);
 
+    const grades = useMemo(
+        () => [...new Set(classes.map(cls => cls.grade))].sort((a, b) => a - b),
+        [classes],
+    );
+    const buildings = useMemo(() => {
+        const map = new Map<string, string>();
+        for (const cls of classes) {
+            if (cls.buildingId) map.set(cls.buildingId, cls.buildingName || cls.buildingId);
+        }
+        return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1], "ru"));
+    }, [classes]);
+
     const rows = useMemo(() => {
         const query = search.trim().toLowerCase();
-        if (!query) return classes;
 
         return classes.filter(cls => {
+            if (gradeFilter !== "all" && String(cls.grade) !== gradeFilter) return false;
+            if (buildingFilter !== "all" && cls.buildingId !== buildingFilter) return false;
+            if (!query) return true;
+
             const owner = cls.owner?.name ?? cls.owner?.email ?? "";
             return cls.name.toLowerCase().includes(query) || owner.toLowerCase().includes(query);
         });
-    }, [classes, search]);
+    }, [classes, search, gradeFilter, buildingFilter]);
 
     const columns: Column<SchoolClass>[] = [
         {
@@ -127,6 +147,12 @@ export default function AdminClassesPage() {
                     {cls.owner?.name || cls.owner?.email?.split("@")[0] || "Не назначен"}
                 </span>
             ),
+        },
+        {
+            key: "building",
+            header: "Здание",
+            width: "150px",
+            render: cls => <span className="text-fg-muted">{cls.buildingName || "Не указано"}</span>,
         },
         {
             key: "students",
@@ -197,12 +223,34 @@ export default function AdminClassesPage() {
                 {error && <FormError message={error} />}
 
                 <Card padding="sm">
-                    <SearchInput
-                        value={search}
-                        onChange={setSearch}
-                        placeholder="Класс или учитель"
-                        label="Поиск"
-                    />
+                    <div className="grid gap-2 sm:grid-cols-3">
+                        <SearchInput
+                            value={search}
+                            onChange={setSearch}
+                            placeholder="Класс или учитель"
+                            label="Поиск"
+                        />
+                        <Select
+                            label="Параллель"
+                            aria-label="Фильтр по параллели"
+                            value={gradeFilter}
+                            onChange={setGradeFilter}
+                            options={[
+                                { value: "all", label: "Все параллели" },
+                                ...grades.map(grade => ({ value: String(grade), label: `${grade} классы` })),
+                            ]}
+                        />
+                        <Select
+                            label="Здание"
+                            aria-label="Фильтр по зданию"
+                            value={buildingFilter}
+                            onChange={setBuildingFilter}
+                            options={[
+                                { value: "all", label: "Все здания" },
+                                ...buildings.map(([id, name]) => ({ value: id, label: name })),
+                            ]}
+                        />
+                    </div>
                 </Card>
 
                 {!isLoading && rows.length === 0 ? (

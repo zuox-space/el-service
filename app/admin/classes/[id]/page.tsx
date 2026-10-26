@@ -316,15 +316,8 @@ export default function ClassStatsPage() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+                <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
                     <SummaryTile icon={Users} label="Учеников" value={String(summary.studentCount)} hint="в классе" />
-                    <SummaryTile
-                        icon={CalendarCheck}
-                        label="Пропусков"
-                        value={String(summary.absentCount)}
-                        hint={`присутствий: ${summary.presentCount}`}
-                        tone="text-info"
-                    />
                     <SummaryTile
                         icon={AlertTriangle}
                         label="Нарушений"
