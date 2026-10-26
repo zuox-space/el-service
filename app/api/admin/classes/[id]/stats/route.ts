@@ -124,6 +124,7 @@ export async function GET(
             present: number;
             absent: number;
             marked: boolean;
+            reasons: Record<string, number>;
         };
         const daily = new Map<string, DayStat>();
         const reasonCounts: Record<string, number> = {};
@@ -137,7 +138,13 @@ export async function GET(
             const present = parseArray(row.presentStudents);
             const absent = parseArray(row.absentStudents);
             const reasons = parseRecord(row.absentReasons);
-            const current = daily.get(date) ?? { date, present: 0, absent: 0, marked: false };
+            const current = daily.get(date) ?? {
+                date,
+                present: 0,
+                absent: 0,
+                marked: false,
+                reasons: {},
+            };
             current.present += present.length;
             current.absent += absent.length;
             current.marked = true;
@@ -150,6 +157,7 @@ export async function GET(
             for (const id of absent) {
                 const reason = reasons[id] || reasons[String(Number(id))] || "unknown";
                 reasonCounts[reason] = (reasonCounts[reason] ?? 0) + 1;
+                current.reasons[reason] = (current.reasons[reason] ?? 0) + 1;
                 absentByStudent.set(id, (absentByStudent.get(id) ?? 0) + 1);
             }
         }
@@ -160,18 +168,29 @@ export async function GET(
         const schoolDays = countSchoolDays(from, effectiveEnd);
         const attendancePercent = schoolDays > 0 ? Math.min(100, Math.round((markedDays / schoolDays) * 100)) : 0;
 
-        type MonthCount = { month: string; count: number };
-        const violationsByMonth = new Map<string, number>();
-        const violationsByType = new Map<string, number>();
+        type ResolutionCount = { resolved: number; unresolved: number };
+        const byMonth = new Map<string, ResolutionCount>();
+        const byType = new Map<string, ResolutionCount>();
+        const byTypeMonth = new Map<string, Map<string, ResolutionCount>>();
         const violationsByStudent = new Map<string, { id: string; name: string; count: number }>();
-        const uniformByMonth = new Map<string, number>();
         let resolvedCount = 0;
-        let uniformCount = 0;
+
+        const increment = (map: Map<string, ResolutionCount>, key: string, resolved: boolean) => {
+            const current = map.get(key) ?? { resolved: 0, unresolved: 0 };
+            if (resolved) current.resolved += 1;
+            else current.unresolved += 1;
+            map.set(key, current);
+        };
 
         for (const row of violationRows) {
             const month = monthKey(row.date);
-            violationsByMonth.set(month, (violationsByMonth.get(month) ?? 0) + 1);
-            violationsByType.set(row.violationType, (violationsByType.get(row.violationType) ?? 0) + 1);
+            const resolved = Boolean(row.resolvedAt);
+            increment(byMonth, month, resolved);
+            increment(byType, row.violationType, resolved);
+
+            const typeMonths = byTypeMonth.get(row.violationType) ?? new Map<string, ResolutionCount>();
+            increment(typeMonths, month, resolved);
+            byTypeMonth.set(row.violationType, typeMonths);
 
             const student = violationsByStudent.get(row.studentId) ?? {
                 id: row.studentId,
@@ -181,17 +200,27 @@ export async function GET(
             student.count += 1;
             violationsByStudent.set(row.studentId, student);
 
-            if (row.resolvedAt) resolvedCount += 1;
-            if (row.violationType === "uniform") {
-                uniformCount += 1;
-                uniformByMonth.set(month, (uniformByMonth.get(month) ?? 0) + 1);
-            }
+            if (resolved) resolvedCount += 1;
         }
 
-        const toMonths = (source: Map<string, number>): MonthCount[] =>
+        const toMonths = (source: Map<string, ResolutionCount>) =>
             [...source.entries()]
                 .sort(([a], [b]) => a.localeCompare(b))
-                .map(([month, count]) => ({ month, count }));
+                .map(([month, value]) => ({
+                    month,
+                    ...value,
+                    count: value.resolved + value.unresolved,
+                }));
+
+        const byTypeMonthRows = [...byTypeMonth.entries()]
+            .flatMap(([type, months]) =>
+                toMonths(months).map(item => ({ type, ...item })),
+            )
+            .sort((a, b) => a.type.localeCompare(b.type) || a.month.localeCompare(b.month));
+
+        const uniformMonths = byTypeMonth.get("uniform");
+        const uniformByMonth = uniformMonths ? toMonths(uniformMonths) : [];
+        const uniformCount = uniformByMonth.reduce((sum, item) => sum + item.count, 0);
 
         const studentName = (id: string) =>
             students.find(item => item.id === id)?.name ||
@@ -203,7 +232,7 @@ export async function GET(
             .sort((a, b) => b.count - a.count)
             .slice(0, 10);
 
-        const recentViolations = violationRows.slice(0, 12).map(row => ({
+        const recentViolations = violationRows.map(row => ({
             id: row.id,
             studentId: row.studentId,
             studentName: row.studentName,
@@ -251,10 +280,15 @@ export async function GET(
                     .sort((a, b) => b.count - a.count),
             },
             violations: {
-                byType: [...violationsByType.entries()]
-                    .map(([type, count]) => ({ type, count }))
+                byType: [...byType.entries()]
+                    .map(([type, value]) => ({
+                        type,
+                        ...value,
+                        count: value.resolved + value.unresolved,
+                    }))
                     .sort((a, b) => b.count - a.count),
-                byMonth: toMonths(violationsByMonth),
+                byMonth: toMonths(byMonth),
+                byTypeMonth: byTypeMonthRows,
                 topStudents: [...violationsByStudent.values()]
                     .sort((a, b) => b.count - a.count)
                     .slice(0, 10),
@@ -262,7 +296,7 @@ export async function GET(
             },
             uniform: {
                 total: uniformCount,
-                byMonth: toMonths(uniformByMonth),
+                byMonth: uniformByMonth,
             },
             truants,
         });
