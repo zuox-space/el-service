@@ -83,7 +83,7 @@ export async function GET() {
         const [attendanceRows, violationsTotal, violationsResolved] = await Promise.all([
             prisma.attendance.findMany({
                 where: { classId: { in: ownedIds }, date: { gte: monthStart, lte: monthEnd } },
-                select: { date: true },
+                select: { classId: true, date: true },
             }),
             prisma.violation.count({
                 where: { className: { in: ownedNames }, date: { gte: monthStart, lte: monthEnd } },
@@ -100,23 +100,26 @@ export async function GET() {
 
         // Учебные дни считаем только по будням и только до сегодняшнего дня:
         // будущие дни месяца ещё не должны занижать рейтинг.
+        // При нескольких классах каждый класс должен быть отмечен отдельно,
+        // поэтому считаем пары «класс + день», а не просто уникальные даты.
         const schoolDays = countSchoolDays(monthStart, now);
-        const markedDates = new Set(
+        const markedClassDays = new Set(
             attendanceRows
                 .filter(row => {
                     const weekday = row.date.getDay();
                     return weekday !== 0 && weekday !== 6;
                 })
-                .map(row => toLocalISODate(row.date)),
+                .map(row => `${row.classId}:${toLocalISODate(row.date)}`),
         );
-        const markedDays = Math.min(markedDates.size, schoolDays);
+        const totalClassDays = schoolDays * owned.length;
+        const markedDays = Math.min(markedClassDays.size, totalClassDays);
 
         rating = {
             className: owned.map(item => item.name).join(", "),
             attendance: {
                 marked: markedDays,
-                total: schoolDays,
-                percent: schoolDays > 0 ? Math.round((markedDays / schoolDays) * 100) : 0,
+                total: totalClassDays,
+                percent: totalClassDays > 0 ? Math.round((markedDays / totalClassDays) * 100) : 0,
             },
             violations: {
                 resolved: violationsResolved,

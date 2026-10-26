@@ -37,6 +37,7 @@ import ViolationModal from "@/components/ui/ViolationModal";
 import { ResolveViolationModal } from "@/components/ui/ResolveViolationModal";
 import { ViolationAccordion } from "@/components/ui/ViolationAccordion";
 import { MyClassStats } from "@/components/my-class/MyClassStats";
+import { ClassTeacherRating } from "@/components/my-class/ClassTeacherRating";
 import AuthorizationModal from "@/components/ui/AuthorizationModal";
 import {
     Badge,
@@ -902,6 +903,7 @@ export default function HomePage() {
             />
 
             <main className="mx-auto w-full max-w-3xl space-y-3 px-4 py-4">
+                <ClassTeacherRating />
                 <div className="sticky top-14 z-30 -mx-4 space-y-2 border-b border-border bg-bg/95 px-4 py-2 backdrop-blur-sm md:static md:mx-0 md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none">
                 {/* Класс */}
                 <ClassSelector
