@@ -17,7 +17,7 @@ import {
     type LucideIcon,
 } from "lucide-react";
 import { useAccess } from "./AccessProvider";
-import { ACCESS_SECTIONS } from "@/lib/access/registry";
+import { ACCESS_SECTIONS, isAdminSection } from "@/lib/access/registry";
 import { Badge } from "@/components/ui/kit";
 
 /**
@@ -45,11 +45,7 @@ export function AdminHome() {
     const { can } = useAccess();
 
     const sections = ACCESS_SECTIONS.filter(
-        section =>
-            section.group === "admin" &&
-            section.href &&
-            section.id !== "myClass" &&
-            can(section.id),
+        section => isAdminSection(section) && can(section.id),
     );
 
     return (

@@ -20,7 +20,7 @@ import {
     Skeleton,
     useToast,
 } from "@/components/ui/kit";
-import { ACCESS_GROUPS, ACCESS_SECTIONS, type AccessSectionId } from "@/lib/access/registry";
+import { ACCESS_GROUPS, ACCESS_SECTIONS, sectionsForRole, type AccessSectionId } from "@/lib/access/registry";
 import { roleLabel, roleTone } from "@/lib/roles";
 
 /**
@@ -102,6 +102,13 @@ export default function RolesPage() {
             void fetchRoles();
         }
     }, [session, fetchRoles]);
+
+    // При создании стандартной роли сразу показываем её доступы из реестра.
+    useEffect(() => {
+        if (!sheetOpen || editing) return;
+        const roleName = form.name.trim().toUpperCase().replace(/\s+/g, "_");
+        setSections(sectionsForRole(roleName));
+    }, [form.name, editing, sheetOpen]);
 
     const openCreate = () => {
         setEditing(null);

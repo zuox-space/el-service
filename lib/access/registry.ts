@@ -186,6 +186,14 @@ export const ACCESS_SECTIONS: AccessSection[] = [
 /** Все идентификаторы разделов — для проверки входных данных и роли ADMIN. */
 export const ALL_SECTION_IDS: AccessSectionId[] = ACCESS_SECTIONS.map(section => section.id);
 
+/**
+ * Административный раздел — всё, кроме личного кабинета класса и ключей.
+ * Именно по этому признаку показывается кнопка «Админ панель» и её содержимое.
+ */
+export function isAdminSection(section: AccessSection): boolean {
+    return Boolean(section.href) && section.id !== "myClass" && section.id !== "keys";
+}
+
 /** Разделы, доступные по ролям, если индивидуальная настройка не включена. */
 export function sectionsForRoles(roles: string[]): AccessSectionId[] {
     if (roles.includes("ADMIN")) return ALL_SECTION_IDS;

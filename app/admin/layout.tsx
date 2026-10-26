@@ -6,7 +6,7 @@ import { AppShell } from "@/components/shell/AppShell";
 import { useAccess } from "@/components/access/AccessProvider";
 import { NoAccess } from "@/components/access/NoAccess";
 import { AdminHome } from "@/components/access/AdminHome";
-import { ACCESS_SECTIONS, sectionForPath } from "@/lib/access/registry";
+import { ACCESS_SECTIONS, isAdminSection, sectionForPath } from "@/lib/access/registry";
 
 /**
  * Каркас административного раздела.
@@ -36,12 +36,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         pathname === "/admin" &&
         !can("dashboard") &&
         ACCESS_SECTIONS.some(
-            item =>
-                item.group === "admin" &&
-                item.href &&
-                item.id !== "myClass" &&
-                !item.adminOnly &&
-                can(item.id),
+            item => isAdminSection(item) && !item.adminOnly && can(item.id),
         );
 
     if (showAdminHome) {

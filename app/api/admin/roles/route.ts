@@ -60,12 +60,19 @@ export async function POST(request: NextRequest) {
 
     // Раздел «Персонал» выдавать нельзя, поэтому он не может быть доступом роли
     const adminOnly = new Set(ACCESS_SECTIONS.filter(section => section.adminOnly).map(section => section.id));
-    const sections = Array.isArray(body.defaultSections)
+    const requestedSections = Array.isArray(body.defaultSections)
         ? [...new Set(body.defaultSections)]
             .filter((value): value is string => typeof value === "string")
             .filter(isSectionId)
             .filter(section => !adminOnly.has(section))
         : [];
+
+    // Для стандартных ролей (TEACHER, CLASS_TEACHER, METHODIST…) не заставляем
+    // администратора заново расставлять галочки: подставляем доступы из реестра.
+    const sections =
+        requestedSections.length > 0
+            ? requestedSections
+            : sectionsForRole(rawName).filter(section => !adminOnly.has(section));
 
     const existing = await prisma.role.findUnique({ where: { name: rawName } });
     if (existing) {

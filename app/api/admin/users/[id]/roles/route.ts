@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 
 import { requireSection } from "@/lib/access/server";
 import { prisma } from "@/lib/prisma";
+import { ACCESS_SECTIONS, isSectionId, sectionsForRole } from "@/lib/access/registry";
 
 
 export async function POST(
@@ -51,12 +52,50 @@ export async function POST(
       return NextResponse.json({ error: "Role already assigned" }, { status: 400 });
     }
 
-    const userRole = await prisma.userRole.create({
-      data: {
-        userId: params.id,
-        roleId,
-        assignedBy: session.user.id
+    const role = await prisma.role.findUnique({ where: { id: roleId } });
+    if (!role) {
+      return NextResponse.json({ error: "Роль не найдена" }, { status: 404 });
+    }
+
+    const userRole = await prisma.$transaction(async tx => {
+      const created = await tx.userRole.create({
+        data: {
+          userId: params.id,
+          roleId,
+          assignedBy: session.user.id
+        }
+      });
+
+      // Если у сотрудника включены индивидуальные доступы, роль раньше
+      // игнорировалась. Добавляем стандартные разделы роли к его набору,
+      // чтобы выдача роли сразу давала ожидаемые доступы.
+      const target = await tx.user.findUnique({
+        where: { id: params.id },
+        select: { accessOverride: true },
+      });
+      if (target?.accessOverride) {
+        const adminOnly = new Set(
+          ACCESS_SECTIONS.filter(section => section.adminOnly).map(section => section.id),
+        );
+        const defaults = role.defaultSections.length > 0
+          ? role.defaultSections.filter(isSectionId)
+          : sectionsForRole(role.name);
+        const sections = defaults.filter(section => !adminOnly.has(section));
+
+        if (sections.length > 0) {
+          await tx.sectionAccess.createMany({
+            data: sections.map(section => ({
+              userId: params.id,
+              section,
+              allowed: true,
+              assignedBy: session.user.id,
+            })),
+            skipDuplicates: true,
+          });
+        }
       }
+
+      return created;
     });
 
     return NextResponse.json(userRole);
