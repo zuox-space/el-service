@@ -46,8 +46,8 @@ interface PortalData {
     myClass: { available: boolean; classes: string[]; studentsCount: number };
     rating: {
         className: string;
-        attendance: { present: number; total: number; percent: number };
-        violationsResolved: number;
+        attendance: { marked: number; total: number; percent: number };
+        violations: { resolved: number; total: number; percent: number };
     } | null;
     services: PortalService[];
 }
@@ -368,8 +368,8 @@ function UserStatsCard({
                             </p>
                             <p className="text-[10px] text-fg-subtle">
                                 {rating.attendance.total > 0
-                                    ? `${rating.attendance.present} из ${rating.attendance.total} отметок`
-                                    : "Нет отметок"}
+                                    ? `${rating.attendance.marked} из ${rating.attendance.total} учебных дней`
+                                    : "Нет учебных дней"}
                             </p>
                             <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface">
                                 <div
@@ -385,9 +385,19 @@ function UserStatsCard({
                                 Отработано
                             </p>
                             <p className="mt-1 text-xl font-semibold tabular-nums text-fg">
-                                {rating.violationsResolved}
+                                {rating.violations.percent}%
                             </p>
-                            <p className="text-[10px] text-fg-subtle">нарушений</p>
+                            <p className="text-[10px] text-fg-subtle">
+                                {rating.violations.total > 0
+                                    ? `${rating.violations.resolved} из ${rating.violations.total} нарушений`
+                                    : "Нарушений нет"}
+                            </p>
+                            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface">
+                                <div
+                                    className="h-full rounded-full bg-success"
+                                    style={{ width: `${Math.min(100, Math.max(0, rating.violations.percent))}%` }}
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>

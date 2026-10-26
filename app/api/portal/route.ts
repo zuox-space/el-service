@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { getSessionAccess } from "@/lib/access/server";
 import { ACCESS_SECTIONS } from "@/lib/access/registry";
 import { prisma } from "@/lib/prisma";
+import { countSchoolDays, toLocalISODate } from "@/lib/date";
 import { getStudentsGroupedByClass } from "@/lib/mysql_db";
 
 /**
@@ -68,8 +69,8 @@ export async function GET() {
     // (ClassShare) не дают классного руководства и в рейтинг не входят.
     let rating: {
         className: string;
-        attendance: { present: number; total: number; percent: number };
-        violationsResolved: number;
+        attendance: { marked: number; total: number; percent: number };
+        violations: { resolved: number; total: number; percent: number };
     } | null = null;
 
     if (owned.length > 0) {
@@ -79,43 +80,49 @@ export async function GET() {
         const ownedIds = owned.map(item => item.id);
         const ownedNames = owned.map(item => item.name);
 
-        const [attendanceRows, violationsResolved] = await Promise.all([
+        const [attendanceRows, violationsTotal, violationsResolved] = await Promise.all([
             prisma.attendance.findMany({
                 where: { classId: { in: ownedIds }, date: { gte: monthStart, lte: monthEnd } },
-                select: { presentStudents: true, absentStudents: true },
+                select: { date: true },
+            }),
+            prisma.violation.count({
+                where: { className: { in: ownedNames }, date: { gte: monthStart, lte: monthEnd } },
             }),
             prisma.violation.count({
                 where: {
                     className: { in: ownedNames },
+                    date: { gte: monthStart, lte: monthEnd },
                     resolvedBy: access.userId,
-                    resolvedAt: { gte: monthStart, lte: monthEnd },
+                    resolvedAt: { not: null },
                 },
             }),
         ]);
 
-        let present = 0;
-        let total = 0;
-        for (const row of attendanceRows) {
-            try {
-                const presentStudents = JSON.parse(row.presentStudents);
-                const absentStudents = JSON.parse(row.absentStudents);
-                const presentCount = Array.isArray(presentStudents) ? presentStudents.length : 0;
-                const absentCount = Array.isArray(absentStudents) ? absentStudents.length : 0;
-                present += presentCount;
-                total += presentCount + absentCount;
-            } catch {
-                // Старая/битая запись не должна ломать карточку
-            }
-        }
+        // Учебные дни считаем только по будням и только до сегодняшнего дня:
+        // будущие дни месяца ещё не должны занижать рейтинг.
+        const schoolDays = countSchoolDays(monthStart, now);
+        const markedDates = new Set(
+            attendanceRows
+                .filter(row => {
+                    const weekday = row.date.getDay();
+                    return weekday !== 0 && weekday !== 6;
+                })
+                .map(row => toLocalISODate(row.date)),
+        );
+        const markedDays = Math.min(markedDates.size, schoolDays);
 
         rating = {
             className: owned.map(item => item.name).join(", "),
             attendance: {
-                present,
-                total,
-                percent: total > 0 ? Math.round((present / total) * 100) : 0,
+                marked: markedDays,
+                total: schoolDays,
+                percent: schoolDays > 0 ? Math.round((markedDays / schoolDays) * 100) : 0,
             },
-            violationsResolved,
+            violations: {
+                resolved: violationsResolved,
+                total: violationsTotal,
+                percent: violationsTotal > 0 ? Math.round((violationsResolved / violationsTotal) * 100) : 0,
+            },
         };
     }
 
