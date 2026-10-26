@@ -11,6 +11,7 @@ import { getDayRange, parseLocalDate } from "@/lib/date";
 import { normalizeClassName } from "@/lib/class-name";
 import { classNamesForBuilding } from "@/lib/buildings";
 import { accessibleClassNames, canAccessClass } from "@/lib/access/classes";
+import { consumeRateLimit } from "@/lib/rate-limit";
 
 
 const MAX_PAGE_SIZE = 100;
@@ -219,6 +220,13 @@ export async function POST(req: NextRequest) {
     const accessGuard = await requireAnySection(["violations", "myClass"]);
     if (!accessGuard.ok) return accessGuard.response;
 
+    const limit = consumeRateLimit(`violation-create:${accessGuard.access.userId}`, 60, 60_000);
+    if (!limit.allowed) {
+        return NextResponse.json(
+            { error: "Слишком много нарушений за минуту" },
+            { status: 429, headers: { "Retry-After": String(limit.retryAfter) } },
+        );
+    }
 
     const session = await getServerSession(authOptions);
     if (!session) {
@@ -281,7 +289,7 @@ export async function DELETE(req: NextRequest) {
             return NextResponse.json({ error: "Missing id" }, { status: 400 });
         }
 
-        await prisma.violation.delete({ where: { id } });
+        await prisma.violation.deleteMany({ where: { id } });
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error("Error deleting violation:", error);

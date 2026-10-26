@@ -25,7 +25,6 @@ export async function GET(req: NextRequest) {
   const classId = searchParams.get("classId");
   const date = searchParams.get("date");
 
-  console.log("GET attendance - classId:", classId, "date:", date);
 
   if (!classId || !date) {
     return NextResponse.json(null);
@@ -48,7 +47,6 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    console.log("Found attendance:", attendance ? "yes" : "no");
 
     if (attendance) {
       return NextResponse.json({
@@ -86,7 +84,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Нет доступа к классу" }, { status: 403 });
     }
 
-    console.log("Saving attendance:", { date, classId, presentStudents, absentStudents });
 
     const attendanceDate = new Date(date);
     attendanceDate.setHours(0, 0, 0, 0);
@@ -111,7 +108,6 @@ export async function POST(req: NextRequest) {
           teacherId: session.user.id,
         }
       });
-      console.log("Attendance updated:", attendance.id);
     } else {
       // Создаем новую
       attendance = await prisma.attendance.create({
@@ -124,7 +120,6 @@ export async function POST(req: NextRequest) {
           absentReasons: JSON.stringify(absentReasons || {}),
         }
       });
-      console.log("Attendance created:", attendance.id);
     }
 
     return NextResponse.json({

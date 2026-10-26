@@ -38,7 +38,6 @@ export async function GET(
             return NextResponse.json({ error: "Missing student ID" }, { status: 400 });
         }
 
-        console.log(`🔍 Loading student profile: ${aisId}`);
 
         // 1. Получаем основную информацию о студенте из MySQL
         const studentInfo = await query<StudentInfo>(`
@@ -133,7 +132,6 @@ export async function GET(
         const activeRecord = schoolRecords.find(r => r.isActive);
         const isRegistered = !!activeRecord;
 
-        console.log(`📋 School records: ${schoolRecords.length} (active: ${isRegistered})`);
 
         // 7. Считаем статистику
         const stats = {
@@ -167,8 +165,6 @@ export async function GET(
             },
         };
 
-        console.log(`✅ Profile loaded: ${student.name} (${student.className})`);
-        console.log(`📊 Stats:`, stats);
 
         return NextResponse.json({
             student,

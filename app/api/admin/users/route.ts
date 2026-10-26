@@ -53,59 +53,70 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
+    const normalizedEmail = String(email).trim().toLowerCase();
+
     // Проверяем, существует ли пользователь
     const existingUser = await prisma.user.findUnique({
-      where: { email }
+      where: { email: normalizedEmail }
     });
 
     if (existingUser) {
       return NextResponse.json({ error: "Пользователь с таким email уже существует" }, { status: 400 });
     }
 
-    // Создаём пользователя
-    const newUser = await prisma.user.create({
-      data: {
-        email,
-        name,
-        // Создан вручную: по умолчанию синхронизацией не управляется
-        syncEnabled: syncEnabled === true,
-      }
-    });
-
     // Роль по умолчанию — «Сотрудник»: вход и главная страница, без доступов
     // к разделам. Роль можно не передавать — сотрудник всё равно её получит.
-    const roleName = role || "EMPLOYEE";
-    const roleRecord = await prisma.role.upsert({
-      where: { name: roleName },
-      update: {},
-      create: {
-        name: roleName,
-        description: roleName === "EMPLOYEE" ? "Сотрудник: вход и главная страница" : null,
-        defaultSections: [],
-      },
-    });
+    const roleName = typeof role === "string" && role.trim()
+      ? role.trim().toUpperCase().replace(/\s+/g, "_")
+      : "EMPLOYEE";
 
-    await prisma.userRole.create({
-      data: {
-        userId: newUser.id,
-        roleId: roleRecord.id,
-        assignedBy: session.user.id
-      }
-    });
-    // Возвращаем пользователя с ролями
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: newUser.id },
-      include: {
-        userRoles: {
-          include: {
-            role: true
+    // Пользователь и его роль создаются одной транзакцией: при сбое на
+    // втором шаге не останется сотрудник без роли.
+    const userWithRoles = await prisma.$transaction(async tx => {
+      const newUser = await tx.user.create({
+        data: {
+          email: normalizedEmail,
+          name: String(name).trim(),
+          // Создан вручную: по умолчанию синхронизацией не управляется
+          syncEnabled: syncEnabled === true,
+        }
+      });
+
+      const roleRecord = await tx.role.upsert({
+        where: { name: roleName },
+        update: {},
+        create: {
+          name: roleName,
+          description: roleName === "EMPLOYEE" ? "Сотрудник: вход и главная страница" : null,
+          defaultSections: [],
+        },
+      });
+
+      await tx.userRole.create({
+        data: {
+          userId: newUser.id,
+          roleId: roleRecord.id,
+          assignedBy: session.user.id
+        }
+      });
+
+      return tx.user.findUnique({
+        where: { id: newUser.id },
+        include: {
+          userRoles: {
+            include: {
+              role: true
+            }
           }
         }
-      }
+      });
     });
 
     return NextResponse.json(userWithRoles);
   } catch (error) {
+    if ((error as { code?: string })?.code === "P2002") {
+      return NextResponse.json({ error: "Пользователь с таким email уже существует" }, { status: 400 });
+    }
     console.error("Error creating user:", error);
     return NextResponse.json({ error: "Failed to create user" }, { status: 500 });
   }
