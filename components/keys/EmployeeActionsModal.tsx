@@ -219,7 +219,7 @@ export function EmployeeActionsModal({
                     onClose={onClose}
                 />
             ) : transferKey ? (
-                <div className="space-y-3">
+                <div className="space-y-3 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-0">
                     <Button size="sm" variant="ghost" leftIcon={ArrowLeft} onClick={() => setTransferKey(null)}>
                         Назад
                     </Button>
@@ -328,7 +328,7 @@ export function EmployeeActionsModal({
                 incoming.length === 0 ? (
                     <EmptyState icon={Send} title="Нет входящих передач" description="Коллеги пока не передают вам ключи" compact />
                 ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-2 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-0">
                         {incoming.map(item => (
                             <div key={item.id} className="space-y-1">
                                 <p className="text-xs text-fg-muted">
@@ -348,7 +348,7 @@ export function EmployeeActionsModal({
                     </div>
                 )
             ) : (
-                <div className="space-y-2">
+                <div className="space-y-2 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-0">
                     {myKeys.length === 0 ? (
                         <EmptyState icon={KeyRound} title="У вас нет ключей" description="Сначала возьмите ключ" compact />
                     ) : (

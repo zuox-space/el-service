@@ -312,6 +312,16 @@ function QuickActionsInner({
                 />
             )}
 
+            {menu !== null && (
+                <div className="pointer-events-none fixed inset-x-0 top-20 z-40 flex justify-center px-4">
+                    <div className="flex max-w-full flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-full border border-border bg-surface/95 px-3 py-1.5 text-[11px] text-fg-muted shadow-raised backdrop-blur-sm">
+                        {showKeys && <span><b className="text-fg">Ключи</b> — взять, сдать, принять</span>}
+                        {canViolations && <span><b className="text-fg">Нарушения</b> — фиксация и история</span>}
+                        {showClassActions && <span><b className="text-fg">Класс</b> — пропуск и присутствие</span>}
+                    </div>
+                </div>
+            )}
+
             <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-4 sm:bottom-6">
                 <div ref={rootRef} className="relative">
                     {menu !== null && (
@@ -366,10 +376,7 @@ function QuickActionsInner({
                             )}
 
                             {menu === "quick" && quickClass && (
-                                <div className="flex min-w-40 animate-[quickIn_180ms_ease-out] flex-col items-center gap-2 rounded-full border border-border bg-surface p-1.5 shadow-raised">
-                                    <p className="px-2 pt-1 text-[11px] font-medium text-fg-subtle">
-                                        {quickClass.name}
-                                    </p>
+                                <div className="flex animate-[quickIn_180ms_ease-out] flex-col items-center gap-2 rounded-full border border-border bg-surface p-1.5 shadow-raised">
                                     <IconAction
                                         icon={Ticket}
                                         label="Выписать пропуск"

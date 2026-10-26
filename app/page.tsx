@@ -13,7 +13,6 @@ import {
     School,
     ShieldCheck,
     Star,
-    Users,
     X,
 } from "lucide-react";
 import { Badge, Button, Card, EmptyState, Skeleton } from "@/components/ui/kit";
@@ -162,15 +161,20 @@ export default function PortalPage() {
                         </span>
                     </Card>
 
+                    {profileOpen && (
+                        <div
+                            className="fixed inset-0 z-10 bg-backdrop/50 md:hidden"
+                            onClick={() => setProfileOpen(false)}
+                            aria-hidden
+                        />
+                    )}
+
                     <div
                         className={`${
                             profileOpen ? "absolute left-0 right-0 top-full z-20 mt-2 block" : "hidden"
                         } md:static md:mt-0 md:block`}
                     >
-                        <UserStatsCard
-                            data={data}
-                            onClose={() => setProfileOpen(false)}
-                        />
+                        <UserStatsCard onClose={() => setProfileOpen(false)} />
                     </div>
                 </div>
 
@@ -313,17 +317,10 @@ export default function PortalPage() {
 }
 
 function UserStatsCard({
-    data,
     onClose,
 }: {
-    data: PortalData | null;
     onClose: () => void;
 }) {
-    const classesCount = data?.myClass.classes.length ?? 0;
-    const studentsCount = data?.myClass.studentsCount ?? 0;
-    const servicesCount = data?.services.length ?? 0;
-    const hasKeys = data?.services.some(service => service.id === "keys") ?? false;
-
     return (
         <div className="rounded-card border border-border bg-surface p-3 shadow-raised md:shadow-card">
             <div className="flex items-center justify-between gap-2">
@@ -341,35 +338,13 @@ function UserStatsCard({
                 </button>
             </div>
 
-            <div className="mt-3 grid grid-cols-3 gap-2">
-                <div className="rounded-control border border-border bg-surface-2 px-2 py-1.5">
-                    <p className="text-[10px] text-fg-subtle">Классов</p>
-                    <p className="text-lg font-semibold tabular-nums text-fg">{classesCount}</p>
+            <div className="mt-3 flex items-center gap-2 rounded-control border border-dashed border-border bg-surface-2 px-3 py-3">
+                <Star size={18} className="shrink-0 text-warning" aria-hidden />
+                <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-fg">Мой рейтинг</p>
+                    <p className="text-[11px] text-fg-subtle">Здесь появится ваш рейтинг сотрудника</p>
                 </div>
-                <div className="rounded-control border border-border bg-surface-2 px-2 py-1.5">
-                    <p className="text-[10px] text-fg-subtle">Учеников</p>
-                    <p className="text-lg font-semibold tabular-nums text-fg">{studentsCount}</p>
-                </div>
-                <div className="rounded-control border border-border bg-surface-2 px-2 py-1.5">
-                    <p className="text-[10px] text-fg-subtle">Сервисов</p>
-                    <p className="text-lg font-semibold tabular-nums text-fg">{servicesCount}</p>
-                </div>
-            </div>
-
-            <div className="mt-2 flex items-center gap-2 rounded-control border border-dashed border-border px-2.5 py-2 text-xs text-fg-muted">
-                <Star size={14} className="shrink-0 text-warning" aria-hidden />
-                <span className="min-w-0 flex-1">Рейтинг сотрудника</span>
                 <Badge tone="neutral">скоро</Badge>
-            </div>
-
-            <div className="mt-2 flex items-center gap-2 text-[11px] text-fg-subtle">
-                <Users size={13} aria-hidden />
-                <span>{data?.user.roles.length ? data.user.roles.join(" · ") : "Сотрудник"}</span>
-                {hasKeys && (
-                    <span className="ml-auto flex items-center gap-1">
-                        <KeyRound size={12} aria-hidden /> ключи
-                    </span>
-                )}
             </div>
         </div>
     );
