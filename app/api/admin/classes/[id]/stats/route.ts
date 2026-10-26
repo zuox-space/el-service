@@ -2,7 +2,8 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireSection } from "@/lib/access/server";
+import { requireAnySection } from "@/lib/access/server";
+import { canAccessClass } from "@/lib/access/classes";
 import { prisma } from "@/lib/prisma";
 import { normalizeClassName } from "@/lib/class-name";
 import { getStudentsGroupedByClass } from "@/lib/mysql_db";
@@ -46,7 +47,7 @@ export async function GET(
     request: NextRequest,
     { params }: { params: { id: string } },
 ) {
-    const guard = await requireSection("classes");
+    const guard = await requireAnySection(["classes", "myClass"]);
     if (!guard.ok) return guard.response;
 
     const { searchParams } = new URL(request.url);
@@ -74,6 +75,11 @@ export async function GET(
 
         if (!classInfo) {
             return NextResponse.json({ error: "Класс не найден" }, { status: 404 });
+        }
+
+        // Раздел «Классы» видит все классы, классный руководитель — только свой/расшаренный.
+        if (!guard.access.sections.includes("classes") && !(await canAccessClass(guard.access, classInfo.id))) {
+            return NextResponse.json({ error: "Нет доступа к классу" }, { status: 403 });
         }
 
         const className = normalizeClassName(classInfo.name);

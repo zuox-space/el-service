@@ -9,6 +9,7 @@ import {
     AlertTriangle,
     Archive,
     ArrowLeft,
+    BarChart3,
     CheckCircle,
     ChevronDown,
     ChevronUp,
@@ -35,6 +36,7 @@ import SelfExitModal from "@/components/ui/SelfExitModal";
 import ViolationModal from "@/components/ui/ViolationModal";
 import { ResolveViolationModal } from "@/components/ui/ResolveViolationModal";
 import { ViolationAccordion } from "@/components/ui/ViolationAccordion";
+import { MyClassStats } from "@/components/my-class/MyClassStats";
 import AuthorizationModal from "@/components/ui/AuthorizationModal";
 import {
     Badge,
@@ -228,6 +230,7 @@ export default function HomePage() {
     const tabs: TabType[] = useMemo(() => {
         const base: TabType[] = [
             { id: "attendance", name: "Главная", Icon: CheckCircle },
+            { id: "stats", name: "Статистика", Icon: BarChart3 },
             { id: "violations", name: "Нарушения", Icon: AlertTriangle },
             { id: "schoolRecord", name: "ВШУ", Icon: ShieldAlert },
         ];
@@ -750,7 +753,9 @@ export default function HomePage() {
         count:
             tab.id === "attendance"
                 ? absentStudentsList.length
-                : tab.id === "self-exit"
+                : tab.id === "stats"
+                    ? 0
+                    : tab.id === "self-exit"
                     ? selfExits.length
                     : tab.id === "violations"
                         ? todayViolations.length
@@ -1379,6 +1384,10 @@ export default function HomePage() {
                         )}
                     </div>
                 )}
+                {activeTab === "stats" && selectedClass && (
+                    <MyClassStats classId={selectedClass.id} className={selectedClass.name} />
+                )}
+
             </main>
 
 
