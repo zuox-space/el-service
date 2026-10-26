@@ -6,6 +6,12 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function POST() {
+  // Демо-инициализация создаёт класс 7А и не используется интерфейсом.
+  // В production оставлять её доступной любому сотруднику нельзя.
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   try {
     const session = await getServerSession(authOptions);
 
@@ -13,7 +19,6 @@ export async function POST() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    console.log("Init started for user:", session.user?.email);
 
     // Находим или создаем пользователя
     let user = await prisma.user.findUnique({
@@ -27,9 +32,7 @@ export async function POST() {
           name: session.user.name!,
         }
       });
-      console.log("User created:", user.id);
     } else {
-      console.log("User already exists:", user.id);
     }
 
     // Проверяем, есть ли классы у пользователя
@@ -50,9 +53,7 @@ export async function POST() {
           ownerId: user.id,
         }
       });
-      console.log("Demo class created:", createdClass.id);
     } else {
-      console.log("Classes already exist:", existingClasses.length);
     }
 
     return NextResponse.json({
