@@ -52,7 +52,8 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "Класс не найден" }, { status: 404 });
         }
 
-        const grouped = await getStudentsGroupedByClass();
+        // Рассадку всегда сверяем с текущим составом внешней базы, а не с кэшем.
+        const grouped = await getStudentsGroupedByClass({ force: true });
         const students = (grouped.get(classRow.name) ?? []).map(student => ({
             id: String(student.aisId),
             name: student.name,
@@ -65,12 +66,13 @@ export async function GET(req: NextRequest) {
         });
 
         // Внешняя база могла изменить состав класса. Освобождаем места тех,
-        // кого больше нет в актуальном списке. Если внешняя база временно
-        // вернула пустой список, ничего не удаляем.
+        // кого больше нет в актуальном списке. Пустой успешный ответ внешней
+        // базы означает, что в классе действительно не осталось учеников;
+        // ошибка запроса сюда не доходит — она уходит в catch выше.
         const roster = new Map(students.map(student => [String(student.id), student.name]));
-        const staleSeats = students.length > 0
-            ? seats.filter(seat => seat.studentId && !roster.has(String(seat.studentId)))
-            : [];
+        const staleSeats = seats.filter(
+            seat => seat.studentId && !roster.has(String(seat.studentId)),
+        );
 
         if (staleSeats.length > 0) {
             await prisma.seatAssignment.deleteMany({
@@ -139,7 +141,7 @@ export async function PUT(req: NextRequest) {
             return NextResponse.json({ error: "Класс не найден" }, { status: 404 });
         }
 
-        const grouped = await getStudentsGroupedByClass();
+        const grouped = await getStudentsGroupedByClass({ force: true });
         const students = grouped.get(classRow.name) ?? [];
         const studentMap = new Map(students.map(student => [String(student.aisId), student.name]));
 

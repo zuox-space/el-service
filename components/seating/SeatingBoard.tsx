@@ -271,7 +271,8 @@ h1 { margin: 0 0 2mm; font-size: 16pt; text-align: center; }
 
             {data.releasedSeats ? (
                 <div className="rounded-control border border-info/30 bg-info-soft px-3 py-2 text-xs text-info">
-                    Состав класса изменился: освобождено мест — {data.releasedSeats}. Проверьте рассадку.
+                    Состав класса изменился: освобождено мест — {data.releasedSeats}.
+                    {canEdit ? " Проверьте рассадку." : ""}
                 </div>
             ) : null}
 
