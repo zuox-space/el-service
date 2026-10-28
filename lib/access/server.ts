@@ -101,6 +101,8 @@ export async function getSessionAccess(): Promise<AccessInfo | null> {
  *  • ключи доступны каждому сотруднику (это не админ-раздел);
  *  • «Мой класс» появляется, если у сотрудника есть свой или расшаренный класс,
  *    даже если роль/индивидуальные доступы этот раздел не выдают.
+ *  • «Электронная рассадка» автоматически доступна классному руководителю;
+ *    остальным сотрудникам её можно выдать отдельно.
  */
 async function enrichAccess(access: AccessInfo): Promise<AccessInfo> {
     if (access.isAdmin) return access;
@@ -108,7 +110,7 @@ async function enrichAccess(access: AccessInfo): Promise<AccessInfo> {
     const sections = new Set<AccessSectionId>(access.sections);
     sections.add("keys");
 
-    if (!sections.has("myClass")) {
+    if (!sections.has("myClass") || !sections.has("seating")) {
         const classRow = await prisma.class.findFirst({
             where: {
                 OR: [
@@ -118,7 +120,10 @@ async function enrichAccess(access: AccessInfo): Promise<AccessInfo> {
             },
             select: { id: true },
         });
-        if (classRow) sections.add("myClass");
+        if (classRow) {
+            sections.add("myClass");
+            sections.add("seating");
+        }
     }
 
     return {
