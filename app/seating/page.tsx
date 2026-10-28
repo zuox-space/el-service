@@ -75,7 +75,7 @@ function SeatingContent() {
     if (!allowed) return <NoAccess title="Нет доступа к разделу «Электронная рассадка»" />;
 
     return (
-        <div className="min-h-full bg-bg pb-10">
+        <div className="flex h-[100dvh] flex-col overflow-hidden bg-bg">
             <EmployeeHeader
                 title="Электронная рассадка"
                 backHref="/"
@@ -85,8 +85,8 @@ function SeatingContent() {
                 onLogout={() => void signOut({ callbackUrl: "/" })}
             />
 
-            <main className="mx-auto w-full max-w-5xl space-y-3 px-4 py-4">
-                <Card padding="md">
+            <main className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col gap-3 overflow-hidden px-4 py-4">
+                <Card padding="md" className="shrink-0">
                     <div className="flex flex-wrap items-end gap-2">
                         <div className="min-w-48 flex-1">
                             <Select
@@ -101,9 +101,6 @@ function SeatingContent() {
                             />
                         </div>
                     </div>
-                    <p className="mt-2 text-xs text-fg-subtle">
-                        Просмотр. Редактирование рассадки доступно классному руководителю в разделе «Мой класс».
-                    </p>
                 </Card>
 
                 {error && <Card padding="md" className="border-danger/40 bg-danger-soft"><p className="text-sm text-fg">{error}</p></Card>}
