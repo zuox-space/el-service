@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { studentId, studentName, startDate, endDate, photoUrl, reason, classId } = body;
+    const { studentId, studentName, startDate, endDate, reason, classId } = body;
 
     console.log("📝 Creating self-exit with data:", { studentId, studentName, startDate, endDate, classId });
 
@@ -98,7 +98,8 @@ export async function POST(req: NextRequest) {
         studentName: studentName,
         startDate: new Date(startDate),
         endDate: new Date(endDate),
-        photoUrl: photoUrl || "",
+        // Загрузка файлов удалена; поле оставляем пустым для старых записей.
+        photoUrl: "",
         reason: reason || "",
         classId: classId,
         teacherId: session.user.id,

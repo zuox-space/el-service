@@ -28,7 +28,6 @@ interface SelfExitModalProps {
         studentName: string;
         startDate: string;
         endDate: string;
-        photoUrl: string;
         reason: string;
     }) => Promise<void>;
     studentsList: Student[] | string | unknown;
@@ -91,8 +90,6 @@ export default function SelfExitModal({ isOpen, onClose, onSubmit, studentsList 
                 studentName: selectedStudent.name,
                 startDate,
                 endDate,
-                // заявление принимается без фото: поле оставлено для совместимости с API
-                photoUrl: "",
                 reason: reason.trim(),
             });
         });

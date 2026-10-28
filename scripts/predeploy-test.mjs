@@ -49,16 +49,12 @@ async function main() {
         redirect: "manual",
         body: new FormData(),
     });
-    check("закрыт POST /api/upload", [401, 403].includes(upload.status), `HTTP ${upload.status}`);
+    check("upload API удалён", upload.status === 404, `HTTP ${upload.status}`);
 
     const uploadRead = await fetch(`${BASE}/api/upload/self-exit/does-not-exist.jpg`, {
         redirect: "manual",
     });
-    check(
-        "закрыт просмотр загруженных файлов",
-        [401, 403].includes(uploadRead.status),
-        `HTTP ${uploadRead.status}`,
-    );
+    check("просмотр uploads удалён", uploadRead.status === 404, `HTTP ${uploadRead.status}`);
 
     console.log(`\n=== Итог: успешно ${passed}, провалено ${failed} ===\n`);
     process.exit(failed > 0 ? 1 : 0);
