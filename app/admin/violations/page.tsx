@@ -255,19 +255,18 @@ function ViolationsContent() {
     }, [canManageViolations, fetchViolations]);
 
     // Классный руководитель может отработать нарушение из своего кабинета.
-    // Админская вкладка должна подхватить это без ручного F5.
+    // Админская вкладка подхватывает это при возврате фокуса/видимости,
+    // без фонового опроса по таймеру.
     useEffect(() => {
         if (!canManageViolations) return;
 
         const refreshIfVisible = () => {
             if (document.visibilityState === "visible") void fetchViolations();
         };
-        const timer = window.setInterval(refreshIfVisible, 15_000);
         window.addEventListener("focus", refreshIfVisible);
         document.addEventListener("visibilitychange", refreshIfVisible);
 
         return () => {
-            window.clearInterval(timer);
             window.removeEventListener("focus", refreshIfVisible);
             document.removeEventListener("visibilitychange", refreshIfVisible);
         };
