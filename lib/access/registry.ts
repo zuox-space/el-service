@@ -11,6 +11,7 @@
 
 export type AccessSectionId =
     | "myClass"
+    | "seating"
     | "dashboard"
     | "students"
     | "classes"
@@ -65,6 +66,14 @@ export const ACCESS_SECTIONS: AccessSection[] = [
         group: "workspace",
         href: "/my-class",
         defaultRoles: ["CLASS_TEACHER", "TEACHER", "ADMIN", "METHODIST", "HEAD_TEACHER"],
+    },
+    {
+        id: "seating",
+        label: "Электронная рассадка",
+        description: "Схема рассадки класса: парты, места учеников, отметка отсутствующих",
+        group: "workspace",
+        href: "/seating",
+        defaultRoles: ["CLASS_TEACHER", "HEAD_TEACHER", "ADMIN"],
     },
     {
         id: "dashboard",
@@ -191,7 +200,7 @@ export const ALL_SECTION_IDS: AccessSectionId[] = ACCESS_SECTIONS.map(section =>
  * Именно по этому признаку показывается кнопка «Админ панель» и её содержимое.
  */
 export function isAdminSection(section: AccessSection): boolean {
-    return Boolean(section.href) && section.id !== "myClass" && section.id !== "keys";
+    return Boolean(section.href) && section.id !== "myClass" && section.id !== "keys" && section.id !== "seating";
 }
 
 /** Разделы, доступные по ролям, если индивидуальная настройка не включена. */

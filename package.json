@@ -32,7 +32,8 @@
     "keys:access:apply": "node scripts/keys-role-access.mjs --apply",
     "keys:test": "node scripts/keys-test.mjs",
     "guard:test": "node --env-file=.env.local scripts/guard-test.mjs",
-    "predeploy:test": "node scripts/predeploy-test.mjs"
+    "predeploy:test": "node scripts/predeploy-test.mjs",
+    "seating:test": "node scripts/seating-test.mjs"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

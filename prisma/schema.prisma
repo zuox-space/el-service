@@ -112,6 +112,26 @@ model Class {
   
   // Обратная связь для шарингов
   sharedWith ClassShare[]
+
+  // Электронная рассадка класса
+  seats SeatAssignment[]
+}
+
+model SeatAssignment {
+  id          String   @id @default(cuid())
+  classId     String
+  row         Int
+  /// left/right — место слева/справа от учителя
+  side        String
+  studentId   String?
+  studentName String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  class Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, row, side])
+  @@index([classId])
 }
 
 model ClassShare {
