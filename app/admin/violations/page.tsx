@@ -246,6 +246,25 @@ function ViolationsContent() {
         }
     }, [canManageViolations, fetchViolations]);
 
+    // Классный руководитель может отработать нарушение из своего кабинета.
+    // Админская вкладка должна подхватить это без ручного F5.
+    useEffect(() => {
+        if (!canManageViolations) return;
+
+        const refreshIfVisible = () => {
+            if (document.visibilityState === "visible") void fetchViolations();
+        };
+        const timer = window.setInterval(refreshIfVisible, 15_000);
+        window.addEventListener("focus", refreshIfVisible);
+        document.addEventListener("visibilitychange", refreshIfVisible);
+
+        return () => {
+            window.clearInterval(timer);
+            window.removeEventListener("focus", refreshIfVisible);
+            document.removeEventListener("visibilitychange", refreshIfVisible);
+        };
+    }, [canManageViolations, fetchViolations]);
+
     // Список классов для фильтра — по всему периоду, без текущих фильтров
     useEffect(() => {
         if (!canManageViolations) return;
@@ -395,6 +414,9 @@ function ViolationsContent() {
     ]), []);
 
     const hasActiveFilters = Boolean(selectedType || selectedClass || buildingId || searchQuery || resolution);
+    // Отработать можно только ещё не закрытые нарушения: если классный
+    // руководитель уже сделал это, кнопка не должна оставаться доступной.
+    const selectedForResolve = violations.filter(row => selectedIds.has(row.id) && !row.resolvedAt);
     const rangeInvalid = startDate > endDate;
     const firstShown = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
     const lastShown = Math.min(page * PAGE_SIZE, total);
@@ -683,16 +705,16 @@ function ViolationsContent() {
                         {selectedIds.size > 0 && (
                             <div className="flex flex-wrap items-center gap-2">
                                 <span className="text-xs text-fg-muted">Выбрано: {selectedIds.size}</span>
-                                <Button
-                                    size="sm"
-                                    variant="secondary"
-                                    leftIcon={CheckCheck}
-                                    onClick={() =>
-                                        setResolveTargets(violations.filter(row => selectedIds.has(row.id)))
-                                    }
-                                >
-                                    Отработать выбранные
-                                </Button>
+                                {selectedForResolve.length > 0 && (
+                                    <Button
+                                        size="sm"
+                                        variant="secondary"
+                                        leftIcon={CheckCheck}
+                                        onClick={() => setResolveTargets(selectedForResolve)}
+                                    >
+                                        Отработать выбранные
+                                    </Button>
+                                )}
                                 <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
                                     Снять выбор
                                 </Button>

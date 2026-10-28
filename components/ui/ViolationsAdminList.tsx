@@ -134,15 +134,11 @@ export function ViolationsAdminList({
                             trailing="badge"
                             trailingContent={
                                 <span className="flex items-center gap-1">
-                                    {onResolve && (
+                                    {onResolve && !resolved && (
                                         <IconButton
                                             icon={CheckCheck}
                                             variant="ghost"
-                                            label={
-                                                resolved
-                                                    ? `Изменить отработку: ${violation.studentName}`
-                                                    : `Отработать нарушение: ${violation.studentName}`
-                                            }
+                                            label={`Отработать нарушение: ${violation.studentName}`}
                                             onClick={() => onResolve(violation)}
                                         />
                                     )}
