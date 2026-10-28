@@ -411,6 +411,7 @@ export function GuardScreen() {
 
             <GuardApprovalModal
                 request={approvalRequest}
+                queueCount={pending.length}
                 onClose={() => {
                     if (approvalId) setDismissedApprovals(current => [...current, approvalId]);
                     setApprovalId(null);
@@ -494,16 +495,20 @@ function MiniStat({
 
 function GuardApprovalModal({
     request,
+    queueCount,
     onClose,
     onDecide,
     onExpire,
 }: {
     request: KeyRequestDto | null;
+    queueCount: number;
     onClose: () => void;
     onDecide: (id: string, action: "confirm" | "cancel") => Promise<void>;
     onExpire: () => void;
 }) {
     const [now, setNow] = useState(Date.now());
+    const [acting, setActing] = useState(false);
+
     useEffect(() => {
         if (!request) return;
         const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -520,24 +525,90 @@ function GuardApprovalModal({
 
     if (!request) return null;
 
+    const issue = request.type === "ISSUE";
+    const roomNumbers = request.keys.map(key => key.roomNumber || "Ключ").join(" · ");
+    const roomNames = request.keys.map(key => key.roomName).filter(Boolean).join(" · ");
+    const initials = request.requestedByName
+        .split(/\s+/)
+        .slice(0, 2)
+        .map(part => part[0])
+        .join("")
+        .toUpperCase();
+
+    const decide = async (action: "confirm" | "cancel") => {
+        setActing(true);
+        try {
+            await onDecide(request.id, action);
+        } finally {
+            setActing(false);
+        }
+    };
+
     return (
         <Modal
             open
+            forceModal
             onClose={onClose}
-            title={request.type === "ISSUE" ? "Заявка на выдачу ключа" : "Заявка на сдачу ключа"}
-            description={`${request.requestedByName} · осталось ${seconds} сек`}
-            size="sm"
+            title={issue ? "Заявка на выдачу ключа" : "Заявка на сдачу ключа"}
+            description={`Осталось ${seconds} сек`}
+            size="md"
+            footer={
+                <div className="grid gap-2">
+                    <Button
+                        size="lg"
+                        fullWidth
+                        loading={acting}
+                        disabled={acting}
+                        onClick={() => void decide("confirm")}
+                    >
+                        {issue ? "Выдать ключ" : "Принять ключ"}
+                    </Button>
+                    <Button
+                        size="md"
+                        variant="ghost"
+                        fullWidth
+                        disabled={acting}
+                        onClick={() => void decide("cancel")}
+                    >
+                        Отменить заявку
+                    </Button>
+                </div>
+            }
         >
-            <div className="space-y-2">
-                <RequestCard
-                    item={request}
-                    mode="security"
-                    busy={false}
-                    onDecide={(id, action) => void onDecide(id, action)}
-                />
-                <p className="text-xs text-fg-subtle">
-                    Если закрыть окно, заявка останется в очереди и истечёт через минуту.
+            <div className="space-y-4 text-center">
+                <div className="flex justify-center">
+                    <Badge tone={issue ? "info" : "success"}>{issue ? "Выдача" : "Сдача"}</Badge>
+                </div>
+
+                <div>
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-fg-subtle">Кабинет</p>
+                    <p className="mt-1 text-4xl font-bold leading-tight text-fg">{roomNumbers}</p>
+                    {roomNames && <p className="mt-1 text-lg font-medium text-fg-muted">{roomNames}</p>}
+                </div>
+
+                <div className="rounded-card border border-border bg-surface-2 px-4 py-4">
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-base font-semibold text-accent-text">
+                        {initials || "С"}
+                    </div>
+                    <p className="mt-2 text-[11px] uppercase tracking-[0.16em] text-fg-subtle">
+                        {issue ? "Запросил" : "Сдаёт"}
+                    </p>
+                    <p className="mt-1 break-words text-2xl font-semibold leading-tight text-fg">
+                        {request.requestedByName}
+                    </p>
+                    {request.type === "TRANSFER" && request.targetUserName && (
+                        <p className="mt-1 text-sm text-fg-muted">Получатель: {request.targetUserName}</p>
+                    )}
+                </div>
+
+                <p className="flex items-center justify-center gap-1.5 text-xs text-fg-subtle">
+                    <Clock size={14} aria-hidden />
+                    {seconds > 0 ? `Заявка действует ещё ${seconds} сек` : "Время заявки истекло"}
                 </p>
+
+                {queueCount > 1 && (
+                    <p className="text-xs text-fg-subtle">В очереди ещё заявок: {queueCount - 1}</p>
+                )}
             </div>
         </Modal>
     );
