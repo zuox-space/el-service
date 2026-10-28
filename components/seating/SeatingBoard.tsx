@@ -158,7 +158,7 @@ h1 { margin: 0 0 2mm; font-size: 16pt; text-align: center; }
 .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; }
 .desk { display: grid; grid-template-columns: 1fr 1fr; gap: 1mm; border: 1px solid #999; border-radius: 1.5mm; padding: 1.5mm; }
 .desk span { min-height: 7mm; display: flex; align-items: center; justify-content: center; border: 1px solid #ddd; font-size: 8pt; text-align: center; }
-.board { width: 55mm; margin: 0 0 4mm; border: 1.5px solid #333; border-radius: 2mm; padding: 2mm; text-align: center; font-weight: 600; font-size: 9pt; }
+.board { width: 85mm; margin: 0 auto 4mm; border: 1.5px solid #333; border-radius: 2mm; padding: 2mm; text-align: center; font-weight: 600; font-size: 9pt; }
 .note { margin-top: 3mm; text-align: center; color: #666; font-size: 7.5pt; }
 </style></head><body>
 <h1>Рассадка · ${escapeHtml(data.class.name)}</h1>
@@ -289,8 +289,8 @@ h1 { margin: 0 0 2mm; font-size: 16pt; text-align: center; }
                 </Button>
             </div>
 
-            <div className="flex justify-start">
-                <div className="flex w-fit items-center gap-2 rounded-full border border-accent/30 bg-accent-soft px-4 py-2 text-xs font-medium text-accent-text">
+            <div className="flex justify-center">
+                <div className="flex w-full max-w-md items-center justify-center gap-2 rounded-full border border-accent/30 bg-accent-soft px-4 py-2 text-xs font-medium text-accent-text">
                     <Monitor size={15} aria-hidden />
                     Доска
                 </div>
