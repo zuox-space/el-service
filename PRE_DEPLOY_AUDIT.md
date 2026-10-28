@@ -5,6 +5,12 @@
 Режим: Standard mode; PTC не использовался.  
 Деплой и `git push` не выполнялись.
 
+> **Решение владельца после аудита (актуальное состояние):**
+> обновление Next.js отложено; загрузка и хранение файлов полностью удалены
+> (включая `/api/upload`, просмотр файлов и `public/uploads`); общий rate limiting
+> не добавляется; `SHOW_RAITING` остаётся выключенным. Разделы ниже фиксируют
+> историю аудита; решения владельца имеют приоритет.
+
 ## 1. Исходное состояние
 
 ### Что уже было хорошо
@@ -58,10 +64,10 @@
 | Критично | `next@14.2.35` имеет опубликованные RCE/DoS-уязвимости; patched-версии начинаются с Next 15.5.24/15.5.28 | **Не исправлено**, требуется отдельный upgrade |
 | Критично | `next-pwa` тянет build-time `ejs@3.1.6` с critical advisory | **Не исправлено**, транзитивная зависимость |
 | Высоко | `/admin` HTML отдавался без серверной проверки роли | Исправлено |
-| Высоко | Загрузка файлов: произвольное расширение, нет лимита размера, path traversal при чтении | Исправлено |
+| Высоко | Загрузка файлов: произвольное расширение, нет лимита размера, path traversal при чтении | Удалена вместе с upload |
 | Высоко | Не было общих security-заголовков | Исправлено |
 | Высоко | PII/email/ФИО в логах API | Частично исправлено (share, attendance, students, init) |
-| Средне | Rate limiting только для входа охраны | Добавлен для загрузок и создания нарушений; общий лимит не сделан |
+| Средне | Rate limiting только для входа охраны | Общий лимит не добавлен по решению владельца; точечные лимиты удалены вместе с upload |
 | Средне | Demo `/api/init` доступен в production | Отключён в production |
 | Средне | `xlsx@0.18.5` (unused) имеет high advisories | **Не исправлено**: lockfile требует отдельного обновления |
 | Низко | `proxy.ts` — мёртвый NextAuth-middleware, не подключён | Оставлен как технический долг |
@@ -79,7 +85,7 @@
 | Средне | Удаление нарушения не было идемпотентным | Исправлено |
 | Средне | `DB_QUEUE_LIMIT=0` мог копить неограниченную очередь к MySQL | Исправлено |
 | Средне | Нет индексов на частые проверки владельца/шаринга класса и `resolvedBy` | Исправлено |
-| Средне | `photoUrl` указывал на `/uploads`, а новый API — на `/api/upload`; старые файлы и public-каталог требуют отдельного решения | Частично |
+| Средне | `photoUrl`/`/uploads`: код загрузки и хранения файлов | Удалён по решению владельца |
 | Низко | Валидация входных DTO не унифицирована | Не исправлено |
 
 ### Тесты
@@ -126,20 +132,19 @@
 - `components/access/AdminLayoutClient.tsx` — прежний UI-каркас.
 - Нет сессии → `/login?callbackUrl=/admin`; нет админского раздела → `/`.
 
-### `e5b855a` — безопасная загрузка и rate limit
+### `e5b855a` — безопасная загрузка (позже удалена)
 
-- `app/api/upload/route.ts`: allowlist MIME, проверка сигнатуры JPG/PNG/WEBP/GIF/PDF,
-  лимит 10 МБ, random UUID имя, безопасный путь, 20 загрузок/мин на сотрудника.
-- `app/api/upload/[...path]/route.ts`: auth-проверка, защита от `../`,
-  allowlist MIME, `private` cache, `nosniff`.
-- `lib/rate-limit.ts`: in-memory limiter для одной реплики.
-- `app/api/init/route.ts`: в production возвращает 404.
+Этот промежуточный коммит добавлял allowlist MIME, проверку сигнатуры и
+rate limit загрузок. После решения владельца функциональность удалена в
+`aeab949`: `/api/upload`, `/api/upload/[...path]`, `public/uploads` и приём
+`photoUrl` в самовыходе больше не существуют. В БД поле `photoUrl` оставлено
+только для совместимости со старыми записями и всегда заполняется пустой строкой.
 
 ### `78c79bc` — транзакция и логи
 
 - `app/api/admin/users/route.ts`: пользователь + роль + `UserRole` в `$transaction`;
   нормализация email; `P2002` → 400.
-- `app/api/violations/route.ts`: rate limit на создание; `deleteMany` для идемпотентного DELETE.
+- `app/api/violations/route.ts`: `deleteMany` для идемпотентного DELETE.
 - Удалены PII-логи из `/api/share`, `/api/attendance`, `/api/students/[aisId]`, `/api/init`.
 
 ### `4056da2` — БД и индексы
@@ -147,12 +152,12 @@
 - `lib/mysql_db.ts`: `DB_POOL_SIZE`, `DB_QUEUE_LIMIT` с безопасными границами.
 - `prisma/schema.prisma` + `20260914130000_add_access_indexes`: индексы
   `Class.ownerId`, `ClassShare.teacherId`, `UserRole.roleId`, `Violation.resolvedBy`.
-- `deploy/env.production.example`: пул, `UPLOAD_DIR`, `SHOW_RAITING`.
+- `deploy/env.production.example`: пул, `SHOW_RAITING`.
 
 ### `4587a0b` — pre-deploy проверки
 
 - `scripts/predeploy-test.mjs`: заголовки, `/admin`, `/api/admin/users`,
-  `/api/portal`, POST upload, просмотр upload.
+  `/api/portal`, отсутствие upload API.
 - `package.json`: `predeploy:test`.
 
 ## 5. Проверки после исправлений
@@ -169,7 +174,7 @@
 | predeploy-test | не было | 10/10 |
 | `/admin` без сессии | HTML оболочки | redirect на `/login?callbackUrl=/admin` |
 | security headers | отсутствовали | присутствуют |
-| upload с поддельным PNG | принимался | 415 |
+| upload API | принимался | 404 (удалён) |
 | 300 параллельных GET `/login` | не измерялось | 300/300, p95 654 ms |
 
 ## 6. Что не исправлено и почему
@@ -182,13 +187,12 @@
 3. **`xlsx` high.** Пакет не используется в коде. Удаление требует корректного
    обновления `pnpm-lock.yaml`; локальный `pnpm` не смог пересоздать store из-за
    ограничения окружения. Рекомендую `pnpm remove xlsx` в чистом окружении и проверить build.
-4. **Общий rate limiting.** Сделан только для загрузок и создания нарушений.
-   Для всех mutation-API нужен Redis/Upstash при нескольких репликах.
+4. **Rate limiting.** По решению владельца общий rate limiting не добавляется;
+   точечный лимит загрузок удалён вместе с upload.
 5. **CSP.** Не добавлен: текущий UI использует inline styles/scripts и PWA;
    нужен отдельный аудит и nonce/hash-подход.
-6. **Хранение загрузок.** Новые файлы идут через auth-API; старые public-файлы
-   и путь `photoUrl` требуют миграции/очистки. На production нужен volume и
-   `UPLOAD_DIR`.
+6. **Хранение загрузок.** Функциональность удалена; старые значения `photoUrl`
+   в БД остаются историческим полем, но новые файлы не принимаются.
 7. **E2E и WCAG.** Нет Playwright и axe/Lighthouse; это следующий этап.
 8. **Prisma connection limit.** Настраивается через `DATABASE_URL`; код не
    переписывает URL, чтобы не сломать существующие окружения.
@@ -201,26 +205,27 @@
    `pnpm prisma migrate deploy` или `pnpm db:push` (в зависимости от процесса).
 3. Задать в production:
    `DATABASE_URL=...&connection_limit=15&pool_timeout=20`,
-   `DB_POOL_SIZE=15`, `DB_QUEUE_LIMIT=200`, `UPLOAD_DIR=/data/uploads`.
-4. Подключить persistent volume для `UPLOAD_DIR`.
+   `DB_POOL_SIZE=15`, `DB_QUEUE_LIMIT=200`.
+4. Убедиться, что старые публичные `/uploads` удалены вместе с релизом.
 5. Настроить мониторинг: 5xx, p95 latency, Prisma pool, MySQL pool, disk, healthcheck.
-6. Добавить rate limiting на уровне reverse proxy/Dokploy для `/api/*`.
+6. При необходимости добавить rate limiting на уровне reverse proxy/Dokploy.
 7. Провести staging load test (k6/autocannon) на запись/удаление/чтение,
    с бэкапом и отдельной БД.
 8. Добавить Playwright E2E на: вход, админку, создание нарушения, отработку,
-   загрузку заявления, ключи, охрану.
+   самовыход, ключи, охрану.
 9. Проверить WCAG 2.2 AA через axe и ручную клавиатурную навигацию.
-10. Удалить/архивировать публичные старые `/uploads` после миграции.
+10. Проверить, что старые `photoUrl` не отображаются в интерфейсе.
 
 ## 8. Ветка и коммиты
 
 Ветка: `pre-deploy-2` (не запушена).
 
 ```
+aeab949 security: удалена загрузка и хранение файлов
 4587a0b test: pre-deploy проверки границ безопасности
 4056da2 perf: пул MySQL и индексы проверок доступа
 78c79bc fix: транзакционное создание сотрудника и меньше PII в логах
-e5b855a security: безопасная загрузка файлов и rate limit
+e5b855a security: безопасная загрузка файлов и rate limit (позже удалено)
 d129784 security: серверная защита админского HTML
 ac2422a chore: рабочий lint и security-заголовки
 ```
@@ -230,7 +235,5 @@ ac2422a chore: рабочий lint и security-заголовки
 ## 9. Вопросы владельцу продукта
 
 1. Обновляемся ли на Next 15.5.28 сейчас или деплоим с принятым риском?
-2. Где хранить заявления: persistent volume, S3 или существующий путь?
-3. Нужен ли общий rate limit на все API и какой порог на пользователя?
-4. Включать ли `SHOW_RAITING=true` в production?
-5. Какая политика для старых public-файлов `/uploads`: миграция, удаление или закрытие?
+2. Включать ли `SHOW_RAITING=true` в production?
+3. Нужен ли rate limiting на уровне reverse proxy?
