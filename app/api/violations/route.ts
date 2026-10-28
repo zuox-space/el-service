@@ -23,6 +23,34 @@ function parseIntParam(value: string | null, fallback: number, min: number, max:
     return Math.min(Math.max(parsed, min), max);
 }
 
+/**
+ * Варианты поиска для русских имён.
+ *
+ * Пользователи часто пишут «Воробьев» вместо «Воробьёв» (и наоборот).
+ * PostgreSQL не считает «е» и «ё» одной буквой, поэтому ищем оба варианта.
+ */
+function searchVariants(value: string): string[] {
+    const variants = new Set([value]);
+    const words = value.split(/\s+/);
+
+    // Меняем «е/ё» только в одном слове за вариант, иначе в полном ФИО
+    // заодно портились бы другие слова («Алёксандрович»).
+    for (let index = 0; index < words.length; index++) {
+        const word = words[index];
+        const withE = word.replace(/ё/g, "е").replace(/Ё/g, "Е");
+        const withYo = word.replace(/е/g, "ё").replace(/Е/g, "Ё");
+
+        for (const replacement of [withE, withYo]) {
+            if (replacement === word) continue;
+            const next = [...words];
+            next[index] = replacement;
+            variants.add(next.join(" "));
+        }
+    }
+
+    return [...variants].slice(0, 16);
+}
+
 // GET: Получить нарушения с фильтрами, пагинацией и статистикой
 export async function GET(req: NextRequest) {
     // Фиксировать нарушение может учитель на рабочем экране и раздел «Нарушения»
@@ -127,11 +155,11 @@ export async function GET(req: NextRequest) {
         // 🔥 Поиск на сервере: по ученику, учителю и комментарию.
         // Это замена клиентской фильтрации, из-за которой статистика считалась по обрезанному списку.
         if (search) {
-            where.OR = [
-                { studentName: { contains: search, mode: "insensitive" } },
-                { teacherName: { contains: search, mode: "insensitive" } },
-                { comment: { contains: search, mode: "insensitive" } },
-            ];
+            where.OR = searchVariants(search).flatMap(term => [
+                { studentName: { contains: term, mode: "insensitive" } },
+                { teacherName: { contains: term, mode: "insensitive" } },
+                { comment: { contains: term, mode: "insensitive" } },
+            ]);
         }
 
         const orderBy: any = [{ [sortBy]: sortDir }, { id: "asc" }];

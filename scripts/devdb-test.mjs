@@ -201,6 +201,21 @@ async function main() {
     check('поиск согласован со статистикой',
         Object.values(searchData?.stats?.byType || {}).reduce((a, b) => a + b, 0) === searchData?.total);
 
+    // Пользователи часто набирают «Воробьев» вместо «Воробьёв».
+    // Проверяем, что поиск понимает оба написания (если в данных есть «ё»).
+    const nameWithYo = (searchData?.violations || [])
+        .map(item => item.studentName)
+        .find(name => /[ёЁ]/.test(name));
+    if (nameWithYo) {
+        const withoutYo = nameWithYo.replace(/ё/g, 'е').replace(/Ё/g, 'Е');
+        const yoRes = await session.fetch(
+            `${BASE}/api/violations?startDate=${startDate}&endDate=${today}&search=${encodeURIComponent(withoutYo)}&pageSize=100`,
+        );
+        const yoData = await yoRes.json();
+        check('поиск без «ё» находит имя с «ё»', (yoData?.total || 0) > 0,
+            `искали «${withoutYo}», найдено: ${yoData?.total}`);
+    }
+
     // --- границы дат: сегодня ---
     console.log('\n5) Границы даты (сегодня)');
     const todayDb = await prisma.violation.count({
