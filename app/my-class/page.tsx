@@ -1427,7 +1427,10 @@ export default function HomePage() {
                     <MyClassStats classId={selectedClass.id} className={selectedClass.name} />
                 )}
                 {activeTab === "seating" && selectedClass && (
-                    <SeatingBoard classId={selectedClass.id} canEdit />
+                    <SeatingBoard
+                        classId={selectedClass.id}
+                        canEdit={isAdmin || selectedClass.ownerId === session.user?.id}
+                    />
                 )}
 
             </main>

@@ -63,7 +63,8 @@ async function main() {
     const classesResponse = await request("/api/seating/classes");
     const classes = await classesResponse.json();
     check("классы доступны", classesResponse.ok && Array.isArray(classes.classes) && classes.classes.length > 0);
-    const classId = classes.classes?.[0]?.id;
+    const ownClass = (classes.classes ?? []).find(item => item.isOwner);
+    const classId = ownClass?.id ?? classes.classes?.[0]?.id;
     if (!classId) {
         console.log(`\n=== Итог: успешно ${passed}, провалено ${failed} ===\n`);
         process.exit(1);

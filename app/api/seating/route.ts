@@ -5,6 +5,7 @@ import { requireAnySection, requireSection } from "@/lib/access/server";
 import { getDayRange, toLocalISODate } from "@/lib/date";
 import {
     canAccessSeatingClass,
+    canEditSeatingClass,
     SEAT_ROWS,
     type SeatSide,
 } from "@/lib/seating";
@@ -146,8 +147,8 @@ export async function PUT(req: NextRequest) {
         return NextResponse.json({ error: "Один ученик не может занимать два места" }, { status: 400 });
     }
 
-    if (!(await canAccessSeatingClass(guard.access, classId))) {
-        return NextResponse.json({ error: "Нет доступа к классу" }, { status: 403 });
+    if (!(await canEditSeatingClass(guard.access, classId))) {
+        return NextResponse.json({ error: "Редактировать рассадку может только классный руководитель" }, { status: 403 });
     }
 
     try {
