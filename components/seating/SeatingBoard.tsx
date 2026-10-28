@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { Ban, Check, Monitor, Printer, UserRound } from "lucide-react";
 import { Badge, Button, Card, EmptyState, FormError, SearchInput, Select, Skeleton, useToast } from "@/components/ui/kit";
 
-const ROWS = 15;
+const ROWS = 8;
 const DESKS = [1, 2, 3] as const;
 
 function normalize(value: string) {
@@ -53,7 +53,7 @@ interface SeatingBoardProps {
 }
 
 /**
- * Схема рассадки: 15 рядов, в каждом 3 парты по 2 места.
+ * Схема рассадки: 8 рядов, в каждом 3 парты по 2 места.
  * Используется и в «Мой класс» (редактирование), и в отдельном разделе
  * «Электронная рассадка» (только просмотр).
  */

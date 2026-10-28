@@ -80,18 +80,18 @@ async function main() {
         const save = await request("/api/seating", {
             method: "PUT",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ classId, row: 15, desk: 1, left: first.id, right: second?.id ?? null }),
+            body: JSON.stringify({ classId, row: 8, desk: 1, left: first.id, right: second?.id ?? null }),
         });
         const saved = await save.json();
         check("пара сохраняется", save.ok && saved.seats?.length >= 1, `HTTP ${save.status}`);
 
         const after = await (await request(`/api/seating?classId=${classId}`)).json();
-        check("сохранённый ученик на месте", after.seats?.some(seat => seat.row === 15 && seat.desk === 1 && seat.studentId === first.id));
+        check("сохранённый ученик на месте", after.seats?.some(seat => seat.row === 8 && seat.desk === 1 && seat.studentId === first.id));
 
         const cleanup = await request("/api/seating", {
             method: "PUT",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ classId, row: 15, desk: 1, left: null, right: null }),
+            body: JSON.stringify({ classId, row: 8, desk: 1, left: null, right: null }),
         });
         check("место очищается", cleanup.ok, `HTTP ${cleanup.status}`);
     }

@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { accessibleClassIds, canAccessClass } from "@/lib/access/classes";
 import type { AccessInfo } from "@/lib/access/server";
 
-export const SEAT_ROWS = 15;
+export const SEAT_ROWS = 8;
 export const SEAT_SIDES = ["left", "right"] as const;
 export type SeatSide = (typeof SEAT_SIDES)[number];
 

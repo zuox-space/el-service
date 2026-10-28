@@ -1,4 +1,4 @@
--- Электронная рассадка класса: 15 рядов × 3 парты × 2 места.
+-- Электронная рассадка класса: 8 рядов × 3 парты × 2 места.
 CREATE TABLE "SeatAssignment" (
     "id" TEXT NOT NULL,
     "classId" TEXT NOT NULL,
