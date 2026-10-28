@@ -17,6 +17,7 @@ import {
     FileText,
     HelpCircle,
     Info,
+    LayoutGrid,
     PenSquare,
     Plane,
     Plus,
@@ -912,6 +913,16 @@ export default function HomePage() {
                     classes={classes}
                     currentTeacherId={session.user?.id}
                 />
+
+                {can("seating") && selectedClass && (
+                    <Link
+                        href={`/seating?classId=${encodeURIComponent(selectedClass.id)}`}
+                        className="flex items-center justify-center gap-2 rounded-control border border-border bg-surface-2 px-3 py-2 text-sm font-medium text-fg-muted transition-colors hover:bg-surface-3 hover:text-fg"
+                    >
+                        <LayoutGrid size={16} aria-hidden />
+                        Рассадка класса
+                    </Link>
+                )}
 
                 {/* Мобильный: вкладки в раскрывающемся меню */}
                 <div ref={tabMenuRef} className="relative md:hidden">

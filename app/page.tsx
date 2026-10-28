@@ -10,6 +10,7 @@ import {
     BarChart3,
     ChevronDown,
     KeyRound,
+    LayoutGrid,
     School,
     ShieldCheck,
     Star,
@@ -102,9 +103,10 @@ export default function PortalPage() {
     const services = data?.services ?? [];
     const showRating = data?.showRating === true;
     // «Ключи» — обычный кабинет сотрудника, а не раздел админки.
-    const adminServices = services.filter(service => service.id !== "keys");
+    const adminServices = services.filter(service => service.id !== "keys" && service.id !== "seating");
     const hasAdminServices = adminServices.length > 0;
     const hasMyClass = Boolean(data?.myClass.available);
+    const hasSeating = services.some(service => service.id === "seating");
     const hasKeys = services.some(service => service.id === "keys");
     const roles = (data?.user.roles ?? []) as string[];
 
@@ -227,6 +229,39 @@ export default function PortalPage() {
                                     </div>
                                     <p className="mt-1 truncate text-sm text-fg-muted">
                                         Посещаемость, нарушения, выход из школы и др.
+                                    </p>
+                                </div>
+                                <ArrowRight
+                                    size={18}
+                                    className="mt-1 shrink-0 text-fg-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-accent-text"
+                                    aria-hidden
+                                />
+                            </div>
+                        </Link>
+                    </section>
+                )}
+
+                {/* Электронная рассадка */}
+                {hasSeating && (
+                    <section aria-labelledby="seating-title">
+                        <h2
+                            id="seating-title"
+                            className="mb-2 px-1 text-xs font-medium uppercase tracking-wide text-fg-subtle"
+                        >
+                            Классное руководство
+                        </h2>
+                        <Link
+                            href="/seating"
+                            className="group block rounded-card border border-dashed border-border bg-surface p-4 shadow-card transition-colors hover:border-accent/50 hover:bg-surface-hover"
+                        >
+                            <div className="flex items-start gap-3">
+                                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-control bg-accent-soft text-accent-text">
+                                    <LayoutGrid size={26} aria-hidden />
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                    <h3 className="text-base font-semibold text-fg">Электронная рассадка</h3>
+                                    <p className="mt-1 truncate text-sm text-fg-muted">
+                                        Схема парт, места учеников и отсутствующие
                                     </p>
                                 </div>
                                 <ArrowRight
