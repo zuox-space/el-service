@@ -201,76 +201,71 @@ export default function PortalPage() {
                     </Card>
                 )}
 
-                {/* Мой класс */}
-                {hasMyClass && (
-                    <section aria-labelledby="my-class-title">
+                {/* Учебный процесс */}
+                {(hasMyClass || hasSeating) && (
+                    <section aria-labelledby="study-process-title">
                         <h2
-                            id="my-class-title"
+                            id="study-process-title"
                             className="mb-2 px-1 text-xs font-medium uppercase tracking-wide text-fg-subtle"
                         >
-                            Классное руководство
+                            Учебный процесс
                         </h2>
-                        <Link
-                            href="/my-class"
-                            className="group block rounded-card border border-dashed border-border bg-surface p-4 shadow-card transition-colors hover:border-accent/50 hover:bg-surface-hover"
-                        >
-                            <div className="flex items-start gap-3">
-                                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-control bg-accent-soft text-accent-text">
-                                    <School size={26} aria-hidden />
-                                </span>
-                                <div className="min-w-0 flex-1">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <h3 className="text-base font-semibold text-fg">Мой класс</h3>
-                                        {data?.myClass.classes.map(className => (
-                                            <Badge key={className} tone="info">
-                                                {className}
-                                            </Badge>
-                                        ))}
+                        <div className="space-y-3">
+                            {hasMyClass && (
+                                <Link
+                                    href="/my-class"
+                                    className="group block rounded-card border border-dashed border-border bg-surface p-4 shadow-card transition-colors hover:border-accent/50 hover:bg-surface-hover"
+                                >
+                                    <div className="flex items-start gap-3">
+                                        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-control bg-accent-soft text-accent-text">
+                                            <School size={26} aria-hidden />
+                                        </span>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <h3 className="text-base font-semibold text-fg">Мой класс</h3>
+                                                {data?.myClass.classes.map(className => (
+                                                    <Badge key={className} tone="info">
+                                                        {className}
+                                                    </Badge>
+                                                ))}
+                                            </div>
+                                            <p className="mt-1 truncate text-sm text-fg-muted">
+                                                Посещаемость, нарушения, выход из школы и др.
+                                            </p>
+                                        </div>
+                                        <ArrowRight
+                                            size={18}
+                                            className="mt-1 shrink-0 text-fg-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-accent-text"
+                                            aria-hidden
+                                        />
                                     </div>
-                                    <p className="mt-1 truncate text-sm text-fg-muted">
-                                        Посещаемость, нарушения, выход из школы и др.
-                                    </p>
-                                </div>
-                                <ArrowRight
-                                    size={18}
-                                    className="mt-1 shrink-0 text-fg-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-accent-text"
-                                    aria-hidden
-                                />
-                            </div>
-                        </Link>
-                    </section>
-                )}
+                                </Link>
+                            )}
 
-                {/* Электронная рассадка */}
-                {hasSeating && (
-                    <section aria-labelledby="seating-title">
-                        <h2
-                            id="seating-title"
-                            className="mb-2 px-1 text-xs font-medium uppercase tracking-wide text-fg-subtle"
-                        >
-                            Классное руководство
-                        </h2>
-                        <Link
-                            href="/seating"
-                            className="group block rounded-card border border-dashed border-border bg-surface p-4 shadow-card transition-colors hover:border-accent/50 hover:bg-surface-hover"
-                        >
-                            <div className="flex items-start gap-3">
-                                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-control bg-accent-soft text-accent-text">
-                                    <LayoutGrid size={26} aria-hidden />
-                                </span>
-                                <div className="min-w-0 flex-1">
-                                    <h3 className="text-base font-semibold text-fg">Электронная рассадка</h3>
-                                    <p className="mt-1 truncate text-sm text-fg-muted">
-                                        Схема парт, места учеников и отсутствующие
-                                    </p>
-                                </div>
-                                <ArrowRight
-                                    size={18}
-                                    className="mt-1 shrink-0 text-fg-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-accent-text"
-                                    aria-hidden
-                                />
-                            </div>
-                        </Link>
+                            {hasSeating && (
+                                <Link
+                                    href="/seating"
+                                    className="group block rounded-card border border-dashed border-border bg-surface p-4 shadow-card transition-colors hover:border-accent/50 hover:bg-surface-hover"
+                                >
+                                    <div className="flex items-start gap-3">
+                                        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-control bg-accent-soft text-accent-text">
+                                            <LayoutGrid size={26} aria-hidden />
+                                        </span>
+                                        <div className="min-w-0 flex-1">
+                                            <h3 className="text-base font-semibold text-fg">Электронная рассадка</h3>
+                                            <p className="mt-1 truncate text-sm text-fg-muted">
+                                                Схема парт, места учеников и отсутствующие
+                                            </p>
+                                        </div>
+                                        <ArrowRight
+                                            size={18}
+                                            className="mt-1 shrink-0 text-fg-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-accent-text"
+                                            aria-hidden
+                                        />
+                                    </div>
+                                </Link>
+                            )}
+                        </div>
                     </section>
                 )}
 

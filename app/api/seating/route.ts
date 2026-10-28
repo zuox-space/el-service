@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getStudentsGroupedByClass } from "@/lib/mysql_db";
-import { requireAnySection } from "@/lib/access/server";
+import { requireAnySection, requireSection } from "@/lib/access/server";
 import { getDayRange, toLocalISODate } from "@/lib/date";
 import {
     canAccessSeatingClass,
@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
 
 interface SeatPayload {
     row: number;
+    desk: number;
     side: SeatSide;
     studentId: string | null;
     studentName: string | null;
@@ -21,6 +22,11 @@ interface SeatPayload {
 function parseRow(value: unknown): number | null {
     const row = typeof value === "number" ? value : Number.parseInt(String(value), 10);
     return Number.isInteger(row) && row >= 1 && row <= SEAT_ROWS ? row : null;
+}
+
+function parseDesk(value: unknown): number | null {
+    const desk = typeof value === "number" ? value : Number.parseInt(String(value), 10);
+    return Number.isInteger(desk) && desk >= 1 && desk <= 3 ? desk : null;
 }
 
 export async function GET(req: NextRequest) {
@@ -54,9 +60,31 @@ export async function GET(req: NextRequest) {
 
         const seats = await prisma.seatAssignment.findMany({
             where: { classId },
-            select: { row: true, side: true, studentId: true, studentName: true },
-            orderBy: [{ row: "asc" }, { side: "asc" }],
+            select: { id: true, row: true, desk: true, side: true, studentId: true, studentName: true },
+            orderBy: [{ row: "asc" }, { desk: "asc" }, { side: "asc" }],
         });
+
+        // Внешняя база могла изменить состав класса. Освобождаем места тех,
+        // кого больше нет в актуальном списке. Если внешняя база временно
+        // вернула пустой список, ничего не удаляем.
+        const roster = new Map(students.map(student => [String(student.id), student.name]));
+        const staleSeats = students.length > 0
+            ? seats.filter(seat => seat.studentId && !roster.has(String(seat.studentId)))
+            : [];
+
+        if (staleSeats.length > 0) {
+            await prisma.seatAssignment.deleteMany({
+                where: { id: { in: staleSeats.map(seat => seat.id) } },
+            });
+        }
+
+        const actualSeats = seats
+            .filter(seat => !staleSeats.some(stale => stale.id === seat.id))
+            .map(seat => {
+                if (!seat.studentId) return seat;
+                const currentName = roster.get(String(seat.studentId));
+                return currentName ? { ...seat, studentName: currentName } : seat;
+            });
 
         // Для отметки «н» нужны только отсутствующие сегодня.
         const date = searchParams.get("date") || toLocalISODate();
@@ -79,8 +107,9 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({
             class: classRow,
             students,
-            seats,
+            seats: actualSeats,
             absentStudentIds,
+            releasedSeats: staleSeats.length,
             date,
         });
     } catch (error) {
@@ -90,7 +119,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-    const guard = await requireAnySection(["seating", "myClass"]);
+    // Менять рассадку может только классный руководитель со страницы
+    // «Мой класс». Сотруднику с разделом seating доступен только просмотр.
+    const guard = await requireSection("myClass");
     if (!guard.ok) return guard.response;
 
     const body = await req.json().catch(() => null);
@@ -100,10 +131,11 @@ export async function PUT(req: NextRequest) {
 
     const classId = typeof body.classId === "string" ? body.classId : "";
     const row = parseRow(body.row);
+    const desk = parseDesk(body.desk);
     const left = body.left ?? null;
     const right = body.right ?? null;
 
-    if (!classId || !row) {
+    if (!classId || !row || !desk) {
         return NextResponse.json({ error: "Не выбран класс или парта" }, { status: 400 });
     }
 
@@ -141,10 +173,15 @@ export async function PUT(req: NextRequest) {
         }
 
         const otherSeats = await prisma.seatAssignment.findMany({
-            where: { classId, row: { not: row }, studentId: { not: null } },
-            select: { studentId: true },
+            where: { classId, studentId: { not: null } },
+            select: { row: true, desk: true, studentId: true },
         });
-        const busyStudents = new Set(otherSeats.map(seat => seat.studentId).filter(Boolean));
+        const busyStudents = new Set(
+            otherSeats
+                .filter(seat => seat.row !== row || seat.desk !== desk)
+                .map(seat => seat.studentId)
+                .filter(Boolean),
+        );
         if ((leftId && busyStudents.has(leftId)) || (rightId && busyStudents.has(rightId))) {
             return NextResponse.json(
                 { error: "Ученик уже сидит за другой партой" },
@@ -156,6 +193,7 @@ export async function PUT(req: NextRequest) {
         if (leftId) {
             payload.push({
                 row,
+                desk,
                 side: "left",
                 studentId: leftId,
                 studentName: studentMap.get(leftId) ?? null,
@@ -164,6 +202,7 @@ export async function PUT(req: NextRequest) {
         if (rightId) {
             payload.push({
                 row,
+                desk,
                 side: "right",
                 studentId: rightId,
                 studentName: studentMap.get(rightId) ?? null,
@@ -171,7 +210,7 @@ export async function PUT(req: NextRequest) {
         }
 
         await prisma.$transaction(async tx => {
-            await tx.seatAssignment.deleteMany({ where: { classId, row } });
+            await tx.seatAssignment.deleteMany({ where: { classId, row, desk } });
             if (payload.length > 0) {
                 await tx.seatAssignment.createMany({
                     data: payload.map(item => ({ classId, ...item })),

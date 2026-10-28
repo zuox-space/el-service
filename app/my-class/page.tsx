@@ -39,6 +39,7 @@ import { ResolveViolationModal } from "@/components/ui/ResolveViolationModal";
 import { ViolationAccordion } from "@/components/ui/ViolationAccordion";
 import { MyClassStats } from "@/components/my-class/MyClassStats";
 import { ClassTeacherRating } from "@/components/my-class/ClassTeacherRating";
+import { SeatingBoard } from "@/components/seating/SeatingBoard";
 import AuthorizationModal from "@/components/ui/AuthorizationModal";
 import {
     Badge,
@@ -244,6 +245,7 @@ export default function HomePage() {
     const roles = (session?.user?.roles as string[]) || [];
     const isAdmin = roles.includes("ADMIN");
     const isClassTeacher = roles.includes("CLASS_TEACHER");
+    const canSeating = !accessLoading && can("seating");
 
     const isJuniorClass = useMemo(() => {
         if (!selectedClass) return false;
@@ -268,8 +270,12 @@ export default function HomePage() {
             base.push({ id: "authorizations", name: "Доверенности", Icon: Shield });
         }
 
+        if (canSeating) {
+            base.splice(2, 0, { id: "seating", name: "Рассадка", Icon: LayoutGrid });
+        }
+
         return base;
-    }, [showJuniorFeatures]);
+    }, [showJuniorFeatures, canSeating]);
 
     useEffect(() => {
         setMounted(true);
@@ -783,6 +789,8 @@ export default function HomePage() {
                 ? absentStudentsList.length || undefined
                 : tab.id === "stats"
                     ? undefined
+                    : tab.id === "seating"
+                    ? undefined
                     : tab.id === "self-exit"
                     ? selfExits.length
                     : tab.id === "violations"
@@ -913,16 +921,6 @@ export default function HomePage() {
                     classes={classes}
                     currentTeacherId={session.user?.id}
                 />
-
-                {can("seating") && selectedClass && (
-                    <Link
-                        href={`/seating?classId=${encodeURIComponent(selectedClass.id)}`}
-                        className="flex items-center justify-center gap-2 rounded-control border border-border bg-surface-2 px-3 py-2 text-sm font-medium text-fg-muted transition-colors hover:bg-surface-3 hover:text-fg"
-                    >
-                        <LayoutGrid size={16} aria-hidden />
-                        Рассадка класса
-                    </Link>
-                )}
 
                 {/* Мобильный: вкладки в раскрывающемся меню */}
                 <div ref={tabMenuRef} className="relative md:hidden">
@@ -1427,6 +1425,9 @@ export default function HomePage() {
                 )}
                 {activeTab === "stats" && selectedClass && (
                     <MyClassStats classId={selectedClass.id} className={selectedClass.name} />
+                )}
+                {activeTab === "seating" && selectedClass && (
+                    <SeatingBoard classId={selectedClass.id} canEdit />
                 )}
 
             </main>

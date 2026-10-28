@@ -121,6 +121,8 @@ model SeatAssignment {
   id          String   @id @default(cuid())
   classId     String
   row         Int
+  /// 1–3: три парты в ряду, между ними проходы
+  desk        Int      @default(1)
   /// left/right — место слева/справа от учителя
   side        String
   studentId   String?
@@ -130,7 +132,7 @@ model SeatAssignment {
 
   class Class @relation(fields: [classId], references: [id], onDelete: Cascade)
 
-  @@unique([classId, row, side])
+  @@unique([classId, row, desk, side])
   @@index([classId])
 }
 
