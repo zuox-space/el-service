@@ -197,6 +197,14 @@ function ViolationsContent() {
             const rows: Violation[] = Array.isArray(data) ? data : (Array.isArray(data?.violations) ? data.violations : []);
             setViolations(rows);
 
+            // После обновления списка убираем из выбора уже отработанные
+            // и исчезнувшие из текущей выборки нарушения.
+            setSelectedIds(previous => {
+                const available = new Set(rows.filter(row => !row.resolvedAt).map(row => row.id));
+                const next = new Set([...previous].filter(id => available.has(id)));
+                return next.size === previous.size ? previous : next;
+            });
+
             if (data && Array.isArray(data.violations)) {
                 setTotal(typeof data.total === 'number' ? data.total : rows.length);
                 setTotalPages(typeof data.totalPages === 'number' ? data.totalPages : 1);
@@ -416,6 +424,7 @@ function ViolationsContent() {
     const hasActiveFilters = Boolean(selectedType || selectedClass || buildingId || searchQuery || resolution);
     // Отработать можно только ещё не закрытые нарушения: если классный
     // руководитель уже сделал это, кнопка не должна оставаться доступной.
+    const unresolvedOnPage = violations.filter(row => !row.resolvedAt);
     const selectedForResolve = violations.filter(row => selectedIds.has(row.id) && !row.resolvedAt);
     const rangeInvalid = startDate > endDate;
     const firstShown = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
@@ -689,18 +698,18 @@ function ViolationsContent() {
                 )}
 
                 {/* Выбор и групповые действия: удобно закрывать пачку замечаний разом */}
-                {violations.length > 0 && (
+                {violations.length > 0 && unresolvedOnPage.length > 0 && (
                     <div className="flex flex-wrap items-center justify-between gap-2 rounded-control border border-dashed border-border bg-surface px-2 py-1.5">
                         <Checkbox
-                            checked={violations.length > 0 && violations.every(row => selectedIds.has(row.id))}
+                            checked={unresolvedOnPage.every(row => selectedIds.has(row.id))}
                             onChange={() =>
                                 setSelectedIds(
-                                    violations.every(row => selectedIds.has(row.id))
+                                    unresolvedOnPage.every(row => selectedIds.has(row.id))
                                         ? new Set()
-                                        : new Set(violations.map(row => row.id)),
+                                        : new Set(unresolvedOnPage.map(row => row.id)),
                                 )
                             }
-                            label={`Выбрать все на странице (${violations.length})`}
+                            label={`Выбрать все неотработанные на странице (${unresolvedOnPage.length})`}
                         />
                         {selectedIds.size > 0 && (
                             <div className="flex flex-wrap items-center gap-2">

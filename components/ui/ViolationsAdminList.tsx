@@ -82,7 +82,7 @@ export function ViolationsAdminList({
                         <ListItem
                             leading={
                                 <span className="flex items-center gap-2">
-                                    {selectable && (
+                                    {selectable && !resolved && (
                                         <Checkbox
                                             checked={isSelected}
                                             onChange={() => onToggleSelect?.(violation.id)}
