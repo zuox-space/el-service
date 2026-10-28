@@ -49,11 +49,8 @@ interface UniformStats {
     byClassMonth: Record<string, Record<string, number>>;
     byMonth: Record<string, number>;
     byGrade: Record<string, number>;
-    byWeekday: number[];
     topStudents: Array<{ id: string; name: string; className: string; count: number }>;
 }
-
-const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 
 const GRADE_LABELS: Record<string, string> = {
     "1-3": "1–3 классы",
@@ -186,17 +183,6 @@ export default function UniformStatsPage() {
             .sort()
             .map(key => ({ label: monthLabel(key), value: stats.byMonth[key] }));
     }, [stats]);
-
-    const weekdaySlices: ChartSlice[] = useMemo(() => {
-        if (!stats) return [];
-        const order = [1, 2, 3, 4, 5, 6, 0];
-        return order.map((dayIndex, position) => ({
-            label: WEEKDAYS[position],
-            value: stats.byWeekday[dayIndex] ?? 0,
-            color: "var(--color-chart-1)",
-        }));
-    }, [stats]);
-
 
     // Тепловая карта «класс × месяц»
     const heatmap = useMemo(() => {
@@ -474,12 +460,6 @@ export default function UniformStatsPage() {
                             {/* Динамика по месяцам */}
                             <Card title="Динамика по месяцам" description="Сколько замечаний фиксировали" padding="md">
                                 <TrendBars data={monthSeries} color="var(--color-chart-2)" />
-                            </Card>
-
-
-                            {/* Дни недели */}
-                            <Card title="По дням недели" description="Когда замечаний больше" padding="md">
-                                <BarList data={weekdaySlices} emptyText="Нет данных" />
                             </Card>
 
                             {/* Чаще всех нарушают */}

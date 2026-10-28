@@ -37,11 +37,8 @@ interface Stats {
     byTypeStudents: Record<string, number>;
     byClass: Record<string, number>;
     byMonth: Record<string, number>;
-    byWeekday: number[];
     byTeacher: Record<string, number>;
 }
-
-const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 
 const monthLabel = (key: string) => {
     const [year, month] = key.split("-").map(Number);
@@ -137,18 +134,6 @@ export default function ViolationsStatsPage() {
         return Object.keys(stats.byMonth)
             .sort()
             .map(key => ({ label: monthLabel(key), value: stats.byMonth[key] }));
-    }, [stats]);
-
-    const weekdaySlices: ChartSlice[] = useMemo(() => {
-        if (!stats) return [];
-
-        // byWeekday идёт от воскресенья; переставляем на понедельник
-        const order = [1, 2, 3, 4, 5, 6, 0];
-        return order.map((dayIndex, position) => ({
-            label: WEEKDAYS[position],
-            value: stats.byWeekday[dayIndex] ?? 0,
-            color: "var(--color-chart-6)",
-        }));
     }, [stats]);
 
     const selectedTypeInfo = selectedType ? getViolationType(selectedType) : null;
@@ -412,16 +397,6 @@ export default function ViolationsStatsPage() {
                                 className="lg:col-span-2"
                             >
                                 <TrendBars data={monthSeries} color="var(--color-chart-1)" />
-                            </Card>
-
-                            {/* Дни недели */}
-                            <Card
-                                title="По дням недели"
-                                description="Когда нарушений больше всего"
-                                padding="md"
-                                className="lg:col-span-2"
-                            >
-                                <BarList data={weekdaySlices} emptyText="Нет данных" />
                             </Card>
                         </div>
                     </>
