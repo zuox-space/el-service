@@ -338,6 +338,7 @@ export default function ClassStatsPage() {
                     title="Классный руководитель"
                     description="Кто ведёт класс и как отмечает работу"
                     badge={teacher ? teacher.name : "Не назначен"}
+                    badgeClassName="hidden sm:inline-flex"
                 >
                     {teacher ? (
                         <div className="space-y-3">
@@ -598,12 +599,14 @@ function CollapsibleSection({
     title,
     description,
     badge,
+    badgeClassName,
     children,
-    defaultOpen = true,
+    defaultOpen = false,
 }: {
     title: string;
     description: string;
     badge?: string;
+    badgeClassName?: string;
     children: React.ReactNode;
     defaultOpen?: boolean;
 }) {
@@ -614,7 +617,7 @@ function CollapsibleSection({
                     <p className="text-sm font-semibold text-fg">{title}</p>
                     <p className="truncate text-xs text-fg-muted">{description}</p>
                 </div>
-                {badge && <Badge tone="neutral">{badge}</Badge>}
+                {badge && <Badge tone="neutral" className={badgeClassName}>{badge}</Badge>}
                 <ChevronDown
                     size={18}
                     className="shrink-0 text-fg-subtle transition-transform group-open:rotate-180"
