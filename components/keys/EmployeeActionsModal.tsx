@@ -216,7 +216,6 @@ export function EmployeeActionsModal({
                     type={pendingType ?? "ISSUE"}
                     request={pendingRequest}
                     secondsLeft={secondsLeft}
-                    onClose={onClose}
                 />
             ) : transferKey ? (
                 <div className="space-y-3 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-0">
@@ -394,12 +393,10 @@ function PendingRequestView({
     type,
     request,
     secondsLeft,
-    onClose,
 }: {
     type: "ISSUE" | "RETURN" | "TRANSFER";
     request: KeyRequestDto | null;
     secondsLeft: number;
-    onClose: () => void;
 }) {
     const status = request?.status ?? "PENDING";
     const expired = status === "PENDING" && secondsLeft <= 0;
@@ -413,7 +410,6 @@ function PendingRequestView({
                 <p className="text-xs text-fg-muted">
                     {type === "ISSUE" ? `Ключ ${rooms} выдан` : type === "RETURN" ? `Ключ ${rooms} принят` : `Ключ ${rooms} передан`}
                 </p>
-                <Button size="sm" onClick={onClose}>Закрыть</Button>
             </div>
         );
     }
@@ -424,7 +420,6 @@ function PendingRequestView({
                 <XCircle size={32} className="mx-auto text-fg-subtle" aria-hidden />
                 <p className="text-sm font-medium text-fg">{expired ? "Время истекло" : "Заявка отменена"}</p>
                 <p className="text-xs text-fg-muted">Попробуйте создать заявку снова.</p>
-                <Button size="sm" onClick={onClose}>Закрыть</Button>
             </div>
         );
     }
