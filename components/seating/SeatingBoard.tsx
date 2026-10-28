@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { Ban, Check, Monitor, Printer, UserRound } from "lucide-react";
-import { Badge, Button, Card, Checkbox, EmptyState, FormError, SearchInput, Select, Skeleton, useToast } from "@/components/ui/kit";
+import { Badge, Button, Card, EmptyState, FormError, SearchInput, Select, Skeleton, useToast } from "@/components/ui/kit";
 
 const ROWS = 15;
 const DESKS = [1, 2, 3] as const;
@@ -44,7 +44,6 @@ interface SeatingResponse {
     class: { id: string; name: string };
     students: SeatingStudent[];
     seats: Seat[];
-    absentStudentIds: string[];
     releasedSeats?: number;
 }
 
@@ -63,14 +62,13 @@ export function SeatingBoard({ classId, canEdit }: SeatingBoardProps) {
     const [data, setData] = useState<SeatingResponse | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [showAbsent, setShowAbsent] = useState(false);
     const [editing, setEditing] = useState<{ row: number; desk: number } | null>(null);
+    const [viewedDesk, setViewedDesk] = useState<{ row: number; desk: number } | null>(null);
     const [draftLeft, setDraftLeft] = useState("");
     const [draftRight, setDraftRight] = useState("");
     const [isSaving, setIsSaving] = useState(false);
     const [editorError, setEditorError] = useState<string | null>(null);
     const [search, setSearch] = useState("");
-    const [expandedDesk, setExpandedDesk] = useState<{ row: number; desk: number } | null>(null);
 
     const load = useCallback(async () => {
         if (!classId) {
@@ -102,7 +100,6 @@ export function SeatingBoard({ classId, canEdit }: SeatingBoardProps) {
 
     const seats = data?.seats ?? [];
     const students = data?.students ?? [];
-    const absentIds = new Set(data?.absentStudentIds ?? []);
     const occupied = seats.filter(seat => seat.studentId).length;
     const allSeated = students.length > 0 && occupied === students.length;
     const noPlan = occupied === 0;
@@ -116,10 +113,15 @@ export function SeatingBoard({ classId, canEdit }: SeatingBoardProps) {
     const isMatch = (seat: Seat | undefined) =>
         Boolean(seat?.studentName && normalize(seat.studentName).includes(query));
 
-    const toggleDeskView = (row: number, desk: number) => {
-        setExpandedDesk(current =>
-            current?.row === row && current.desk === desk ? null : { row, desk },
-        );
+    const openDesk = (row: number, desk: number) => {
+        if (canEdit) {
+            setEditing({ row, desk });
+            setDraftLeft(seatFor(row, desk, "left")?.studentId ?? "");
+            setDraftRight(seatFor(row, desk, "right")?.studentId ?? "");
+            setEditorError(null);
+            return;
+        }
+        setViewedDesk({ row, desk });
     };
 
     const printSeating = () => {
@@ -140,7 +142,7 @@ export function SeatingBoard({ classId, canEdit }: SeatingBoardProps) {
                     : "—";
                 return `<div class="desk"><span>${cell(left)}</span><span>${cell(right)}</span></div>`;
             }).join("");
-            return `<div class="row"><span class="row-number">${row}</span><div class="desks">${desksHtml}</div></div>`;
+            return `<div class="row-label">Ряд ${row}</div><div class="row">${desksHtml}</div>`;
         }).join("");
 
         win.document.write(`<!doctype html>
@@ -151,32 +153,23 @@ export function SeatingBoard({ classId, canEdit }: SeatingBoardProps) {
 body { margin: 0; color: #111; font: 10pt Arial, sans-serif; }
 h1 { margin: 0 0 2mm; font-size: 16pt; text-align: center; }
 .subtitle { margin: 0 0 4mm; text-align: center; color: #555; font-size: 9pt; }
-.rows { display: flex; flex-direction: column; gap: 2.2mm; }
-.row { display: flex; align-items: center; gap: 2mm; }
-.row-number { width: 6mm; color: #777; font-size: 8pt; text-align: right; }
-.desks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; flex: 1; }
+.rows { display: flex; flex-direction: column; }
+.row-label { margin: 1.2mm 0 0.8mm; text-align: center; color: #777; font-size: 7.5pt; }
+.row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; }
 .desk { display: grid; grid-template-columns: 1fr 1fr; gap: 1mm; border: 1px solid #999; border-radius: 1.5mm; padding: 1.5mm; }
 .desk span { min-height: 7mm; display: flex; align-items: center; justify-content: center; border: 1px solid #ddd; font-size: 8pt; text-align: center; }
-.teacher { margin: 4mm auto 0; width: 55mm; border: 1.5px solid #333; border-radius: 2mm; padding: 2mm; text-align: center; font-weight: 600; font-size: 9pt; }
+.board { width: 55mm; margin: 0 0 4mm; border: 1.5px solid #333; border-radius: 2mm; padding: 2mm; text-align: center; font-weight: 600; font-size: 9pt; }
 .note { margin-top: 3mm; text-align: center; color: #666; font-size: 7.5pt; }
 </style></head><body>
 <h1>Рассадка · ${escapeHtml(data.class.name)}</h1>
 <div class="subtitle">Слева и справа — со стороны учителя</div>
+<div class="board">Доска</div>
 <div class="rows">${rowsHtml}</div>
-<div class="teacher">Стол учителя</div>
 <div class="note">Фамилия и инициал имени. Пустое место — «—».</div>
 </body></html>`);
         win.document.close();
         win.focus();
         window.setTimeout(() => win.print(), 250);
-    };
-
-    const openEditor = (row: number, desk: number) => {
-        if (!canEdit) return;
-        setEditing({ row, desk });
-        setDraftLeft(seatFor(row, desk, "left")?.studentId ?? "");
-        setDraftRight(seatFor(row, desk, "right")?.studentId ?? "");
-        setEditorError(null);
     };
 
     const closeEditor = () => {
@@ -254,7 +247,7 @@ h1 { margin: 0 0 2mm; font-size: 16pt; text-align: center; }
 
     return (
         <div className="flex min-h-0 flex-1 flex-col space-y-3">
-            {(!allSeated || canEdit) && (
+            {canEdit && (
                 <div className={`rounded-card border px-3 py-2 text-sm ${
                     allSeated
                         ? "border-success/30 bg-success-soft text-success"
@@ -267,6 +260,12 @@ h1 { margin: 0 0 2mm; font-size: 16pt; text-align: center; }
                     ) : (
                         <span>Заполните рассадку: осталось мест — {remaining}.</span>
                     )}
+                </div>
+            )}
+
+            {!canEdit && noPlan && (
+                <div className="rounded-card border border-border bg-surface-2 px-3 py-2 text-sm text-fg-muted">
+                    Нет рассадки
                 </div>
             )}
 
@@ -285,68 +284,54 @@ h1 { margin: 0 0 2mm; font-size: 16pt; text-align: center; }
                         placeholder="Фамилия ученика"
                     />
                 </div>
-                <label className="flex min-h-9 items-center gap-2 rounded-control border border-border bg-surface-2 px-2.5 text-xs text-fg-muted">
-                    <Checkbox
-                        checked={showAbsent}
-                        onChange={() => setShowAbsent(value => !value)}
-                        label="Отсутствующие"
-                        compact
-                    />
-                </label>
                 <Button size="sm" variant="secondary" leftIcon={Printer} onClick={printSeating}>
                     Печать
                 </Button>
             </div>
 
+            <div className="flex justify-start">
+                <div className="flex w-fit items-center gap-2 rounded-full border border-accent/30 bg-accent-soft px-4 py-2 text-xs font-medium text-accent-text">
+                    <Monitor size={15} aria-hidden />
+                    Доска
+                </div>
+            </div>
+
             <div className="max-h-[calc(100dvh-22rem)] min-h-40 space-y-1.5 overflow-y-auto pr-1">
                 {Array.from({ length: ROWS }, (_, index) => index + 1).map(row => (
                     <div key={row} className="space-y-1">
-                        {!canEdit && expandedDesk?.row === row && (
-                            <div className="rounded-control border border-accent/30 bg-accent-soft px-2 py-1 text-[10px] text-accent-text">
-                                Ряд {row}, парта {expandedDesk.desk}: слева {seatFor(row, expandedDesk.desk, "left")?.studentName ?? "свободно"} · справа {seatFor(row, expandedDesk.desk, "right")?.studentName ?? "свободно"}
-                            </div>
-                        )}
-                        <div className="flex items-center gap-1">
-                            <span className="w-4 shrink-0 text-right text-[9px] tabular-nums text-fg-subtle">{row}</span>
-                            <div className="grid min-w-0 flex-1 grid-cols-[1fr_6px_1fr_6px_1fr] items-stretch gap-1">
-                                {DESKS.map(desk => (
-                                    <Fragment key={desk}>
-                                        <button
-                                            type="button"
-                                            onClick={() => canEdit ? openEditor(row, desk) : toggleDeskView(row, desk)}
-                                            aria-expanded={!canEdit ? expandedDesk?.row === row && expandedDesk.desk === desk : undefined}
-                                            aria-label={`Ряд ${row}, парта ${desk}: слева ${seatFor(row, desk, "left")?.studentName ?? "свободно"}, справа ${seatFor(row, desk, "right")?.studentName ?? "свободно"}`}
-                                            className={`grid min-w-0 grid-cols-2 gap-1 rounded-lg border border-border bg-surface p-1 text-left shadow-card transition-colors ${
-                                                canEdit ? "hover:border-accent/40 hover:bg-surface-2" : "hover:border-accent/40"
-                                            }`}
-                                        >
-                                            <SeatCell
-                                                seat={seatFor(row, desk, "left")}
-                                                showAbsent={showAbsent}
-                                                absentIds={absentIds}
-                                                dimmed={filterActive && !isMatch(seatFor(row, desk, "left"))}
-                                                highlight={filterActive && isMatch(seatFor(row, desk, "left"))}
-                                            />
-                                            <SeatCell
-                                                seat={seatFor(row, desk, "right")}
-                                                showAbsent={showAbsent}
-                                                absentIds={absentIds}
-                                                dimmed={filterActive && !isMatch(seatFor(row, desk, "right"))}
-                                                highlight={filterActive && isMatch(seatFor(row, desk, "right"))}
-                                            />
-                                        </button>
-                                        {desk < 3 && <span className="w-1.5 rounded-full bg-bg" aria-hidden />}
-                                    </Fragment>
-                                ))}
-                            </div>
+                        <div className="flex items-center gap-2 px-1">
+                            <span className="h-px flex-1 bg-border/60" aria-hidden />
+                            <span className="text-[9px] tabular-nums text-fg-subtle">Ряд {row}</span>
+                            <span className="h-px flex-1 bg-border/60" aria-hidden />
+                        </div>
+                        <div className="grid min-w-0 grid-cols-[1fr_6px_1fr_6px_1fr] items-stretch gap-1">
+                            {DESKS.map(desk => (
+                                <Fragment key={desk}>
+                                    <button
+                                        type="button"
+                                        onClick={() => openDesk(row, desk)}
+                                        aria-label={`Ряд ${row}, парта ${desk}: слева ${seatFor(row, desk, "left")?.studentName ?? "свободно"}, справа ${seatFor(row, desk, "right")?.studentName ?? "свободно"}`}
+                                        className={`grid min-w-0 grid-cols-2 gap-1 rounded-lg border border-border bg-surface p-1 text-left shadow-card transition-colors ${
+                                            canEdit ? "hover:border-accent/40 hover:bg-surface-2" : "hover:border-accent/40"
+                                        }`}
+                                    >
+                                        <SeatCell
+                                            seat={seatFor(row, desk, "left")}
+                                            dimmed={filterActive && !isMatch(seatFor(row, desk, "left"))}
+                                            highlight={filterActive && isMatch(seatFor(row, desk, "left"))}
+                                        />
+                                        <SeatCell
+                                            seat={seatFor(row, desk, "right")}
+                                            dimmed={filterActive && !isMatch(seatFor(row, desk, "right"))}
+                                            highlight={filterActive && isMatch(seatFor(row, desk, "right"))}
+                                        />
+                                    </button>
+                                    {desk < 3 && <span className="w-1.5 rounded-full bg-bg" aria-hidden />}
+                                </Fragment>
+                            ))}
                         </div>
                     </div>
                 ))}
-            </div>
-
-            <div className="mx-auto flex w-fit items-center gap-2 rounded-full border border-accent/30 bg-accent-soft px-4 py-2 text-xs font-medium text-accent-text">
-                <Monitor size={15} aria-hidden />
-                Стол учителя
             </div>
 
             {canEdit && (
@@ -402,47 +387,85 @@ h1 { margin: 0 0 2mm; font-size: 16pt; text-align: center; }
                     </div>
                 </div>
             )}
+
+            {!canEdit && viewedDesk && (
+                <div
+                    className="fixed inset-0 z-50 flex items-end justify-center bg-backdrop/50 p-3 sm:items-center"
+                    onClick={() => setViewedDesk(null)}
+                >
+                    <div
+                        className="w-full max-w-md rounded-2xl border border-border bg-surface p-4 shadow-raised"
+                        onClick={event => event.stopPropagation()}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label={`Парта ${viewedDesk.row}, ${viewedDesk.desk}`}
+                    >
+                        <div className="flex items-center justify-between gap-2">
+                            <div>
+                                <p className="text-base font-semibold text-fg">Ряд {viewedDesk.row} · парта {viewedDesk.desk}</p>
+                                <p className="text-[11px] text-fg-subtle">Слева и справа — лицом к доске</p>
+                            </div>
+                            <Button size="sm" variant="ghost" onClick={() => setViewedDesk(null)}>
+                                Закрыть
+                            </Button>
+                        </div>
+
+                        <div className="mt-3 rounded-2xl border-2 border-border bg-surface-2 p-2">
+                            <div className="grid grid-cols-2 gap-2">
+                                {(["left", "right"] as const).map(side => {
+                                    const student = seatFor(viewedDesk.row, viewedDesk.desk, side);
+                                    return (
+                                        <div
+                                            key={side}
+                                            className="flex min-h-24 flex-col items-center justify-center gap-1 rounded-lg border border-border bg-surface px-2 py-3 text-center"
+                                        >
+                                            <span className="text-[10px] uppercase tracking-wide text-fg-subtle">
+                                                {side === "left" ? "Слева" : "Справа"}
+                                            </span>
+                                            <span className="text-sm font-semibold text-fg">
+                                                {student?.studentName ?? "Свободно"}
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <p className="mt-2 text-center text-[10px] text-fg-subtle">Парта</p>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
 
 function SeatCell({
     seat,
-    showAbsent,
-    absentIds,
     dimmed,
     highlight,
 }: {
     seat: Seat | undefined;
-    showAbsent: boolean;
-    absentIds: Set<string>;
     dimmed?: boolean;
     highlight?: boolean;
 }) {
     const student = seat?.studentId
         ? { id: seat.studentId, name: seat.studentName ?? "Ученик" }
         : null;
-    const absent = Boolean(student && showAbsent && absentIds.has(student.id));
 
     return (
         <span className={`flex min-h-9 min-w-0 items-center justify-center gap-1 rounded-md px-1 transition-opacity ${
             student ? "bg-success-soft/70" : "bg-surface-2"
         } ${dimmed ? "opacity-30 grayscale" : ""} ${highlight ? "ring-1 ring-accent/60" : ""}`}>
             {student ? (
-                absent ? (
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-danger text-xs font-bold text-white">н</span>
-                ) : (
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-success text-white sm:hidden">
-                        <UserRound size={13} aria-hidden />
-                    </span>
-                )
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-success text-white sm:hidden">
+                    <UserRound size={13} aria-hidden />
+                </span>
             ) : (
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-3 text-fg-subtle sm:hidden">
                     <Ban size={13} aria-hidden />
                 </span>
             )}
             <span className="hidden min-w-0 truncate text-[10px] text-fg sm:block">
-                {student ? (absent ? "н" : student.name.split(" ")[0]) : "—"}
+                {student ? student.name.split(" ")[0] : "—"}
             </span>
         </span>
     );

@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getStudentsGroupedByClass } from "@/lib/mysql_db";
 import { requireAnySection, requireSection } from "@/lib/access/server";
-import { getDayRange, toLocalISODate } from "@/lib/date";
 import {
     canAccessSeatingClass,
     canEditSeatingClass,
@@ -87,31 +86,11 @@ export async function GET(req: NextRequest) {
                 return currentName ? { ...seat, studentName: currentName } : seat;
             });
 
-        // Для отметки «н» нужны только отсутствующие сегодня.
-        const date = searchParams.get("date") || toLocalISODate();
-        const { start, end } = getDayRange(date);
-        const attendance = await prisma.attendance.findFirst({
-            where: { classId, date: { gte: start, lte: end } },
-            select: { absentStudents: true },
-        });
-
-        let absentStudentIds: string[] = [];
-        if (attendance?.absentStudents) {
-            try {
-                const parsed = JSON.parse(attendance.absentStudents);
-                if (Array.isArray(parsed)) absentStudentIds = parsed.map(String);
-            } catch {
-                absentStudentIds = [];
-            }
-        }
-
         return NextResponse.json({
             class: classRow,
             students,
             seats: actualSeats,
-            absentStudentIds,
             releasedSeats: staleSeats.length,
-            date,
         });
     } catch (error) {
         console.error("Error loading seating:", error);
