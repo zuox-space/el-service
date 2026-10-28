@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 // components/guard/GuardScreen.tsx
 //
@@ -276,7 +276,7 @@ export function GuardScreen() {
                     <Tabs
                         value={tab}
                         onChange={setTab}
-                        size="sm"
+                        size="lg"
                         variant="scrollable"
                         ariaLabel="Разделы пульта"
                         items={[
@@ -298,7 +298,7 @@ export function GuardScreen() {
                 )}
 
                 {tab === "requests" && (
-                    <div className="flex h-full min-h-0 flex-col gap-2 lg:h-[calc(100dvh-8.75rem)] lg:overflow-hidden">
+                    <div className="flex h-full min-h-0 flex-col gap-2 lg:h-[calc(100dvh-9.5rem)] lg:overflow-hidden">
                         <div className="flex flex-wrap items-center gap-2">
 
                             <div className="ml-auto flex flex-wrap gap-1.5">
@@ -345,7 +345,7 @@ export function GuardScreen() {
                 )}
 
                 {tab === "keys" && (
-                    <div className="flex h-full min-h-0 flex-col gap-2 lg:h-[calc(100dvh-8.75rem)] lg:overflow-hidden">
+                    <div className="flex h-full min-h-0 flex-col gap-2 lg:h-[calc(100dvh-9.5rem)] lg:overflow-hidden">
                         <div className="flex flex-wrap items-end gap-2">
 
                             <Input
@@ -388,13 +388,13 @@ export function GuardScreen() {
                 )}
 
                 {tab === "notReturned" && (
-                    <div className="h-full min-h-[60vh] lg:h-[calc(100dvh-8.75rem)] lg:min-h-0 lg:overflow-hidden">
+                    <div className="h-full min-h-[60vh] lg:h-[calc(100dvh-9.5rem)] lg:min-h-0 lg:overflow-hidden">
                         <GuardNotReturnedTab keys={issued} busyId={busyKeyId} onConfirmReturn={confirmReturn} />
                     </div>
                 )}
 
                 {tab === "passes" && (
-                    <div className="h-full min-h-[60vh] lg:h-[calc(100dvh-8.75rem)] lg:min-h-0 lg:overflow-hidden">
+                    <div className="h-full min-h-[60vh] lg:h-[calc(100dvh-9.5rem)] lg:min-h-0 lg:overflow-hidden">
                         <GuardPassesTab
                             passes={filteredPasses}
                             busyId={busyPassId}
@@ -404,7 +404,7 @@ export function GuardScreen() {
                     </div>
                 )}
                 {tab === "selfExits" && (
-                    <div className="h-full min-h-[60vh] lg:h-[calc(100dvh-8.75rem)] lg:min-h-0 lg:overflow-hidden">
+                    <div className="h-full min-h-[60vh] lg:h-[calc(100dvh-9.5rem)] lg:min-h-0 lg:overflow-hidden">
                         <GuardSelfExitsTab items={filteredSelfExits} />
                     </div>
                 )}            </main>

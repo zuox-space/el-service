@@ -15,13 +15,15 @@ export function AlphabetFilter({
 }) {
     return (
         <div className="-mx-1 overflow-x-auto px-1">
-            <div className="flex min-w-max items-center gap-0.5">
+            <div className="flex min-w-max items-center gap-1">
                 <button
                     type="button"
                     onClick={() => onChange("all")}
                     className={cn(
-                        "rounded-control px-2 py-1 text-[11px] transition-colors",
-                        value === "all" ? "bg-accent-soft text-accent-text" : "text-fg-muted hover:bg-surface-hover",
+                        "h-10 shrink-0 rounded-control px-3 text-sm font-medium transition-colors",
+                        value === "all"
+                            ? "bg-accent-solid font-semibold text-accent-fg shadow-card"
+                            : "text-fg-muted hover:bg-surface-hover",
                     )}
                 >
                     Все
@@ -32,9 +34,9 @@ export function AlphabetFilter({
                         type="button"
                         onClick={() => onChange(letter === value ? "all" : letter)}
                         className={cn(
-                            "h-6 w-6 shrink-0 rounded-control text-[11px] transition-colors",
+                            "h-10 w-10 shrink-0 rounded-control text-base transition-colors",
                             value === letter
-                                ? "bg-accent-soft font-semibold text-accent-text"
+                                ? "bg-accent-solid font-bold text-accent-fg shadow-card ring-2 ring-accent/30"
                                 : "text-fg-muted hover:bg-surface-hover",
                         )}
                     >

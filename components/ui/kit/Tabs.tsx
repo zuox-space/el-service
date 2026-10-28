@@ -34,8 +34,8 @@ export interface TabsProps {
     /** Занимать всю ширину (segmented по умолчанию) */
     fullWidth?: boolean;
     ariaLabel?: string;
-    /** sm — компактные вкладки: меньше отступы, влезают три штуки на телефоне */
-    size?: "sm" | "md";
+    /** sm — компактные вкладки, md — обычные, lg — крупная навигация планшета */
+    size?: "sm" | "md" | "lg";
     className?: string;
 }
 
@@ -229,15 +229,19 @@ export function Tabs({
                         className={cn(
                             "scroll-snap-item relative flex shrink-0 items-center justify-center gap-2",
                             "whitespace-nowrap font-medium transition-colors duration-150",
-                            size === "sm" ? "text-xs" : "text-sm",
+                            size === "sm" ? "text-xs" : size === "lg" ? "text-base" : "text-sm",
                             "disabled:cursor-not-allowed disabled:opacity-40",
                             isScrollable
                                 ? size === "sm"
                                     ? "h-9 rounded-control px-2.5"
-                                    : "h-10 rounded-control px-3"
+                                    : size === "lg"
+                                        ? "h-12 rounded-control px-4"
+                                        : "h-10 rounded-control px-3"
                                 : size === "sm"
                                     ? "h-9 flex-1 rounded-[5px]"
-                                    : "h-10 flex-1 rounded-[5px]",
+                                    : size === "lg"
+                                        ? "h-12 flex-1 rounded-[5px]"
+                                        : "h-10 flex-1 rounded-[5px]",
                             !fullWidth && !isScrollable && "flex-none",
                             active
                                 ? isScrollable
@@ -246,13 +250,13 @@ export function Tabs({
                                 : "text-fg-muted hover:text-fg",
                         )}
                     >
-                        {Icon && <Icon size={16} strokeWidth={1.75} aria-hidden />}
+                        {Icon && <Icon size={size === "lg" ? 20 : 16} strokeWidth={1.75} aria-hidden />}
                         <span>{item.label}</span>
                         {typeof item.count === "number" && (
                             <span
                                 className={cn(
                                     "ml-0.5 rounded-control px-1 tabular-nums",
-                                    size === "sm" ? "text-[10px]" : "text-xs",
+                                    size === "sm" ? "text-[10px]" : size === "lg" ? "text-sm" : "text-xs",
                                     active ? "bg-accent/15 text-accent-text" : "bg-surface-3 text-fg-subtle",
                                 )}
                             >
