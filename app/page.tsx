@@ -11,6 +11,7 @@ import {
     ChevronDown,
     KeyRound,
     LayoutGrid,
+    Printer,
     School,
     ShieldCheck,
     Star,
@@ -108,6 +109,7 @@ export default function PortalPage() {
     const hasMyClass = Boolean(data?.myClass.available);
     const hasSeating = services.some(service => service.id === "seating");
     const hasKeys = services.some(service => service.id === "keys");
+    const hasPrinter = true;
     const roles = (data?.user.roles ?? []) as string[];
 
 
@@ -158,7 +160,7 @@ export default function PortalPage() {
                             Здравствуйте, {shortName(data?.user.name ?? session.user.name)}
                         </h1>
                         <p className="mt-1 max-w-xl truncate text-sm text-fg-muted">
-                            {hasMyClass || hasKeys || hasAdminServices
+                            {hasMyClass || hasKeys || hasPrinter || hasAdminServices
                                 ? "Выберите сервис — доступные разделы уже собраны для вас."
                                 : "Пока сервисы не назначены. Обратитесь к администратору — он выдаст нужные разделы."}
                         </p>
@@ -269,6 +271,39 @@ export default function PortalPage() {
                     </section>
                 )}
 
+                {/* Принтер 99 */}
+                {hasPrinter && (
+                    <section aria-labelledby="printer-title">
+                        <h2
+                            id="printer-title"
+                            className="mb-2 px-1 text-xs font-medium uppercase tracking-wide text-fg-subtle"
+                        >
+                            Печать
+                        </h2>
+                        <Link
+                            href="/printer"
+                            className="group block rounded-card border border-dashed border-border bg-surface p-4 shadow-card transition-colors hover:border-accent/50 hover:bg-surface-hover"
+                        >
+                            <div className="flex items-start gap-3">
+                                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-control bg-accent-soft text-accent-text">
+                                    <Printer size={26} aria-hidden />
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                    <h3 className="text-base font-semibold text-fg">Принтер 99</h3>
+                                    <p className="mt-1 truncate text-sm text-fg-muted">
+                                        Отправить файлы на печать
+                                    </p>
+                                </div>
+                                <ArrowRight
+                                    size={18}
+                                    className="mt-1 shrink-0 text-fg-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-accent-text"
+                                    aria-hidden
+                                />
+                            </div>
+                        </Link>
+                    </section>
+                )}
+
                 {/* Ключи */}
                 {hasKeys && (
                     <section aria-labelledby="keys-title">
@@ -340,7 +375,7 @@ export default function PortalPage() {
                         </Link>
                     </section>
                 )}
-                {!hasMyClass && !hasKeys && !hasAdminServices && (
+                {!hasMyClass && !hasKeys && !hasPrinter && !hasAdminServices && (
                     <Card padding="none">
                         <EmptyState
                             icon={School}
