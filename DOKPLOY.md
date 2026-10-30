@@ -1,8 +1,9 @@
 # Деплой в Dokploy
 
 Сборка образа вынесена в GitHub Actions (`.github/workflows/docker-publish.yml`).
-Dokploy больше не собирает Dockerfile: он только забирает готовый образ из GHCR.
-Это обходит блокировку Docker Hub и npm на production-сервере.
+Dokploy в текущей версии не умеет «Docker Image», поэтому используется
+`Dockerfile.deploy`: он ничего не собирает, а только подтягивает готовый образ
+из GHCR. Это обходит блокировку Docker Hub и npm на production-сервере.
 
 ## 0. CI/CD
 
@@ -22,14 +23,21 @@ Dokploy — workflow вызовет его после успешной публ�
 
 ## 1. Приложение
 
-- **Тип**: Application → Build type: **Docker Image**.
-- **Image**: `ghcr.io/zuox-space/el-service:pre-deploy-2`.
-- **Registry**: `ghcr.io` + логин/PAT, если пакет приватный.
+- **Тип**: Application → Build type: **Dockerfile**.
+- **Docker File**: `Dockerfile.deploy`.
+- **Docker Context Path**: `.`.
+- **Docker Build Stage**: оставить пустым.
 - **Порт контейнера**: `3000`.
 - **Health check**: `GET /login`, ожидаемый код 200.
 
-Репозиторий `zuox-space/el-service` и ветка `pre-deploy-2` используются только
-GitHub Actions для сборки. Dokploy образ уже не собирает.
+`Dockerfile.deploy` содержит только:
+
+```dockerfile
+FROM ghcr.io/zuox-space/el-service:pre-deploy-2
+```
+
+Поэтому Dokploy не скачивает Node, pnpm и npm-зависимости — он только забирает
+готовый образ, собранный GitHub Actions.
 
 Образ сам ждёт базу, при `RUN_MIGRATIONS=true` применяет схему и запускает
 `pnpm start` на порту из `PORT` (Dokploy передаёт 3000).

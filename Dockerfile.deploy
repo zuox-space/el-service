@@ -1,0 +1,12 @@
+# Dokploy не умеет деплой готового image в этой версии.
+# Поэтому используем тонкий Dockerfile: он ничего не собирает, а только
+# подтягивает образ, собранный GitHub Actions.
+#
+# В Dokploy:
+#   Build type: Dockerfile
+#   Docker File: Dockerfile.deploy
+#   Docker Context Path: .
+#
+# Пакет GHCR должен быть публичным либо Docker на сервере должен быть
+# авторизован в ghcr.io.
+FROM ghcr.io/zuox-space/el-service:pre-deploy-2
