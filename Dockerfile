@@ -1,5 +1,6 @@
-# syntax=docker/dockerfile:1
-
+# Dockerfile el-service — production image.
+# Не задаём внешний # syntax=docker/dockerfile:1: он требует отдельной
+# загрузки frontend-образа с Docker Hub и ломает сборку при сетевых сбоях.
 # ============================================================================
 # el-service — production image
 #
