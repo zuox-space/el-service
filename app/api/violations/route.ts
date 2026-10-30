@@ -6,11 +6,13 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-import { requireAnySection, requireSection } from "@/lib/access/server";
+import { requireSection, getSessionAccess } from "@/lib/access/server";
 import { getDayRange, parseLocalDate } from "@/lib/date";
 import { normalizeClassName } from "@/lib/class-name";
 import { classNamesForBuilding } from "@/lib/buildings";
-import { accessibleClassNames, canAccessClass } from "@/lib/access/classes";
+import { accessibleClassNames } from "@/lib/access/classes";
+import { getAllStudents } from "@/lib/mysql_db";
+import { VIOLATION_TYPES } from "@/lib/violations";
 
 
 const MAX_PAGE_SIZE = 100;
@@ -53,10 +55,13 @@ function searchVariants(value: string): string[] {
 
 // GET: Получить нарушения с фильтрами, пагинацией и статистикой
 export async function GET(req: NextRequest) {
-    // Фиксировать нарушение может учитель на рабочем экране и раздел «Нарушения»
-    const accessGuard = await requireAnySection(["violations", "myClass"]);
-    if (!accessGuard.ok) return accessGuard.response;
-
+    // Создание и личная история нарушений доступны любому сотруднику.
+    // Полный список — только разделу «Нарушения»; классный руководитель —
+    // по своим классам; обычный сотрудник — только свои фиксации.
+    const access = await getSessionAccess();
+    if (!access) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const session = await getServerSession(authOptions);
     if (!session) {
@@ -125,19 +130,32 @@ export async function GET(req: NextRequest) {
                 where.className = { in: classesInGroup.map(cls => cls.name) };
             }
         }
-        // Учитель с myClass видит только свои/расшаренные классы.
-        // Администратор и школьные разделы (нарушения/портфолио/ВШУ) — все.
-        const allowedClassNames = await accessibleClassNames(accessGuard.access);
-        if (allowedClassNames) {
-            if (typeof where.className === "string" && !allowedClassNames.has(where.className)) {
-                return NextResponse.json({ error: "Нет доступа к классу" }, { status: 403 });
-            }
-            if (where.className && typeof where.className === "object" && Array.isArray(where.className.in)) {
-                where.className = {
-                    in: where.className.in.filter((name: string) => allowedClassNames.has(name)),
-                };
-            } else if (!where.className) {
-                where.className = { in: [...allowedClassNames] };
+        // Полный список — администратору и разделу «Нарушения».
+        // Классный руководитель — только свои/расшаренные классы.
+        // Обычный сотрудник — только собственные фиксации.
+        const canSeeAllViolations = access.isAdmin || access.sections.includes("violations");
+        const hasClassScope = access.sections.includes("myClass");
+        const hasSchoolWideScope =
+            access.sections.includes("students") ||
+            access.sections.includes("dashboard") ||
+            access.sections.includes("schoolRecords");
+        const ownOnly = !canSeeAllViolations && !hasClassScope && !hasSchoolWideScope;
+
+        if (ownOnly) {
+            where.teacherId = session.user.id;
+        } else {
+            const allowedClassNames = await accessibleClassNames(access);
+            if (allowedClassNames) {
+                if (typeof where.className === "string" && !allowedClassNames.has(where.className)) {
+                    return NextResponse.json({ error: "Нет доступа к классу" }, { status: 403 });
+                }
+                if (where.className && typeof where.className === "object" && Array.isArray(where.className.in)) {
+                    where.className = {
+                        in: where.className.in.filter((name: string) => allowedClassNames.has(name)),
+                    };
+                } else if (!where.className) {
+                    where.className = { in: [...allowedClassNames] };
+                }
             }
         }
 
@@ -243,9 +261,12 @@ export async function GET(req: NextRequest) {
 
 // POST: Создать нарушение
 export async function POST(req: NextRequest) {
-    // Фиксировать нарушение может учитель на рабочем экране и раздел «Нарушения»
-    const accessGuard = await requireAnySection(["violations", "myClass"]);
-    if (!accessGuard.ok) return accessGuard.response;
+    // Фиксировать нарушение может любой авторизованный сотрудник.
+    // Раздел «Нарушения» даёт не право создать запись, а доступ к админке.
+    const access = await getSessionAccess();
+    if (!access) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const session = await getServerSession(authOptions);
     if (!session) {
@@ -254,27 +275,36 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const { studentId, studentName, className, violationType, comment } = body;
+        const studentId = body?.studentId != null ? String(body.studentId) : "";
+        const violationType = typeof body?.violationType === "string" ? body.violationType : "";
+        const comment = typeof body?.comment === "string" ? body.comment : "";
 
-        if (!(await canAccessClass(accessGuard.access, className))) {
-            return NextResponse.json({ error: "Нет доступа к классу" }, { status: 403 });
+        if (!studentId || !violationType) {
+            return NextResponse.json({
+                error: "Укажите ученика и тип нарушения",
+            }, { status: 400 });
         }
 
-        if (!studentId || !studentName || !violationType) {
-            return NextResponse.json({
-                error: "Missing required fields",
-            }, { status: 400 });
+        if (!VIOLATION_TYPES.some(type => type.id === violationType)) {
+            return NextResponse.json({ error: "Неизвестный тип нарушения" }, { status: 400 });
+        }
+
+        // Данные ученика и класса не доверяем клиенту: берём актуальные из AIS.
+        const students = await getAllStudents();
+        const student = students.find(item => String(item.aisId) === studentId);
+        if (!student) {
+            return NextResponse.json({ error: "Ученик не найден" }, { status: 404 });
         }
 
         const teacherName = session.user?.name || "Неизвестный";
 
         const violation = await prisma.violation.create({
             data: {
-                studentId: String(studentId),
-                studentName,
-                className: normalizeClassName(className),
+                studentId,
+                studentName: student.name,
+                className: normalizeClassName(student.className),
                 violationType,
-                comment: comment || "",
+                comment,
                 teacherId: session.user.id,
                 teacherName,
             },

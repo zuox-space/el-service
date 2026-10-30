@@ -2,22 +2,15 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 
-import { requireAnySection } from "@/lib/access/server";
+import { getSessionAccess } from "@/lib/access/server";
 import { query } from "@/lib/mysql_db";
-import { accessibleClassNames } from "@/lib/access/classes";
-import { normalizeClassName } from "@/lib/class-name";
 
 
 export async function GET(req: NextRequest) {
-    const accessGuard = await requireAnySection(["students", "myClass"]);
-    if (!accessGuard.ok) return accessGuard.response;
-
-
-    const session = await getServerSession(authOptions);
-    if (!session) {
+    // Поиск ученика нужен для фиксации нарушения любому сотруднику.
+    const access = await getSessionAccess();
+    if (!access) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -48,11 +41,7 @@ export async function GET(req: NextRequest) {
       LIMIT ?
     `, [pattern, pattern, limit]);
 
-        const allowedClassNames = await accessibleClassNames(accessGuard.access);
-        const visible = allowedClassNames
-            ? students.filter(student => allowedClassNames.has(normalizeClassName(student.className)))
-            : students;
-        return NextResponse.json(visible);
+        return NextResponse.json(students);
     } catch (error) {
         console.error("Error searching students:", error);
         return NextResponse.json([]);

@@ -53,10 +53,8 @@ export function GlobalQuickActions() {
         pathname.startsWith("/guard");
 
     const canKeys = !loading && can("keys");
-    const canViolations =
-        status === "authenticated" &&
-        !loading &&
-        (can("myClass") || can("violations"));
+    // Фиксация нарушения доступна любому сотруднику независимо от разделов.
+    const canViolations = status === "authenticated";
     const canMyClass = !loading && can("myClass");
 
     if (loading || hidden || (!canKeys && !canViolations && !canMyClass)) return null;
