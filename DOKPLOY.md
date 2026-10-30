@@ -1,16 +1,35 @@
 # Деплой в Dokploy
 
-Dokploy собирает приложение прямо из GitHub по `Dockerfile`. Ниже — что настроить
-в панели и в каком порядке.
+Сборка образа вынесена в GitHub Actions (`.github/workflows/docker-publish.yml`).
+Dokploy больше не собирает Dockerfile: он только забирает готовый образ из GHCR.
+Это обходит блокировку Docker Hub и npm на production-сервере.
+
+## 0. CI/CD
+
+Workflow запускается при push в `pre-deploy-2` и публикует:
+
+```text
+ghcr.io/zuox-space/el-service:pre-deploy-2
+ghcr.io/zuox-space/el-service:<git-sha>
+```
+
+Если пакет GHCR приватный, в Dokploy нужен registry-доступ: логин GitHub и
+Personal Access Token с правом `read:packages`. Можно сделать пакет публичным:
+GitHub → Packages → `el-service` → Package settings → Change visibility → Public.
+
+Опционально: создайте GitHub Secret `DOKPLOY_WEBHOOK` с Deploy Webhook URL из
+Dokploy — workflow вызовет его после успешной публикации образа.
 
 ## 1. Приложение
 
-- **Тип**: Application → Build type: **Dockerfile**.
-- **Репозиторий**: `zuox-space/el-service`.
-- **Ветка**: `pre-deploy` (после проверки — `main`).
-- **Dockerfile path**: `Dockerfile` (в корне).
+- **Тип**: Application → Build type: **Docker Image**.
+- **Image**: `ghcr.io/zuox-space/el-service:pre-deploy-2`.
+- **Registry**: `ghcr.io` + логин/PAT, если пакет приватный.
 - **Порт контейнера**: `3000`.
 - **Health check**: `GET /login`, ожидаемый код 200.
+
+Репозиторий `zuox-space/el-service` и ветка `pre-deploy-2` используются только
+GitHub Actions для сборки. Dokploy образ уже не собирает.
 
 Образ сам ждёт базу, при `RUN_MIGRATIONS=true` применяет схему и запускает
 `pnpm start` на порту из `PORT` (Dokploy передаёт 3000).
