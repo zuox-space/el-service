@@ -13,6 +13,14 @@
 # ============================================================================
 
 FROM mirror.gcr.io/library/node:22-bookworm-slim AS base
+
+# Docker Hub и npm может блокировать провайдер. Базовый образ берём из
+# доступного зеркала, а npm-реестр можно переопределить build-arg:
+#   docker build --build-arg NPM_REGISTRY=https://registry.npmmirror.com .
+ARG NPM_REGISTRY=https://registry.npmjs.org
+ENV COREPACK_NPM_REGISTRY=${NPM_REGISTRY} \
+    npm_config_registry=${NPM_REGISTRY}
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends openssl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
