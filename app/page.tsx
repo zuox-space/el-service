@@ -7,15 +7,11 @@ import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import {
     ArrowRight,
-    BarChart3,
-    ChevronDown,
     KeyRound,
     LayoutGrid,
     Printer,
     School,
     ShieldCheck,
-    Star,
-    X,
 } from "lucide-react";
 import { Badge, Button, Card, EmptyState, Skeleton } from "@/components/ui/kit";
 import { EmployeeHeader } from "@/components/shell/EmployeeHeader";
@@ -66,7 +62,6 @@ export default function PortalPage() {
     const [data, setData] = useState<PortalData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [profileOpen, setProfileOpen] = useState(false);
 
     useEffect(() => {
         setMounted(true);
@@ -102,7 +97,6 @@ export default function PortalPage() {
     };
 
     const services = data?.services ?? [];
-    const showRating = data?.showRating === true;
     // «Ключи» — обычный кабинет сотрудника, а не раздел админки.
     const adminServices = services.filter(service => service.id !== "keys" && service.id !== "seating");
     const hasAdminServices = adminServices.length > 0;
@@ -138,61 +132,21 @@ export default function PortalPage() {
             />
 
             <main className="mx-auto w-full max-w-5xl space-y-4 px-4 py-5">
-                {/* Приветствие + статистика сотрудника */}
-                <div
-                    className={`relative ${
-                        showRating ? "md:grid md:grid-cols-[minmax(0,1fr)_300px] md:items-stretch md:gap-3" : ""
-                    }`}
-                >
-                    <Card
-                        padding="md"
-                        className={`relative overflow-hidden ${
-                            showRating ? "cursor-pointer md:h-full md:cursor-default" : ""
-                        }`}
-                        onClick={showRating ? () => setProfileOpen(value => !value) : undefined}
-                    >
-                        <div
-                            className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-accent/10 blur-2xl"
-                            aria-hidden
-                        />
-                        <p className="text-xs uppercase tracking-wide text-fg-subtle">Электронные сервисы школы</p>
-                        <h1 className="mt-1 text-xl font-semibold text-fg sm:text-2xl">
-                            Здравствуйте, {shortName(data?.user.name ?? session.user.name)}
-                        </h1>
-                        <p className="mt-1 max-w-xl truncate text-sm text-fg-muted">
-                            {hasMyClass || hasKeys || hasPrinter || hasAdminServices
-                                ? "Выберите сервис — доступные разделы уже собраны для вас."
-                                : "Пока сервисы не назначены. Обратитесь к администратору — он выдаст нужные разделы."}
-                        </p>
-                        {showRating && (
-                            <span className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface text-fg-muted md:hidden">
-                                <ChevronDown
-                                    size={16}
-                                    className={`transition-transform ${profileOpen ? "rotate-180" : ""}`}
-                                    aria-hidden
-                                />
-                            </span>
-                        )}
-                    </Card>
-
-                    {showRating && profileOpen && (
-                        <div
-                            className="fixed inset-0 z-10 bg-backdrop/50 md:hidden"
-                            onClick={() => setProfileOpen(false)}
-                            aria-hidden
-                        />
-                    )}
-
-                    {showRating && (
-                        <div
-                            className={`${
-                                profileOpen ? "absolute left-0 right-0 top-full z-20 mt-2 block" : "hidden"
-                            } md:static md:mt-0 md:block`}
-                        >
-                            <UserStatsCard onClose={() => setProfileOpen(false)} />
-                        </div>
-                    )}
-                </div>
+                <Card padding="md" className="relative overflow-hidden">
+                    <div
+                        className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-accent/10 blur-2xl"
+                        aria-hidden
+                    />
+                    <p className="text-xs uppercase tracking-wide text-fg-subtle">Электронные сервисы школы</p>
+                    <h1 className="mt-1 text-xl font-semibold text-fg sm:text-2xl">
+                        Здравствуйте, {shortName(data?.user.name ?? session.user.name)}
+                    </h1>
+                    <p className="mt-1 max-w-xl truncate text-sm text-fg-muted">
+                        {hasMyClass || hasKeys || hasPrinter || hasAdminServices
+                            ? "Выберите сервис — доступные разделы уже собраны для вас."
+                            : "Пока сервисы не назначены. Обратитесь к администратору — он выдаст нужные разделы."}
+                    </p>
+                </Card>
 
                 {error && (
                     <Card padding="md" className="border-danger/40 bg-danger-soft">
@@ -389,40 +343,6 @@ export default function PortalPage() {
                     Электронный пропуск · вход {data?.user.email ?? session.user.email}
                 </p>
             </main>
-        </div>
-    );
-}
-
-function UserStatsCard({
-    onClose,
-}: {
-    onClose: () => void;
-}) {
-    return (
-        <div className="flex h-full flex-col rounded-card border border-border bg-surface p-3 shadow-raised md:shadow-card">
-            <div className="flex items-center justify-between gap-2">
-                <p className="flex items-center gap-1.5 text-sm font-semibold text-fg">
-                    <BarChart3 size={16} className="text-accent-text" aria-hidden />
-                    Статистика сотрудника
-                </p>
-                <button
-                    type="button"
-                    onClick={onClose}
-                    aria-label="Закрыть статистику"
-                    className="flex h-7 w-7 items-center justify-center rounded-control text-fg-muted hover:bg-surface-hover hover:text-fg md:hidden"
-                >
-                    <X size={16} aria-hidden />
-                </button>
-            </div>
-
-            <div className="mt-3 flex flex-1 items-center gap-2 rounded-control border border-dashed border-border bg-surface-2 px-3 py-3">
-                <Star size={18} className="shrink-0 text-warning" aria-hidden />
-                <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-fg">Мой рейтинг</p>
-                    <p className="text-[11px] text-fg-subtle">Смотрите рейтинг классного руководителя в разделе «Мой класс»</p>
-                </div>
-                <Badge tone="neutral">скоро</Badge>
-            </div>
         </div>
     );
 }
