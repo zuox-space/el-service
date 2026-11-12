@@ -2,7 +2,7 @@
 
 // components/shell/ProfileMenu.tsx
 import { useState } from "react";
-import { LogOut, Moon, Sun, UserRound } from "lucide-react";
+import { LogOut, Moon, Settings, Sun, UserRound } from "lucide-react";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { Badge, Button, Sheet } from "@/components/ui/kit";
 import { cn } from "@/lib/cn";
@@ -21,6 +21,7 @@ export function ProfileMenu({
     roles = [],
     onLogout,
     variant = "compact",
+    icon = "avatar",
     className,
 }: {
     userName?: string | null;
@@ -30,6 +31,8 @@ export function ProfileMenu({
     onLogout: () => void;
     /** compact — только аватар (шапка), full — аватар + имя (главная) */
     variant?: "compact" | "full";
+    /** settings — показать шестерёнку вместо аватара */
+    icon?: "avatar" | "settings";
     className?: string;
 }) {
     const { theme, setTheme } = useTheme();
@@ -53,7 +56,7 @@ export function ProfileMenu({
                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full surface-accent bg-accent-solid text-xs font-semibold text-accent-fg"
                     aria-hidden
                 >
-                    {initial || <UserRound size={16} />}
+                    {icon === "settings" ? <Settings size={17} /> : initial || <UserRound size={16} />}
                 </span>
                 {variant === "full" && (
                     <span className="min-w-0">

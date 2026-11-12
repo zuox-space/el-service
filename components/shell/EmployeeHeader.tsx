@@ -20,6 +20,7 @@ export function EmployeeHeader({
     userName,
     userEmail,
     roles = [],
+    settingsIcon = false,
     onLogout,
 }: {
     title?: string;
@@ -28,6 +29,7 @@ export function EmployeeHeader({
     userName?: string | null;
     userEmail?: string | null;
     roles?: string[];
+    settingsIcon?: boolean;
     onLogout: () => void;
 }) {
     return (
@@ -78,6 +80,7 @@ export function EmployeeHeader({
                         roles={roles}
                         onLogout={onLogout}
                         variant="compact"
+                        icon={settingsIcon ? "settings" : "avatar"}
                     />
                 </div>
             </div>

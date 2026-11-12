@@ -1,7 +1,7 @@
 "use client";
 
 // components/ui/GlobalQuickActions.tsx
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -10,6 +10,7 @@ import {
     Inbox,
     Key,
     KeyRound,
+    Printer,
     RotateCcw,
     Sparkles,
     Ticket,
@@ -24,6 +25,7 @@ import {
 import ViolationModal from "@/components/ui/ViolationModal";
 import PassModal from "@/components/ui/PassModal";
 import AttendanceModal from "@/components/ui/AttendanceModal";
+import { PrinterModal } from "@/components/ui/PrinterModal";
 import { useToast } from "@/components/ui/kit";
 import { toLocalISODate } from "@/lib/date";
 
@@ -85,6 +87,7 @@ function QuickActionsInner({
     const [menu, setMenu] = useState<Menu | null>(null);
     const [mode, setMode] = useState<EmployeeActionMode | null>(null);
     const [violationOpen, setViolationOpen] = useState(false);
+    const [printerOpen, setPrinterOpen] = useState(false);
     const [classes, setClasses] = useState<QuickClass[]>([]);
     const [quickClassId, setQuickClassId] = useState("");
     const [attendanceMarked, setAttendanceMarked] = useState<boolean | null>(null);
@@ -98,7 +101,6 @@ function QuickActionsInner({
             absentReasons?: Record<string, string>;
         } | null;
     } | null>(null);
-    const rootRef = useRef<HTMLDivElement | null>(null);
 
     const showKeys = canKeys && Boolean(state?.canRequest);
     const myKeys = (state?.keys ?? []).filter(key => key.holderId === state?.me.id);
@@ -163,22 +165,6 @@ function QuickActionsInner({
         };
     }, [quickClass]);
 
-    useEffect(() => {
-        if (!menu) return;
-
-        const onPointerDown = (event: MouseEvent | TouchEvent) => {
-            if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
-                setMenu(null);
-            }
-        };
-
-        document.addEventListener("mousedown", onPointerDown);
-        document.addEventListener("touchstart", onPointerDown);
-        return () => {
-            document.removeEventListener("mousedown", onPointerDown);
-            document.removeEventListener("touchstart", onPointerDown);
-        };
-    }, [menu]);
 
     const openMode = (next: EmployeeActionMode) => {
         setMenu(null);
@@ -291,9 +277,101 @@ function QuickActionsInner({
 
     if (!showKeys && !canViolations && !showClassActions) return null;
 
+    const actions: Array<{
+        id: string;
+        label: string;
+        icon: typeof KeyRound;
+        onClick: () => void;
+        className: string;
+        badge?: number;
+        alert?: boolean;
+    }> = [];
+
+    if (showClassActions) {
+        actions.push({
+            id: "pass",
+            label: "Выписать пропуск",
+            icon: Ticket,
+            onClick: () => void openQuickAction("pass"),
+            className: "border-warning/40 bg-warning-soft text-warning hover:bg-warning/20",
+        });
+        actions.push({
+            id: "attendance",
+            label: "Отметить присутствие",
+            icon: UserCheck,
+            onClick: () => void openQuickAction("attendance"),
+            className: "border-success/40 bg-success-soft text-success hover:bg-success/20",
+            alert: attendanceMarked === false,
+        });
+    }
+
+    if (canViolations) {
+        actions.push({
+            id: "violation",
+            label: "Зафиксировать нарушение",
+            icon: CircleAlert,
+            onClick: () => {
+                setMenu(null);
+                setViolationOpen(true);
+            },
+            className: "border-danger/40 bg-danger-soft text-danger hover:bg-danger/20",
+        });
+        actions.push({
+            id: "violation-history",
+            label: "История фиксаций",
+            icon: History,
+            onClick: () => {
+                setMenu(null);
+                router.push("/my-violations");
+            },
+            className: "border-border bg-surface-2 text-fg-muted hover:bg-surface-3 hover:text-fg",
+        });
+    }
+
+    if (showKeys) {
+        actions.push({
+            id: "key-take",
+            label: "Взять ключ",
+            icon: Key,
+            onClick: () => openMode("take"),
+            className: "border-accent/40 bg-accent-soft text-accent-text hover:bg-accent/20",
+        });
+        if (showReturn) {
+            actions.push({
+                id: "key-return",
+                label: "Сдать ключ",
+                icon: RotateCcw,
+                onClick: () => openMode("my"),
+                className: "border-success/40 bg-success-soft text-success hover:bg-success/20",
+            });
+        }
+        if (incoming.length > 0) {
+            actions.push({
+                id: "key-incoming",
+                label: "Принять ключ",
+                icon: Inbox,
+                onClick: () => openMode("incoming"),
+                className: "border-warning/40 bg-warning-soft text-warning hover:bg-warning/20",
+                badge: incoming.length,
+            });
+        }
+    }
+
+    if (canViolations) {
+        actions.push({
+            id: "printer",
+            label: "Отправить на компьютер",
+            icon: Printer,
+            onClick: () => {
+                setMenu(null);
+                setPrinterOpen(true);
+            },
+            className: "border-accent/40 bg-accent-soft text-accent-text hover:bg-accent/20",
+        });
+    }
+
     return (
         <>
-            {/* Распорка: фиксированный блок не перекрывает конец страницы. */}
             <div className="h-20 sm:h-16" aria-hidden />
 
             {menu !== null && (
@@ -304,98 +382,23 @@ function QuickActionsInner({
                 />
             )}
 
+            {menu !== null && (
+                <div className="fixed bottom-[calc(7rem+env(safe-area-inset-bottom))] right-3 z-40 flex max-h-[calc(100dvh-9rem)] flex-col-reverse items-end gap-2 overflow-y-auto pb-1 sm:bottom-20">
+                    {actions.map(action => (
+                        <QuickActionButton key={action.id} {...action} />
+                    ))}
+                </div>
+            )}
 
             <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-4 sm:bottom-6">
-                <div ref={rootRef} className="relative">
-
-                    {menu !== null && (
-                        <>
-                            {showKeys && (
-                                <div className="absolute right-full top-1/2 mr-2 -translate-y-1/2">
-                                    <div className="flex animate-[quickIn_220ms_ease-out] items-center gap-1.5 rounded-full border border-border bg-surface p-1.5 shadow-raised">
-                                        <IconAction
-                                            icon={Key}
-                                            label="Взять ключ"
-                                            onClick={() => openMode("take")}
-                                            className="border-accent/40 bg-accent-soft text-accent-text hover:bg-accent/20"
-                                        />
-                                        {showReturn && (
-                                            <IconAction
-                                                icon={RotateCcw}
-                                                label="Сдать ключ"
-                                                onClick={() => openMode("my")}
-                                                className="border-success/40 bg-success-soft text-success hover:bg-success/20"
-                                            />
-                                        )}
-                                        {incoming.length > 0 && (
-                                            <IconAction
-                                                icon={Inbox}
-                                                label="Принять переданный ключ"
-                                                badge={incoming.length}
-                                                onClick={() => openMode("incoming")}
-                                                className="border-warning/40 bg-warning-soft text-warning hover:bg-warning/20"
-                                            />
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {canViolations && (
-                                <div className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2">
-                                    <div className="flex animate-[quickIn_220ms_ease-out] flex-col items-center gap-1.5 rounded-full border border-border bg-surface p-1.5 shadow-raised">
-                                        <IconAction
-                                            icon={CircleAlert}
-                                            label="Отметить нарушение"
-                                            onClick={() => {
-                                                setMenu(null);
-                                                setViolationOpen(true);
-                                            }}
-                                            className="border-danger/40 bg-danger-soft text-danger hover:bg-danger/20"
-                                        />
-                                        <IconAction
-                                            icon={History}
-                                            label="История фиксаций"
-                                            onClick={() => {
-                                                setMenu(null);
-                                                router.push("/my-violations");
-                                            }}
-                                            className="border-border bg-surface-2 text-fg-muted hover:bg-surface-3 hover:text-fg"
-                                        />
-                                    </div>
-                                </div>
-                            )}
-
-                            {showClassActions && (
-                                <div className="absolute left-full top-1/2 ml-2 -translate-y-1/2">
-                                    <div className="flex animate-[quickIn_220ms_ease-out] items-center gap-1.5 rounded-full border border-border bg-surface p-1.5 shadow-raised">
-                                        <IconAction
-                                            icon={UserCheck}
-                                            label="Отметить присутствие"
-                                            alert={attendanceMarked === false}
-                                            onClick={() => void openQuickAction("attendance")}
-                                            className="border-success/40 bg-success-soft text-success hover:bg-success/20"
-                                        />
-                                        <IconAction
-                                            icon={Ticket}
-                                            label="Выписать пропуск"
-                                            onClick={() => void openQuickAction("pass")}
-                                            className="border-warning/40 bg-warning-soft text-warning hover:bg-warning/20"
-                                        />
-                                    </div>
-                                </div>
-                            )}
-                        </>
-                    )}
-
-                    <MainAction
-                        icon={Sparkles}
-                        label={menu ? "Закрыть быстрые команды" : "Быстрые команды"}
-                        active={menu !== null}
-                        hasBadge={attendanceMarked === false || incoming.length > 0}
-                        onClick={() => setMenu(current => (current ? null : "open"))}
-                        className="border-accent/50 bg-accent-soft text-accent-text hover:bg-accent/20"
-                    />
-                </div>
+                <MainAction
+                    icon={Sparkles}
+                    label={menu ? "Закрыть быстрые команды" : "Быстрые команды"}
+                    active={menu !== null}
+                    hasBadge={attendanceMarked === false || incoming.length > 0}
+                    onClick={() => setMenu(current => (current ? null : "open"))}
+                    className="border-accent/50 bg-accent-soft text-accent-text hover:bg-accent/20"
+                />
             </div>
 
             <EmployeeActionsModal
@@ -409,6 +412,8 @@ function QuickActionsInner({
                 onClose={() => setViolationOpen(false)}
                 onSubmit={handleSubmitViolation}
             />
+
+            <PrinterModal open={printerOpen} onClose={() => setPrinterOpen(false)} />
 
             <PassModal
                 isOpen={quickAction === "pass" && quickData !== null}
@@ -431,7 +436,6 @@ function QuickActionsInner({
         </>
     );
 }
-
 function MainAction({
     icon: Icon,
     label,
@@ -466,7 +470,7 @@ function MainAction({
     );
 }
 
-function IconAction({
+function QuickActionButton({
     icon: Icon,
     label,
     onClick,
@@ -486,20 +490,24 @@ function IconAction({
             type="button"
             onClick={onClick}
             aria-label={label}
-            title={label}
-            className={`relative flex h-11 w-11 items-center justify-center rounded-full border transition-colors active:scale-95 ${className}`}
+            className="flex max-w-[85vw] items-center justify-end gap-2 rounded-full text-right transition-transform active:scale-[0.98]"
         >
-            <Icon size={20} aria-hidden />
-            {alert ? (
-                <span className="absolute -left-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-danger text-[10px] font-bold leading-none text-white">
-                    !
-                </span>
-            ) : null}
-            {badge && badge > 0 ? (
-                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-semibold text-white">
-                    {badge}
-                </span>
-            ) : null}
+            <span className="rounded-full border border-border bg-surface/95 px-3 py-1.5 text-xs font-medium text-fg shadow-card backdrop-blur-sm">
+                {label}
+            </span>
+            <span className={`relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full border shadow-raised transition-colors ${className}`}>
+                <Icon size={21} aria-hidden />
+                {alert ? (
+                    <span className="absolute -left-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-danger text-[10px] font-bold leading-none text-white">
+                        !
+                    </span>
+                ) : null}
+                {badge && badge > 0 ? (
+                    <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-semibold text-white">
+                        {badge}
+                    </span>
+                ) : null}
+            </span>
         </button>
     );
 }
