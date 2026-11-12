@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/kit";
 import { useHeaderActions } from "@/components/shell/header-actions";
 import { formatDateRu } from "@/lib/date";
+import { normalizeClassName } from "@/lib/class-name";
 
 /** Ключ сохранения фильтров панели: переживают перезагрузку и переходы */
 const FILTERS_STORAGE_KEY = "el-dashboard-filters";
@@ -219,7 +220,7 @@ export default function AdminDashboardPage() {
 
     useEffect(() => {
         if (!session) return;
-        fetch("/api/keys/buildings", { cache: "no-store" })
+        fetch("/api/buildings", { cache: "no-store" })
             .then(response => response.json())
             .then(data => setBuildings(Array.isArray(data.buildings) ? data.buildings : []))
             .catch(() => setBuildings([]));
@@ -232,14 +233,17 @@ export default function AdminDashboardPage() {
         const grades = GRADE_GROUPS.find(group => group.id === gradeGroup)?.grades ?? [];
 
         const buildingClassNames = buildingId
-            ? new Set((buildings.find(item => item.id === buildingId)?.classes ?? []).map(item => item.name))
+            ? new Set(
+                (buildings.find(item => item.id === buildingId)?.classes ?? [])
+                    .map(item => normalizeClassName(item.name)),
+            )
             : null;
 
         return current.filter(item => {
             if (query && !item.studentName.toLowerCase().includes(query)) return false;
             if (grades.length > 0 && !grades.includes(item.grade)) return false;
             if (letter && item.studentName.charAt(0).toUpperCase() !== letter) return false;
-            if (buildingClassNames && !buildingClassNames.has(item.className)) return false;
+            if (buildingClassNames && !buildingClassNames.has(normalizeClassName(item.className))) return false;
             return true;
         });
     }, [current, search, gradeGroup, letter, buildingId, buildings]);
