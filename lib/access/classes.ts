@@ -6,14 +6,14 @@ import type { AccessInfo } from "./server";
 /**
  * Доступ к конкретному классу.
  *
- * Правило: администратор и «школьные» разделы (нарушения, портфолио, ВШУ)
- * видят все классы. Обычный учитель — только свои и расшаренные.
+ * Правило: администратор и «школьные» разделы (нарушения, портфолио, ВШУ,
+ * отсутствия) видят все классы. Обычный учитель — только свои и расшаренные.
  * Это серверная проверка, её нельзя обойти подменой classId в запросе.
  */
 export function hasSchoolWideClassAccess(access: AccessInfo): boolean {
     if (access.isAdmin) return true;
     return access.sections.some(section =>
-        ["violations", "students", "schoolRecords", "dashboard"].includes(section),
+        ["violations", "students", "schoolRecords", "dashboard", "absent"].includes(section),
     );
 }
 
