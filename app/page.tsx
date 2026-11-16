@@ -160,11 +160,11 @@ export default function PortalPage() {
                         >
                             Учебный процесс
                         </h2>
-                        <div className="space-y-3">
+                        <div className="space-y-2">
                             {hasMyClass && (
                                 <Link
                                     href="/my-class"
-                                    className="group block rounded-card border border-dashed border-border bg-surface p-4 shadow-card transition-colors hover:border-accent/50 hover:bg-surface-hover"
+                                    className="group block rounded-card border border-dashed border-border bg-surface p-3 shadow-card transition-colors hover:border-accent/50 hover:bg-surface-hover"
                                 >
                                     <div className="flex items-start gap-3">
                                         <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-control bg-accent-soft text-accent-text">
@@ -195,7 +195,7 @@ export default function PortalPage() {
                             {hasSeating && (
                                 <Link
                                     href="/seating"
-                                    className="group block rounded-card border border-dashed border-border bg-surface p-4 shadow-card transition-colors hover:border-accent/50 hover:bg-surface-hover"
+                                    className="group block rounded-card border border-dashed border-border bg-surface p-3 shadow-card transition-colors hover:border-accent/50 hover:bg-surface-hover"
                                 >
                                     <div className="flex items-start gap-3">
                                         <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-control bg-accent-soft text-accent-text">
@@ -230,7 +230,7 @@ export default function PortalPage() {
                         </h2>
                         <Link
                             href="/keys"
-                            className="group block rounded-card border border-dashed border-border bg-surface p-4 shadow-card transition-colors hover:border-accent/50 hover:bg-surface-hover"
+                            className="group block rounded-card border border-dashed border-border bg-surface p-3 shadow-card transition-colors hover:border-accent/50 hover:bg-surface-hover"
                         >
                             <div className="flex items-start gap-3">
                                 <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-control bg-accent-soft text-accent-text">
@@ -263,7 +263,7 @@ export default function PortalPage() {
                         </h2>
                         <Link
                             href="/admin"
-                            className="group block rounded-card border border-dashed border-border bg-surface p-4 shadow-card transition-colors hover:border-accent/50 hover:bg-surface-hover"
+                            className="group block rounded-card border border-dashed border-border bg-surface p-3 shadow-card transition-colors hover:border-accent/50 hover:bg-surface-hover"
                         >
                             <div className="flex items-start gap-3">
                                 <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-control bg-accent-soft text-accent-text">
@@ -299,10 +299,6 @@ export default function PortalPage() {
                         />
                     </Card>
                 )}
-
-                <p className="pb-4 pt-1 text-center text-[11px] text-fg-subtle">
-                    Электронный пропуск · вход {data?.user.email ?? session.user.email}
-                </p>
             </main>
         </div>
     );
