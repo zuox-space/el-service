@@ -7,14 +7,14 @@ export const SEAT_SIDES = ["left", "right"] as const;
 export type SeatSide = (typeof SEAT_SIDES)[number];
 
 /**
- * Кто видит рассадку:
+ * Просмотр рассадки:
  *  • ADMIN — все классы;
- *  • сотрудник с разделом «Электронная рассадка», но без «Мой класс» —
- *    все классы (доступ выдан явно);
- *  • классный руководитель — только свои и расшаренные классы.
+ *  • сотрудник с разделом «Электронная рассадка» — все классы;
+ *  • классный руководитель тоже получает `seating` автоматически и видит
+ *    все классы, но редактирование отдельно ограничено владельцем.
  */
 export function hasWideSeatingAccess(access: AccessInfo): boolean {
-    return access.isAdmin || (access.sections.includes("seating") && !access.sections.includes("myClass"));
+    return access.isAdmin || access.sections.includes("seating");
 }
 
 export async function canAccessSeatingClass(access: AccessInfo, classId: string): Promise<boolean> {
